@@ -1,7 +1,7 @@
 """
 Pipeline framework for composable ML workflows.
 
-This module will implement a flexible DAG-based pipeline system where:
+This module implements a flexible DAG-based pipeline system where:
 - Stages can be arbitrary processing nodes (preprocessing, models, post-processing)
 - Stages connect via edges defining data flow
 - Shared state/memory allows stages to communicate
@@ -14,7 +14,14 @@ Philosophy:
 - Easy to swap, add, or remove stages
 """
 
-# Placeholder for Phase 2: Pipeline abstraction
-# TODO: Design and implement DAG-based pipeline framework
+from pioneerml.pipelines.stage import Stage, StageConfig, FunctionalStage
+from pioneerml.pipelines.context import Context
+from pioneerml.pipelines.pipeline import Pipeline
 
-__all__ = []
+__all__ = [
+    "Stage",
+    "StageConfig",
+    "FunctionalStage",
+    "Context",
+    "Pipeline",
+]

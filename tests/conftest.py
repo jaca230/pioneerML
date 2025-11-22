@@ -34,7 +34,9 @@ def sample_graph_data():
     num_edges = edge_index.shape[1]
     edge_attr = torch.randn(num_edges, 4)
 
-    return Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
+    data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
+    data.batch = torch.zeros(num_nodes, dtype=torch.long)  # single graph batch assignment
+    return data
 
 
 @pytest.fixture

@@ -13,4 +13,18 @@ This module will contain:
 # Training functions currently reside in notebooks
 # TODO: Extract and modularize training code from notebooks
 
-__all__ = []
+from pioneerml.training.lightning import GraphLightningModule
+from pioneerml.training.datamodules import (
+    GraphDataModule,
+    GroupClassificationDataModule,
+    SplitterDataModule,
+    PionStopDataModule,
+)
+
+__all__ = [
+    "GraphLightningModule",
+    "GraphDataModule",
+    "GroupClassificationDataModule",
+    "SplitterDataModule",
+    "PionStopDataModule",
+]

@@ -1,5 +1,5 @@
 """
-Tests for GNN model architectures.
+Tests for GNN model classes.
 """
 
 import pytest

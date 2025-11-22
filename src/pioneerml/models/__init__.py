@@ -7,11 +7,13 @@ All models use a standardized graph representation:
 - Architecture: Transformer-based with JumpingKnowledge and attentional pooling
 """
 
-from pioneerml.models.architectures import (
-    FullGraphTransformerBlock,
+from pioneerml.models.blocks import FullGraphTransformerBlock
+from pioneerml.models.classifiers import (
     GroupClassifier,
-    GroupAffinityModel,
     GroupSplitter,
+    GroupAffinityModel,
+)
+from pioneerml.models.regressors import (
     PionStopRegressor,
     EndpointRegressor,
     PositronAngleModel,
@@ -20,8 +22,8 @@ from pioneerml.models.architectures import (
 __all__ = [
     "FullGraphTransformerBlock",
     "GroupClassifier",
-    "GroupAffinityModel",
     "GroupSplitter",
+    "GroupAffinityModel",
     "PionStopRegressor",
     "EndpointRegressor",
     "PositronAngleModel",

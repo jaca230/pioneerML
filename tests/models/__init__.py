@@ -1,1 +1,1 @@
-"""Tests for model architectures."""
+"""Tests for model implementations."""

@@ -27,3 +27,7 @@ Notes
 -----
 - All methods use the same dependency lists (`env/requirements.txt` / `env/requirements-dev.txt`).
 - Keep a single active environment at a time (deactivate conda/venv before switching).
+- RTX 50xx GPUs (sm_120) require PyTorch nightly with CUDA 12.8+; the conda env uses pip nightly wheels via `env/environment.yml`. For existing envs you can manually install with:
+  ```bash
+  pip install --upgrade --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
+  ```

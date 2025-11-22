@@ -8,15 +8,19 @@ PIONEER ML provides Graph Neural Network (GNN) models and training pipelines for
 
 ### Key Features
 
+- **DAG-Based Pipeline Framework**: Flexible, composable workflow system
+  - Arbitrary processing stages (no prescriptive types)
+  - Automatic dependency resolution
+  - Shared context for inter-stage communication
+  - Easy to extend and customize
 - **Standardized Graph Neural Networks**: Transformer-based GNN architectures for various reconstruction tasks
-- **Modular Pipeline Framework**: Composable stages for classification, splitting, and regression
 - **Multiple Reconstruction Models**:
   - Time group classification (particle identification)
   - Multi-particle hit splitting
   - Pion stop position regression
   - Track endpoint finding
   - Positron angle prediction
-- **Comprehensive Training Utilities**: Ready-to-use training loops with metrics and visualization
+- **Production-Ready**: Complete with tests, documentation, and examples
 
 ## Architecture
 
@@ -100,21 +104,56 @@ All models use a standardized graph representation:
 
 ## Usage
 
-### Training a Model
+### Pipeline Framework
+
+Build flexible ML workflows using the DAG-based pipeline system:
+
+```python
+from pioneerml.pipelines import Pipeline, Stage, StageConfig, Context, FunctionalStage
+
+# Define stages
+def load_data(ctx):
+    ctx['dataset'] = load_my_data()
+
+def train_model(ctx):
+    model = GroupClassifier(hidden=200, num_blocks=2)
+    trained = train(model, ctx['dataset'])
+    ctx['model'] = trained
+
+# Create pipeline
+pipeline = Pipeline([
+    FunctionalStage(
+        config=StageConfig(name='load', outputs=['dataset']),
+        func=load_data
+    ),
+    FunctionalStage(
+        config=StageConfig(name='train', inputs=['dataset'], outputs=['model']),
+        func=train_model
+    ),
+])
+
+# Run
+ctx = pipeline.run()
+print(ctx['model'])
+```
+
+See [notebooks/examples/pipeline_demo.py](notebooks/examples/pipeline_demo.py) for complete examples.
+
+### Training Models
 
 The repository includes Jupyter notebooks for training each model:
 
-- `classify_groups.ipynb` - Train the group classifier
-- `group_splitter.ipynb` - Train the hit splitter
-- `pion_stop.ipynb` - Train pion stop regression
-- `endpoint_finder.ipynb` - Track endpoint prediction (in development)
-- `positron_angle.ipynb` - Positron angle prediction (in development)
+- `notebooks/training/classify_groups.ipynb` - Train the group classifier
+- `notebooks/training/group_splitter.ipynb` - Train the hit splitter
+- `notebooks/training/pion_stop.ipynb` - Train pion stop regression
+- `notebooks/training/endpoint_finder.ipynb` - Track endpoint prediction (in development)
+- `notebooks/training/positron_angle.ipynb` - Positron angle prediction (in development)
 
 ### Example: Group Classification
 
 ```python
-from graph_data.models import GroupClassifier
-from graph_data.utils import GraphGroupDataset
+from pioneerml.models import GroupClassifier
+from pioneerml.data import GraphGroupDataset
 
 # Load preprocessed data
 from your_loader import load_preprocessed_time_groups

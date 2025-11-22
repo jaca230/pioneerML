@@ -1,0 +1,28 @@
+# Development dependencies
+# Install with: pip install -r requirements-dev.txt
+
+# First install core requirements
+-r requirements.txt
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Code quality
+black>=23.0.0
+ruff>=0.1.0
+mypy>=1.5.0
+pre-commit>=3.4.0
+
+# Jupyter
+ipykernel>=6.25.0
+jupyter>=1.0.0
+nbconvert>=7.0.0
+
+# Optional: PyTorch Lightning for advanced training
+pytorch-lightning>=2.0.0
+tensorboard>=2.14.0
+
+# Optional: Experiment tracking
+# wandb>=0.15.0
+# mlflow>=2.7.0

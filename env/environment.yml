@@ -1,12 +1,19 @@
 name: pioneerml
 channels:
   - pytorch
+  - nvidia
   - pyg
   - conda-forge
   - defaults
+
 dependencies:
   - python=3.11
-  - pytorch>=2.0
+
+  # GPU-capable PyTorch
+  - pytorch
+  - pytorch-cuda=12.4
+
+  # Lightning and supporting packages
   - pytorch-lightning>=2.0
   - pyg>=2.4
   - numpy>=1.24
@@ -17,13 +24,18 @@ dependencies:
   - tqdm>=4.65
   - pyyaml>=6.0
   - dataclasses-json>=0.6
+
+  # Dev tools
   - pytest>=7.4
   - pytest-cov>=4.1
   - black>=23.0
   - ruff>=0.1
   - mypy>=1.5
   - pre-commit>=3.4
+
+  # Notebook support
   - ipykernel>=6.25
   - jupyter>=1.0
   - nbconvert>=7.0
+
   - tensorboard>=2.14

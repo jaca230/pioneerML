@@ -78,6 +78,10 @@ class GraphLightningModule(pl.LightningModule):
             raise AttributeError("Batch is missing target attribute 'y' required for training.")
         preds = self(batch)
         target = batch.y
+
+        # Ensure target shape matches preds for BCE/CE losses
+        if target.dim() == 1 and preds.dim() == 2 and target.numel() % preds.shape[-1] == 0:
+            target = target.view(-1, preds.shape[-1])
         return preds, target
 
     def _compute_metrics(self, preds: torch.Tensor, target: torch.Tensor, prefix: str) -> Dict[str, float]:

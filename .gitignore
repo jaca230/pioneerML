@@ -103,7 +103,5 @@ Thumbs.db
 *.swp
 *~
 
-# Artifacts and deprecated code
+# Artifacts
 artifacts/
-deprecated/
-legacy_networks/

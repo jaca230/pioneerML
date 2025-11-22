@@ -31,3 +31,4 @@ Notes
   ```bash
   pip install --upgrade --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
   ```
+- If you want a minimal conda + uv flow, use `./env/setup_uv_conda.sh` (or `--dev` for dev/test deps). It creates `pioneerml-uv`, installs uv, then installs dependencies via uv inside that env.

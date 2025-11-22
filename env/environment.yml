@@ -1,0 +1,29 @@
+name: pioneerml
+channels:
+  - pytorch
+  - pyg
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pytorch>=2.0
+  - pytorch-lightning>=2.0
+  - pyg>=2.4
+  - numpy>=1.24
+  - scipy>=1.10
+  - pandas>=2.0
+  - matplotlib>=3.7
+  - seaborn>=0.12
+  - tqdm>=4.65
+  - pyyaml>=6.0
+  - dataclasses-json>=0.6
+  - pytest>=7.4
+  - pytest-cov>=4.1
+  - black>=23.0
+  - ruff>=0.1
+  - mypy>=1.5
+  - pre-commit>=3.4
+  - ipykernel>=6.25
+  - jupyter>=1.0
+  - nbconvert>=7.0
+  - tensorboard>=2.14

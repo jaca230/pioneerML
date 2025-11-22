@@ -24,11 +24,12 @@ MANIFEST
 
 # Virtual environments
 venv/
-env/
 ENV/
 env.bak/
 venv.bak/
 .venv/
+!/env/
+!/env/**
 
 # PyCharm
 .idea/

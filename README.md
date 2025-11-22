@@ -62,10 +62,10 @@ All models use a standardized graph representation:
 3. **Install dependencies**:
    ```bash
    # Core dependencies
-   pip install -r requirements.txt
+   pip install -r env/requirements.txt
 
    # Or for development (includes testing, formatting tools)
-   pip install -r requirements-dev.txt
+   pip install -r env/requirements-dev.txt
 
    # Or install as editable package
    pip install -e .
@@ -82,11 +82,33 @@ All models use a standardized graph representation:
    # See https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html
    ```
 
+### Conda environment (recommended)
+
+For an industry-standard, reproducible setup you can create the provided Conda environment:
+
+```bash
+conda env create -f env/environment.yml
+conda activate pioneerml
+```
+
+### uv (fast pip/venv)
+
+If you prefer uv for speedy installs:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh    # if uv not installed
+./env/uv-setup.sh           # core deps in .venv
+./env/uv-setup.sh --dev     # core + dev/test deps
+source .venv/bin/activate
+```
+
+See `env/README.md` for a summary of all environment options.
+
 ### Optional Dependencies
 
-- **PyTorch Lightning** (for advanced training features):
+- **TensorBoard logging support** (PyTorch Lightning is installed by default):
   ```bash
-  pip install pytorch-lightning tensorboard
+  pip install tensorboard
   ```
 
 - **Experiment Tracking** (Weights & Biases or MLflow):
@@ -199,19 +221,18 @@ with torch.no_grad():
 
 ```
 pioneerML/
-├── graph_data/              # Core Python package
-│   ├── models.py           # GNN model definitions
-│   └── utils.py            # Dataset classes and utilities
-├── legacy_networks/         # Archived implementations
-├── classify_groups.ipynb   # Group classification training
-├── group_splitter.ipynb    # Multi-particle splitting training
-├── pion_stop.ipynb         # Pion stop regression training
-├── endpoint_finder.ipynb   # Endpoint finding (in development)
-├── positron_angle.ipynb    # Positron angle (in development)
-├── pyproject.toml          # Project configuration
-├── requirements.txt        # Core dependencies
-├── requirements-dev.txt    # Development dependencies
-└── README.md               # This file
+├── src/pioneerml/            # Package source
+├── tests/                    # Unit tests
+├── notebooks/                # Training/evaluation notebooks
+├── env/                      # Environment setups (pip/conda/uv)
+│   ├── requirements.txt
+│   ├── requirements-dev.txt
+│   ├── environment.yml
+│   ├── uv-setup.sh
+│   └── README.md
+├── deprecated/legacy_networks/ # Archived implementations
+├── pyproject.toml            # Project configuration
+└── README.md                 # This file
 ```
 
 ## Models

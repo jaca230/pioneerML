@@ -61,11 +61,8 @@ All models use a standardized graph representation:
 
 3. **Install dependencies**:
    ```bash
-   # Core dependencies
-   pip install -r env/requirements.txt
-
-   # Or for development (includes testing, formatting tools)
-   pip install -r env/requirements-dev.txt
+   # All dependencies (core + dev tools)
+   pip install -r requirements.txt
 
    # Or install as editable package
    pip install -e .
@@ -224,13 +221,12 @@ pioneerML/
 ├── src/pioneerml/            # Package source
 ├── tests/                    # Unit tests
 ├── notebooks/                # Training/evaluation notebooks
-├── env/                      # Environment setups (pip/conda/uv)
-│   ├── requirements.txt
-│   ├── requirements-dev.txt
+├── env/                      # Environment setups (conda/uv)
 │   ├── environment.yml
 │   ├── uv-setup.sh
 │   └── README.md
 ├── deprecated/legacy_networks/ # Archived implementations
+├── requirements.txt          # All dependencies
 ├── pyproject.toml            # Project configuration
 └── README.md                 # This file
 ```

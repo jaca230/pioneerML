@@ -1,18 +1,6 @@
-# Core dependencies for PIONEER ML
-# Install with: pip install -r requirements.txt
+# DEPRECATED: This file has been moved to the repository root.
+# Please use: pip install -r requirements.txt (from repo root)
+#
+# All dependencies (core + dev) are now in a single requirements.txt file.
 
-torch>=2.0.0
-torch-geometric>=2.4.0
-pytorch-lightning>=2.0.0
-numpy>=1.24.0
-scipy>=1.10.0
-matplotlib>=3.7.0
-seaborn>=0.12.0
-pandas>=2.0.0
-tqdm>=4.65.0
-pyyaml>=6.0
-dataclasses-json>=0.6.0
-
-# Note: torch-geometric dependencies
-# You may need to install torch-scatter, torch-sparse, etc. separately
-# See: https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html
+-r ../requirements.txt

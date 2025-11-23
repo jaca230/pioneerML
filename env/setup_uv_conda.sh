@@ -2,19 +2,13 @@
 set -euo pipefail
 
 # This script bootstraps a minimal conda env with Python, installs uv,
-# and uses uv to install project dependencies from env/requirements.txt
-# (or env/requirements-dev.txt when --dev is passed).
+# and uses uv to install project dependencies from requirements.txt.
 #
 # Usage:
-#   ./env/setup_uv_conda.sh          # core deps
-#   ./env/setup_uv_conda.sh --dev    # core + dev/test deps
+#   ./env/setup_uv_conda.sh
 
 ENV_NAME="pioneerml-uv"
-REQ_FILE="env/requirements.txt"
-
-if [ "${1:-}" = "--dev" ]; then
-  REQ_FILE="env/requirements-dev.txt"
-fi
+REQ_FILE="requirements.txt"
 
 if ! command -v conda >/dev/null 2>&1; then
   echo "conda is not available on PATH. Please install Miniconda/Anaconda first." >&2

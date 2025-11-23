@@ -66,11 +66,14 @@ class GraphGroupDataset(Dataset):
 
         data = Data(x=node_features, edge_index=edge_index, edge_attr=edge_attr)
 
-        if item.labels and self.num_classes:
+        # Always emit a label tensor when num_classes is set so downstream training
+        # (Lightning, collate) does not drop samples with no positive labels.
+        if self.num_classes:
             label_tensor = torch.zeros(self.num_classes, dtype=torch.float)
-            for lbl in item.labels:
-                if 0 <= lbl < self.num_classes:
-                    label_tensor[lbl] = 1.0
+            if item.labels:
+                for lbl in item.labels:
+                    if 0 <= lbl < self.num_classes:
+                        label_tensor[lbl] = 1.0
             data.y = label_tensor
 
         if item.event_id is not None:

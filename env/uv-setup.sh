@@ -16,10 +16,7 @@ fi
 
 source .venv/bin/activate
 
-INSTALL_FILE="$REPO_ROOT/env/requirements.txt"
-if [ "${1:-}" = "--dev" ]; then
-  INSTALL_FILE="$REPO_ROOT/env/requirements-dev.txt"
-fi
+INSTALL_FILE="$REPO_ROOT/requirements.txt"
 
 echo "Installing dependencies from $INSTALL_FILE using uv..."
 uv pip install -r "$INSTALL_FILE"

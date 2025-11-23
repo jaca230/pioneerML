@@ -22,6 +22,7 @@ from pioneerml.training.datamodules import (
 )
 from pioneerml.training.visualization import plot_loss_curves
 from pioneerml.training.utils import set_tensor_core_precision, default_precision_for_accelerator
+from pioneerml.training.progress import CleanProgressBar
 
 __all__ = [
     "GraphLightningModule",
@@ -32,4 +33,5 @@ __all__ = [
     "plot_loss_curves",
     "set_tensor_core_precision",
     "default_precision_for_accelerator",
+    "CleanProgressBar",
 ]

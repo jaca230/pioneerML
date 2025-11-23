@@ -21,6 +21,7 @@ from pioneerml.training.datamodules import (
     PionStopDataModule,
 )
 from pioneerml.training.visualization import plot_loss_curves
+from pioneerml.training.utils import set_tensor_core_precision, default_precision_for_accelerator
 
 __all__ = [
     "GraphLightningModule",
@@ -29,4 +30,6 @@ __all__ = [
     "SplitterDataModule",
     "PionStopDataModule",
     "plot_loss_curves",
+    "set_tensor_core_precision",
+    "default_precision_for_accelerator",
 ]

@@ -20,6 +20,7 @@ from pioneerml.training.datamodules import (
     SplitterDataModule,
     PionStopDataModule,
 )
+from pioneerml.training.visualization import plot_loss_curves
 
 __all__ = [
     "GraphLightningModule",
@@ -27,4 +28,5 @@ __all__ = [
     "GroupClassificationDataModule",
     "SplitterDataModule",
     "PionStopDataModule",
+    "plot_loss_curves",
 ]

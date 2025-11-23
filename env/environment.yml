@@ -40,6 +40,6 @@ dependencies:
   - pip
   - pip:
       - --extra-index-url https://download.pytorch.org/whl/nightly/cu128
-      - torch==2.7.0.dev*+cu128
-      - torchvision==0.18.0.dev*+cu128
-      - torchaudio==2.4.0.dev*+cu128
+      - torch>=2.7.0.dev0
+      - torchvision>=0.18.0.dev0
+      - torchaudio>=2.4.0.dev0

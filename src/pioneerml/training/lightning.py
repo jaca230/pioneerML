@@ -40,6 +40,10 @@ class GraphLightningModule(pl.LightningModule):
         self.weight_decay = weight_decay
         self.optimizer_cls = optimizer_cls
 
+        # Simple histories for plotting later
+        self.train_loss_history: list[float] = []
+        self.val_loss_history: list[float] = []
+
         if loss_fn is not None:
             self.loss_fn = loss_fn
         elif task == "classification":
@@ -53,19 +57,23 @@ class GraphLightningModule(pl.LightningModule):
     def training_step(self, batch: Batch, batch_idx: int) -> torch.Tensor:
         preds, target = self._shared_step(batch)
         loss = self.loss_fn(preds, target)
-        self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        bs = self._get_batch_size(batch)
+        self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True, batch_size=bs)
 
         metrics = self._compute_metrics(preds, target, prefix="train")
-        self.log_dict(metrics, on_step=False, on_epoch=True, prog_bar=False)
+        self.log_dict(metrics, on_step=False, on_epoch=True, prog_bar=False, batch_size=bs)
+        self.train_loss_history.append(loss.detach().cpu().item())
         return loss
 
     def validation_step(self, batch: Batch, batch_idx: int) -> None:
         preds, target = self._shared_step(batch)
         loss = self.loss_fn(preds, target)
-        self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        bs = self._get_batch_size(batch)
+        self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True, batch_size=bs)
 
         metrics = self._compute_metrics(preds, target, prefix="val")
-        self.log_dict(metrics, on_step=False, on_epoch=True, prog_bar=False)
+        self.log_dict(metrics, on_step=False, on_epoch=True, prog_bar=False, batch_size=bs)
+        self.val_loss_history.append(loss.detach().cpu().item())
 
     def predict_step(self, batch: Batch, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
         return self(batch)
@@ -83,6 +91,14 @@ class GraphLightningModule(pl.LightningModule):
         if target.dim() == 1 and preds.dim() == 2 and target.numel() % preds.shape[-1] == 0:
             target = target.view(-1, preds.shape[-1])
         return preds, target
+
+    @staticmethod
+    def _get_batch_size(batch: Batch) -> int:
+        if hasattr(batch, "num_graphs"):
+            return int(batch.num_graphs)
+        if hasattr(batch, "batch"):
+            return int(batch.batch.max().item() + 1)
+        return 1
 
     def _compute_metrics(self, preds: torch.Tensor, target: torch.Tensor, prefix: str) -> Dict[str, float]:
         metrics: Dict[str, float] = {}

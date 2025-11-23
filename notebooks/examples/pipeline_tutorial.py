@@ -37,7 +37,7 @@ from pioneerml.data import GraphGroupDataset  # noqa: E402
 from pioneerml.models import GroupClassifier  # noqa: E402
 from pioneerml.pipelines import Context, Pipeline, StageConfig  # noqa: E402
 from pioneerml.pipelines.stages import LightningTrainStage  # noqa: E402
-from pioneerml.training import GraphDataModule, GraphLightningModule  # noqa: E402
+from pioneerml.training import GraphDataModule, GraphLightningModule, plot_loss_curves  # noqa: E402
 
 
 def make_record(num_hits: int, event_id: int) -> dict:
@@ -66,9 +66,16 @@ def build_dataset(n: int = 20) -> GraphGroupDataset:
     return GraphGroupDataset(records, num_classes=3)
 
 
-def main(device: str, max_epochs: int, limit_train_batches: int) -> None:
+def main(device: str, max_epochs: int, limit_train_batches: int, num_workers: int, plot_path: str | None) -> None:
     dataset = build_dataset()
-    datamodule = GraphDataModule(dataset=dataset, batch_size=4, val_split=0.2, test_split=0.0)
+    datamodule = GraphDataModule(
+        dataset=dataset,
+        batch_size=4,
+        val_split=0.2,
+        test_split=0.0,
+        num_workers=num_workers,
+        pin_memory=device == "gpu",
+    )
 
     model = GroupClassifier(num_classes=3, hidden=64, num_blocks=2)
     lightning_module = GraphLightningModule(model, task="classification", lr=1e-3)
@@ -99,26 +106,45 @@ def main(device: str, max_epochs: int, limit_train_batches: int) -> None:
     print("Context summary:", ctx.summary())
     print("Metrics:", ctx.get("metrics", {}))
 
+    if plot_path:
+        plot_loss_curves(
+            train_losses=lightning_module.train_loss_history,
+            val_losses=lightning_module.val_loss_history,
+            title="Tutorial Loss",
+            save_path=plot_path,
+            show=False,
+        )
+        print(f"Saved loss plot to {plot_path}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--device",
         default="cpu",
-        choices=["cpu", "cuda", "mps", "auto"],
+        choices=["cpu", "cuda", "gpu", "mps", "auto"],
         help="Accelerator to use (default: cpu).",
     )
     parser.add_argument("--epochs", type=int, default=1, help="Number of epochs.")
     parser.add_argument("--limit-train-batches", type=int, default=2, help="Limit train batches for quick runs.")
+    parser.add_argument("--num-workers", type=int, default=2, help="DataLoader workers.")
+    parser.add_argument("--plot-path", type=str, default=None, help="Optional path to save loss plot.")
     args = parser.parse_args()
 
     # If user requested CUDA, make sure it's actually usable; otherwise fall back to CPU.
     requested_device = args.device
-    if requested_device == "cuda":
+    if requested_device in ("cuda", "gpu"):
         if not torch.cuda.is_available():
             print("CUDA not available, falling back to CPU.")
             requested_device = "cpu"
         else:
             props = torch.cuda.get_device_properties(0)
             print(f"Using CUDA device: {props.name} (cc {props.major}.{props.minor})")
-    main(requested_device, max_epochs=args.epochs, limit_train_batches=args.limit_train_batches)
+            torch.set_float32_matmul_precision("medium")
+    main(
+        requested_device,
+        max_epochs=args.epochs,
+        limit_train_batches=args.limit_train_batches,
+        num_workers=args.num_workers,
+        plot_path=args.plot_path,
+    )

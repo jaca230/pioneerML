@@ -43,6 +43,12 @@ class GraphLightningModule(pl.LightningModule):
         # Simple histories for plotting later
         self.train_loss_history: list[float] = []
         self.val_loss_history: list[float] = []
+        self.train_epoch_loss_history: list[float] = []
+        self.val_epoch_loss_history: list[float] = []
+        self._train_loss_sum: float = 0.0
+        self._train_loss_count: int = 0
+        self._val_loss_sum: float = 0.0
+        self._val_loss_count: int = 0
 
         if loss_fn is not None:
             self.loss_fn = loss_fn
@@ -63,6 +69,8 @@ class GraphLightningModule(pl.LightningModule):
         metrics = self._compute_metrics(preds, target, prefix="train")
         self.log_dict(metrics, on_step=False, on_epoch=True, prog_bar=False, batch_size=bs)
         self.train_loss_history.append(loss.detach().cpu().item())
+        self._train_loss_sum += loss.detach().cpu().item() * bs
+        self._train_loss_count += bs
         return loss
 
     def validation_step(self, batch: Batch, batch_idx: int) -> None:
@@ -74,6 +82,20 @@ class GraphLightningModule(pl.LightningModule):
         metrics = self._compute_metrics(preds, target, prefix="val")
         self.log_dict(metrics, on_step=False, on_epoch=True, prog_bar=False, batch_size=bs)
         self.val_loss_history.append(loss.detach().cpu().item())
+        self._val_loss_sum += loss.detach().cpu().item() * bs
+        self._val_loss_count += bs
+
+    def on_train_epoch_end(self) -> None:
+        if self._train_loss_count > 0:
+            self.train_epoch_loss_history.append(self._train_loss_sum / self._train_loss_count)
+        self._train_loss_sum = 0.0
+        self._train_loss_count = 0
+
+    def on_validation_epoch_end(self) -> None:
+        if self._val_loss_count > 0:
+            self.val_epoch_loss_history.append(self._val_loss_sum / self._val_loss_count)
+        self._val_loss_sum = 0.0
+        self._val_loss_count = 0
 
     def predict_step(self, batch: Batch, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
         return self(batch)

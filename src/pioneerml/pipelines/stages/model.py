@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 
 from pioneerml.pipelines.stage import Stage, StageConfig
-from pioneerml.training import GraphLightningModule, GraphDataModule
+from pioneerml.training import GraphLightningModule, GraphDataModule, set_tensor_core_precision, default_precision_for_accelerator
 
 
 class TrainModelStage(Stage):
@@ -181,6 +181,11 @@ class LightningTrainStage(Stage):
                 )
 
         trainer_params: Dict[str, Any] = params.get("trainer_params", {})
+        accel = trainer_params.get("accelerator", "auto")
+        prec = trainer_params.get("precision") or default_precision_for_accelerator(accel)
+        trainer_params["precision"] = prec
+        if accel in {"cuda", "gpu", "auto"}:
+            set_tensor_core_precision(params.get("matmul_precision", "medium"))
         trainer = pl.Trainer(**trainer_params)
         trainer.fit(module, datamodule=datamodule)
 

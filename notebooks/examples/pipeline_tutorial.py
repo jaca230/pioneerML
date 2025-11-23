@@ -37,7 +37,13 @@ from pioneerml.data import GraphGroupDataset  # noqa: E402
 from pioneerml.models import GroupClassifier  # noqa: E402
 from pioneerml.pipelines import Context, Pipeline, StageConfig  # noqa: E402
 from pioneerml.pipelines.stages import LightningTrainStage  # noqa: E402
-from pioneerml.training import GraphDataModule, GraphLightningModule, plot_loss_curves  # noqa: E402
+from pioneerml.training import (  # noqa: E402
+    GraphDataModule,
+    GraphLightningModule,
+    plot_loss_curves,
+    set_tensor_core_precision,
+    default_precision_for_accelerator,
+)
 
 
 def make_record(num_hits: int, event_id: int) -> dict:
@@ -88,6 +94,8 @@ def main(device: str, max_epochs: int, limit_train_batches: int, num_workers: in
         "limit_val_batches": 1,
         "logger": False,
         "enable_checkpointing": False,
+        "precision": default_precision_for_accelerator(device),
+        "enable_model_summary": False,
     }
 
     train_stage = LightningTrainStage(
@@ -106,14 +114,29 @@ def main(device: str, max_epochs: int, limit_train_batches: int, num_workers: in
     print("Context summary:", ctx.summary())
     print("Metrics:", ctx.get("metrics", {}))
 
-    if plot_path:
+    # Per-step loss curve (train has more steps than val because it has more batches)
+    plot_loss_curves(
+        train_losses=lightning_module.train_loss_history,
+        val_losses=lightning_module.val_loss_history,
+        title="Loss per step",
+        xlabel="Step",
+        save_path=plot_path,
+        show=plot_path is None,
+    )
+
+    # Per-epoch loss curve (aligned lengths)
+    if lightning_module.train_epoch_loss_history:
         plot_loss_curves(
-            train_losses=lightning_module.train_loss_history,
-            val_losses=lightning_module.val_loss_history,
-            title="Tutorial Loss",
-            save_path=plot_path,
-            show=False,
+            train_losses=lightning_module.train_epoch_loss_history,
+            val_losses=lightning_module.val_epoch_loss_history,
+            title="Loss per epoch",
+            xlabel="Epoch",
+            save_path=None if plot_path is None else plot_path.replace(".png", "_epoch.png"),
+            show=plot_path is None,
         )
+        if plot_path:
+            print(f"Saved loss plots to {plot_path} (steps) and {plot_path.replace('.png', '_epoch.png')} (epochs)")
+    elif plot_path:
         print(f"Saved loss plot to {plot_path}")
 
 
@@ -140,7 +163,7 @@ if __name__ == "__main__":
         else:
             props = torch.cuda.get_device_properties(0)
             print(f"Using CUDA device: {props.name} (cc {props.major}.{props.minor})")
-            torch.set_float32_matmul_precision("medium")
+            set_tensor_core_precision("medium")
     main(
         requested_device,
         max_epochs=args.epochs,

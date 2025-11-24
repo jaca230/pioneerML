@@ -11,8 +11,20 @@ from pioneerml.pipelines.stages.trainers.lightning_train import LightningTrainSt
 from pioneerml.pipelines.stages.collectors.collect_preds import CollectPredsStage
 from pioneerml.pipelines.stages.evaluators.evaluation import EvaluateStage
 from pioneerml.pipelines.stages.runners.inference import InferenceStage
+from pioneerml.pipelines.stages.roles import (
+    ProviderStage,
+    TrainerStage,
+    CollectorStage,
+    EvaluatorStage,
+    RunnerStage,
+)
 
 __all__ = [
+    "ProviderStage",
+    "TrainerStage",
+    "CollectorStage",
+    "EvaluatorStage",
+    "RunnerStage",
     "LoadDataStage",
     "SaveDataStage",
     "TrainModelStage",

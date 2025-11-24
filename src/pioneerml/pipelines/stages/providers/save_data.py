@@ -7,10 +7,11 @@ from __future__ import annotations
 from typing import Any
 import numpy as np
 
-from pioneerml.pipelines.stage import Stage, StageConfig
+from pioneerml.pipelines.stage import StageConfig
+from pioneerml.pipelines.stages.roles import ProviderStage
 
 
-class SaveDataStage(Stage):
+class SaveDataStage(ProviderStage):
     """
     Stage for saving data using a provided saver or path.
     """

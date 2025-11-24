@@ -8,10 +8,11 @@ from typing import Any, Optional, Dict
 import torch
 from torch.utils.data import DataLoader
 
-from pioneerml.pipelines.stage import Stage, StageConfig
+from pioneerml.pipelines.stage import StageConfig
+from pioneerml.pipelines.stages.roles import TrainerStage
 
 
-class TrainModelStage(Stage):
+class TrainModelStage(TrainerStage):
     """
     Stage for training a PyTorch model (non-Lightning).
 

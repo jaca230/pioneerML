@@ -6,10 +6,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from pioneerml.pipelines.stage import Stage, StageConfig
+from pioneerml.pipelines.stage import StageConfig
+from pioneerml.pipelines.stages.roles import ProviderStage
 
 
-class LoadDataStage(Stage):
+class LoadDataStage(ProviderStage):
     """
     Stage for loading data using a provided callable.
 

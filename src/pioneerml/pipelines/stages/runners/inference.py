@@ -7,10 +7,11 @@ from __future__ import annotations
 from typing import Any
 import torch
 
-from pioneerml.pipelines.stage import Stage, StageConfig
+from pioneerml.pipelines.stage import StageConfig
+from pioneerml.pipelines.stages.roles import RunnerStage
 
 
-class InferenceStage(Stage):
+class InferenceStage(RunnerStage):
     """
     Stage for running model inference.
 

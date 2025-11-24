@@ -8,10 +8,11 @@ from typing import Any, Dict, Optional
 import pytorch_lightning as pl
 
 from pioneerml.training import GraphLightningModule, GraphDataModule, set_tensor_core_precision, default_precision_for_accelerator
-from pioneerml.pipelines.stage import Stage, StageConfig
+from pioneerml.pipelines.stage import StageConfig
+from pioneerml.pipelines.stages.roles import TrainerStage
 
 
-class LightningTrainStage(Stage):
+class LightningTrainStage(TrainerStage):
     """
     Stage for training models with PyTorch Lightning.
 

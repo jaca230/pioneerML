@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 from pioneerml.evaluation import MetricCollection, PLOT_REGISTRY, default_metrics_for_task
-from pioneerml.pipelines.stage import Stage, StageConfig
+from pioneerml.pipelines.stage import StageConfig
+from pioneerml.pipelines.stages.roles import EvaluatorStage
 
 
 def _align_shapes(preds: Any, targets: Any) -> tuple[Any, Any]:
@@ -48,7 +49,7 @@ def _align_shapes(preds: Any, targets: Any) -> tuple[Any, Any]:
     return preds, targets
 
 
-class EvaluateStage(Stage):
+class EvaluateStage(EvaluatorStage):
     """
     Stage for evaluating model predictions with standardized metrics and plots.
 

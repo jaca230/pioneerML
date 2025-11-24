@@ -7,12 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-from pioneerml.evaluation import (
-    MetricCollection,
-    PLOT_REGISTRY,
-    default_metrics_for_task,
-    resolve_preds_targets,
-)
+from pioneerml.evaluation import MetricCollection, PLOT_REGISTRY, default_metrics_for_task
 from pioneerml.pipelines.stage import Stage, StageConfig
 
 
@@ -51,37 +46,6 @@ def _align_shapes(preds: Any, targets: Any) -> tuple[Any, Any]:
     except Exception:
         pass
     return preds, targets
-
-
-class CollectPredsStage(Stage):
-    """
-    Stage that runs a dataloader and caches predictions/targets in the context.
-
-    Params:
-        dataloader: Which dataloader to use from the datamodule ("val" by default).
-        module_key: Context key for the model/lightning module (default: "lightning_module").
-        datamodule_key: Context key for the datamodule (default: "datamodule").
-        preds_key / targets_key: Where to store results in the context (default: "preds"/"targets").
-    """
-
-    def execute(self, context: Any) -> None:
-        params = self.config.params
-        dataloader = params.get("dataloader", "val")
-        preds_key = params.get("preds_key", "preds")
-        targets_key = params.get("targets_key", "targets")
-
-        # Ensure required objects exist
-        module_key = params.get("module_key", "lightning_module")
-        datamodule_key = params.get("datamodule_key", "datamodule")
-        if module_key not in context or datamodule_key not in context:
-            raise KeyError(
-                f"CollectPredsStage requires '{module_key}' and '{datamodule_key}' in context. "
-                "Run training or provide these objects first."
-            )
-
-        preds, targets = resolve_preds_targets(context, dataloader=dataloader)
-        context[preds_key] = preds
-        context[targets_key] = targets
 
 
 class EvaluateStage(Stage):

@@ -4,82 +4,168 @@ Evaluation and metrics pipeline stages.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional
-import torch
 
+from pioneerml.evaluation import (
+    MetricCollection,
+    PLOT_REGISTRY,
+    default_metrics_for_task,
+    resolve_preds_targets,
+)
 from pioneerml.pipelines.stage import Stage, StageConfig
+
+
+def _align_shapes(preds: Any, targets: Any) -> tuple[Any, Any]:
+    """Align target shape to predictions when they have the same number of elements."""
+    if preds is None or targets is None:
+        return preds, targets
+
+    def _numel(x: Any) -> int | None:
+        if hasattr(x, "numel"):
+            try:
+                return int(x.numel())
+            except Exception:
+                pass
+        if hasattr(x, "size"):
+            size_attr = getattr(x, "size")
+            if callable(size_attr):
+                try:
+                    return int(size_attr())
+                except Exception:
+                    pass
+            else:
+                try:
+                    return int(size_attr)
+                except Exception:
+                    pass
+        return None
+
+    try:
+        p_shape = preds.shape
+        t_shape = targets.shape
+        p_size = _numel(preds)
+        t_size = _numel(targets)
+        if p_size is not None and t_size is not None and p_size == t_size and p_shape != t_shape:
+            targets = targets.reshape(p_shape)
+    except Exception:
+        pass
+    return preds, targets
+
+
+class CollectPredsStage(Stage):
+    """
+    Stage that runs a dataloader and caches predictions/targets in the context.
+
+    Params:
+        dataloader: Which dataloader to use from the datamodule ("val" by default).
+        module_key: Context key for the model/lightning module (default: "lightning_module").
+        datamodule_key: Context key for the datamodule (default: "datamodule").
+        preds_key / targets_key: Where to store results in the context (default: "preds"/"targets").
+    """
+
+    def execute(self, context: Any) -> None:
+        params = self.config.params
+        dataloader = params.get("dataloader", "val")
+        preds_key = params.get("preds_key", "preds")
+        targets_key = params.get("targets_key", "targets")
+
+        # Ensure required objects exist
+        module_key = params.get("module_key", "lightning_module")
+        datamodule_key = params.get("datamodule_key", "datamodule")
+        if module_key not in context or datamodule_key not in context:
+            raise KeyError(
+                f"CollectPredsStage requires '{module_key}' and '{datamodule_key}' in context. "
+                "Run training or provide these objects first."
+            )
+
+        preds, targets = resolve_preds_targets(context, dataloader=dataloader)
+        context[preds_key] = preds
+        context[targets_key] = targets
 
 
 class EvaluateStage(Stage):
     """
-    Stage for evaluating model predictions.
+    Stage for evaluating model predictions with standardized metrics and plots.
+
+    Params:
+        task: "multilabel" (default) or "regression" to select default metrics.
+        metrics: Optional list of metric names to compute (uses registry).
+        metric_params: Extra kwargs passed to metric functions (e.g., threshold, class_names).
+        plots: Optional list of plot names to generate (uses registry).
+        plot_params: Extra kwargs for plotting functions.
+        save_dir: Directory to write plot artifacts.
+        metric_fn: Optional custom metric callable for backward compatibility.
 
     Example:
-        >>> def compute_metrics(predictions, targets):
-        ...     accuracy = (predictions.argmax(1) == targets).float().mean()
-        ...     return {'accuracy': accuracy.item()}
-        ...
         >>> stage = EvaluateStage(
         ...     config=StageConfig(
-        ...         name='evaluate',
-        ...         inputs=['predictions', 'targets'],
-        ...         outputs=['evaluation_metrics'],
-        ...         params={'metric_fn': compute_metrics},
+        ...         name="evaluate",
+        ...         inputs=["predictions", "targets"],
+        ...         outputs=["evaluation_metrics"],
+        ...         params={
+        ...             "task": "multilabel",
+        ...             "plots": ["multilabel_confusion", "precision_recall"],
+        ...             "metric_params": {"threshold": 0.5, "class_names": ["pi", "mu", "e+"]},
+        ...             "save_dir": "outputs/eval",
+        ...         },
         ...     )
         ... )
     """
 
     def execute(self, context: Any) -> None:
-        """Evaluate predictions."""
-        # Get metric function
-        metric_fn = self.config.params.get("metric_fn")
-
-        if metric_fn is None:
-            # Use default metrics
-            metric_fn = self._default_metrics
-
-        # Get predictions and targets
-        predictions = context.get(self.inputs[0] if len(self.inputs) > 0 else "predictions")
+        """Evaluate predictions with registry-backed metrics and plots."""
+        params = self.config.params
+        predictions = context.get(self.inputs[0] if self.inputs else "predictions")
         targets = context.get(self.inputs[1] if len(self.inputs) > 1 else "targets")
 
         if predictions is None:
-            raise KeyError(f"'{self.inputs[0]}' not found in context")
+            missing = self.inputs[0] if self.inputs else "predictions"
+            raise KeyError(f"'{missing}' not found in context")
 
-        # Compute metrics
-        if targets is not None:
+        predictions, targets = _align_shapes(predictions, targets)
+
+        metric_fn: Optional[Callable] = params.get("metric_fn")
+        task = params.get("task", "multilabel")
+        metric_names = params.get("metrics")
+        metric_params = params.get("metric_params", {}).copy()
+
+        # Allow class_names to be passed once for all metrics
+        class_names = params.get("class_names") or metric_params.get("class_names")
+        if class_names and "class_names" not in metric_params:
+            metric_params["class_names"] = class_names
+
+        if metric_fn is not None:
             metrics = metric_fn(predictions, targets)
         else:
-            # No targets available - just store predictions
-            metrics = {"num_predictions": len(predictions)}
+            names = metric_names or default_metrics_for_task(task)
+            collection = MetricCollection.from_names(names)
+            if targets is None:
+                raise ValueError("Targets are required to compute evaluation metrics.")
+            metrics = collection(predictions, targets, **metric_params)
 
-        # Store results
         output_key = self.outputs[0] if self.outputs else "evaluation_metrics"
         context[output_key] = metrics
 
-    @staticmethod
-    def _default_metrics(predictions: torch.Tensor, targets: torch.Tensor) -> Dict[str, float]:
-        """
-        Compute default metrics.
+        # Optional plot generation
+        plots = params.get("plots") or []
+        if plots and targets is not None:
+            save_dir = Path(params.get("save_dir", "outputs/evaluation"))
+            save_dir.mkdir(parents=True, exist_ok=True)
+            plot_params = params.get("plot_params", {}).copy()
+            if class_names and "class_names" not in plot_params:
+                plot_params["class_names"] = class_names
 
-        Args:
-            predictions: Model predictions.
-            targets: Ground truth targets.
-
-        Returns:
-            Dictionary of metrics.
-        """
-        metrics = {}
-
-        # For classification (multi-label binary)
-        if predictions.dim() == 2 and targets.dim() == 2:
-            # Assume binary classification with sigmoid outputs
-            pred_binary = (predictions > 0.5).float()
-            accuracy = (pred_binary == targets).float().mean()
-            metrics["accuracy"] = accuracy.item()
-
-        # For regression
-        elif predictions.dim() <= 2 and targets.dim() <= 2:
-            mse = ((predictions - targets) ** 2).mean()
-            metrics["mse"] = mse.item()
-
-        return metrics
+            generated: Dict[str, str | None] = {}
+            for plot_name in plots:
+                if plot_name not in PLOT_REGISTRY:
+                    raise KeyError(f"Plot '{plot_name}' is not registered. Available: {list(PLOT_REGISTRY)}")
+                plot_fn = PLOT_REGISTRY[plot_name]
+                plot_path = save_dir / f"{plot_name}.png"
+                generated[plot_name] = plot_fn(
+                    predictions=predictions,
+                    targets=targets,
+                    save_path=plot_path,
+                    **plot_params,
+                )
+            context["evaluation_plots"] = generated

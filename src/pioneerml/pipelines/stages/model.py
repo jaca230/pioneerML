@@ -192,6 +192,7 @@ class LightningTrainStage(Stage):
         context["lightning_module"] = module
         context["trainer"] = trainer
         context["model"] = getattr(module, "model", module)
+        context["datamodule"] = datamodule
 
         if trainer.logged_metrics:
             context["metrics"] = {

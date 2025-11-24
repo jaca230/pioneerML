@@ -1,15 +1,41 @@
 """
 Evaluation metrics and diagnostic tools.
 
-This module will contain:
-- Metrics (accuracy, confusion matrices, regression metrics)
-- Visualization utilities (plots, heatmaps)
-- Model comparison tools
-- Performance analysis
+Includes:
+- Metric registry with defaults for multilabel classification and regression
+- Plot registry for standardized diagnostics
 """
 
-# Placeholder for future evaluation utilities
-# Evaluation code currently in notebooks
-# TODO: Extract metrics and visualization code
+from pioneerml.evaluation.metrics import (
+    METRIC_REGISTRY,
+    MetricCollection,
+    default_metrics_for_task,
+    multilabel_classification_metrics,
+    regression_metrics,
+    register_metric,
+)
+from pioneerml.evaluation.plots import (
+    PLOT_REGISTRY,
+    plot_multilabel_confusion_matrix,
+    plot_precision_recall_curves,
+    plot_regression_diagnostics,
+    plot_roc_curves,
+    register_plot,
+)
+from pioneerml.evaluation.utils import resolve_preds_targets
 
-__all__ = []
+__all__ = [
+    "METRIC_REGISTRY",
+    "PLOT_REGISTRY",
+    "MetricCollection",
+    "default_metrics_for_task",
+    "multilabel_classification_metrics",
+    "regression_metrics",
+    "register_metric",
+    "plot_multilabel_confusion_matrix",
+    "plot_precision_recall_curves",
+    "plot_regression_diagnostics",
+    "plot_roc_curves",
+    "register_plot",
+    "resolve_preds_targets",
+]

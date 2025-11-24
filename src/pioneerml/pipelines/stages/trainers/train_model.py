@@ -13,6 +13,7 @@ from pioneerml.pipelines.stages.roles import TrainerStage
 
 
 class TrainModelStage(TrainerStage):
+    name = "torch"
     """
     Stage for training a PyTorch model (non-Lightning).
 

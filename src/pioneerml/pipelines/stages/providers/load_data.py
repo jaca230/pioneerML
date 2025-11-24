@@ -11,6 +11,8 @@ from pioneerml.pipelines.stages.roles import ProviderStage
 
 
 class LoadDataStage(ProviderStage):
+    name = "load_data"
+
     """
     Stage for loading data using a provided callable.
 

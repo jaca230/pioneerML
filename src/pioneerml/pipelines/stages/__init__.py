@@ -17,6 +17,7 @@ from pioneerml.pipelines.stages.roles import (
     CollectorStage,
     EvaluatorStage,
     RunnerStage,
+    build_registry,
 )
 
 __all__ = [
@@ -32,27 +33,45 @@ __all__ = [
     "LightningTrainStage",
     "CollectPredsStage",
     "EvaluateStage",
+    "resolve_stage",
+    "list_stage_names",
 ]
 
-# Simple registries for hotswapping by role
-PROVIDERS = {
-    "load_data": LoadDataStage,
-    "save_data": SaveDataStage,
-}
+# Build registries from subclasses (name attribute on each subclass)
+PROVIDERS = build_registry(ProviderStage)
+TRAINERS = build_registry(TrainerStage)
+COLLECTORS = build_registry(CollectorStage)
+EVALUATORS = build_registry(EvaluatorStage)
+RUNNERS = build_registry(RunnerStage)
 
-TRAINERS = {
-    "lightning": LightningTrainStage,
-    "torch": TrainModelStage,
-}
 
-COLLECTORS = {
-    "preds": CollectPredsStage,
-}
+def resolve_stage(role: str, name: str, config) -> object:
+    """Instantiate a stage by role/name using the registries."""
+    registry_map = {
+        "provider": PROVIDERS,
+        "trainer": TRAINERS,
+        "collector": COLLECTORS,
+        "evaluator": EVALUATORS,
+        "runner": RUNNERS,
+    }
+    registry = registry_map.get(role)
+    if registry is None:
+        raise KeyError(f"Unknown role '{role}'.")
+    if name not in registry:
+        raise KeyError(f"Stage '{name}' not found for role '{role}'. Available: {list(registry)}")
+    return registry[name](config=config)
 
-EVALUATORS = {
-    "default": EvaluateStage,
-}
 
-RUNNERS = {
-    "default": InferenceStage,
-}
+def list_stage_names(role: str) -> list[str]:
+    """List available stage names for a role."""
+    registry_map = {
+        "provider": PROVIDERS,
+        "trainer": TRAINERS,
+        "collector": COLLECTORS,
+        "evaluator": EVALUATORS,
+        "runner": RUNNERS,
+    }
+    registry = registry_map.get(role)
+    if registry is None:
+        return []
+    return sorted(registry.keys())

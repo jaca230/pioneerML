@@ -50,6 +50,7 @@ def _align_shapes(preds: Any, targets: Any) -> tuple[Any, Any]:
 
 
 class EvaluateStage(EvaluatorStage):
+    name = "default"
     """
     Stage for evaluating model predictions with standardized metrics and plots.
 

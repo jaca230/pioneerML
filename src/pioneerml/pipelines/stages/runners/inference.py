@@ -12,6 +12,7 @@ from pioneerml.pipelines.stages.roles import RunnerStage
 
 
 class InferenceStage(RunnerStage):
+    name = "default"
     """
     Stage for running model inference.
 

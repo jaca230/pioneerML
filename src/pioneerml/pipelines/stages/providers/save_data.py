@@ -12,6 +12,7 @@ from pioneerml.pipelines.stages.roles import ProviderStage
 
 
 class SaveDataStage(ProviderStage):
+    name = "save_data"
     """
     Stage for saving data using a provided saver or path.
     """

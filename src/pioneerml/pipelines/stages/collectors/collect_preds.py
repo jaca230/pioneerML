@@ -14,6 +14,7 @@ from pioneerml.pipelines.stages.roles import CollectorStage
 
 
 class CollectPredsStage(CollectorStage):
+    name = "preds"
     """
     Run a dataloader and store predictions/targets in the pipeline context.
 

@@ -37,6 +37,8 @@ dependencies = [
     "tqdm>=4.65.0",
     "pyyaml>=6.0",
     "dataclasses-json>=0.6.0",
+    "dagster>=1.7.0",
+    "dagster-webserver>=1.7.0",
 ]
 
 [project.optional-dependencies]

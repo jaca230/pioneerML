@@ -3,16 +3,16 @@ Environment setups
 
 Pick the workflow that fits your tooling preference. All options install the same dependencies.
 
-Pip (recommended)
+Pip
 -----------------
 - `pip install -r requirements.txt`
 
-Conda
+Conda **RECOMMENDED**
 -----
 - `conda env create -f env/environment.yml`
 - `conda activate pioneerml`
 
-uv (fast venv + resolver)
+uv (fast venv + resolver) 
 -------------------------
 - Install uv if needed: `curl -LsSf https://astral.sh/uv/install.sh | sh`
 - Create and populate a local venv:
@@ -20,6 +20,8 @@ uv (fast venv + resolver)
   ./env/uv-setup.sh
   source .venv/bin/activate
   ```
+- The setup scripts install the repo in editable mode (`uv pip install -e .`) so `import pioneerml`
+  works without PYTHONPATH hacks, and register a Jupyter kernel named `pioneerml`.
 
 Notes
 -----

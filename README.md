@@ -198,6 +198,21 @@ model = GroupClassifier(
 # Train (see notebooks for complete training functions)
 ```
 
+### Evaluation & Diagnostics
+
+Compute standardized metrics and plots with the CLI once you have predictions and targets saved as `.npy` or `.pt` tensors:
+
+```bash
+pioneerml evaluate \
+  --predictions outputs/preds.npy \
+  --targets outputs/targets.npy \
+  --task multilabel \
+  --plots multilabel_confusion precision_recall \
+  --save-dir outputs/evaluation
+```
+
+This produces registered metrics (subset accuracy, precision/recall/F1, AUC/AP) and saves plots such as per-class confusion matrices and PR/ROC curves.
+
 ### Using Pre-trained Models
 
 ```python

@@ -1,39 +1,23 @@
 """
-Helpers for pulling or computing predictions/targets from pipeline contexts.
+Helpers for pulling or computing predictions/targets from dict-like inputs.
 """
 
 from __future__ import annotations
 
-from typing import Any, Iterable, Tuple
+from typing import Any, Tuple
 
 import torch
 
-from pioneerml.pipelines.context import Context
 
-
-def resolve_preds_targets(
-    context: Context | dict[str, Any],
-    dataloader: str = "val",
-) -> Tuple[torch.Tensor, torch.Tensor]:
+def resolve_preds_targets(container: dict[str, Any], dataloader: str = "val") -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    Retrieve predictions and targets from a context, or compute them using a module/datamodule.
+    Retrieve predictions and targets from a dict-like container, or compute them using a module/datamodule.
 
     The function looks for:
-    - cached ``preds`` / ``targets`` in the context (dict-like)
+    - cached ``preds`` / ``targets`` in the container
     - a Lightning/PyTorch ``module`` or ``lightning_module`` and ``datamodule`` to generate them
-
-    Args:
-        context: Pipeline Context or dict-like container.
-        dataloader: Which dataloader to use from the datamodule (``val`` or ``test``).
-
-    Returns:
-        (preds, targets) tensors on CPU.
-
-    Raises:
-        RuntimeError: If neither cached preds/targets nor module+datamodule are available.
     """
-    getter = context.get if hasattr(context, "get") else (lambda k, d=None: context.get(k, d))  # type: ignore
-
+    getter = container.get
     preds = getter("preds")
     targets = getter("targets")
     if preds is not None and targets is not None:
@@ -67,8 +51,8 @@ def resolve_preds_targets(
 
     # cache for reuse
     try:
-        context["preds"] = preds
-        context["targets"] = targets
+        container["preds"] = preds
+        container["targets"] = targets
     except Exception:
         pass
     return preds, targets

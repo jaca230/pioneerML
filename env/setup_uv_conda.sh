@@ -7,7 +7,7 @@ set -euo pipefail
 # Usage:
 #   ./env/setup_uv_conda.sh
 
-ENV_NAME="pioneerml-uv"
+ENV_NAME="pioneerml"
 REQ_FILE="requirements.txt"
 
 if ! command -v conda >/dev/null 2>&1; then
@@ -31,5 +31,12 @@ python -m pip install -U uv
 
 echo "Installing dependencies from ${REQ_FILE} using uv..."
 uv pip install -r "${REQ_FILE}"
+
+# Install package in editable mode for clean imports (pioneerml importable without PYTHONPATH hacks)
+uv pip install -e .
+
+# Register kernel for notebooks
+echo "Registering Jupyter kernel 'pioneerml' for this env..."
+python -m ipykernel install --user --name "${ENV_NAME}" --display-name "Python (${ENV_NAME})" >/dev/null 2>&1 || true
 
 echo "Done. Activate with: conda activate ${ENV_NAME}"

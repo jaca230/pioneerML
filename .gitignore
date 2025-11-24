@@ -28,6 +28,7 @@ ENV/
 env.bak/
 venv.bak/
 .venv/
+.pioneerml/
 !/env/
 !/env/**
 
@@ -106,3 +107,6 @@ Thumbs.db
 
 # Artifacts
 artifacts/
+
+#data
+outputs/

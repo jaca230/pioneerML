@@ -59,6 +59,8 @@ print(f"Pipeline run status: {run.status}")
 
 trained_module = load_step_output(run, "train_module")
 datamodule = load_step_output(run, "build_datamodule")
+predictions = load_step_output(run, "collect_predictions")[0]
+targets = load_step_output(run, "collect_predictions")[1]
 
 if trained_module is None or datamodule is None:
     raise RuntimeError("Could not load artifacts from the zenml_training_pipeline run.")
@@ -70,29 +72,13 @@ print(f"Loaded artifacts from run {run.name} (device={device})")
 
 # %% [markdown]
 # ## Collect predictions and targets
-# Use the validation split (or training split if validation is missing) to
-# gather predictions and targets for plotting.
-# 
-# We switch the module to eval mode (disables dropout/batch norm updates),
-# iterate over the validation loader, and collect logits and labels on CPU so
-# plotting stays lightweight. Predictions are *logits* (unnormalized scores);
-# we’ll convert them inside each plotting function.
+# The pipeline now handles prediction collection inside a dedicated step
+# (`collect_predictions`), so we simply load the outputs here. The step runs
+# the trained module on the validation split (fallback to train if val is
+# empty), moves tensors to CPU, and returns logits and labels ready for plots.
 
 # %%
-val_loader = datamodule.val_dataloader()
-if isinstance(val_loader, list) and len(val_loader) == 0:
-    val_loader = datamodule.train_dataloader()
-
-preds, targets = [], []
-for batch in val_loader:
-    batch = batch.to(device)
-    with torch.no_grad():
-        preds.append(trained_module(batch).detach().cpu())
-        targets.append(batch.y.detach().cpu())
-
-predictions = torch.cat(preds)
-targets = torch.cat(targets)
-print(f"Collected predictions for {len(targets)} samples.")
+print(f"Collected predictions for {len(targets)} samples via pipeline step.")
 
 # %% [markdown]
 # ## Plot training diagnostics

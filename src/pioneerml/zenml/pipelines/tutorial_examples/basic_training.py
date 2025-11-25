@@ -19,20 +19,28 @@ from pioneerml.zenml.materializers import (
 
 
 def create_simple_synthetic_data(num_samples: int = 100) -> list[Data]:
-    """Create simple synthetic graph data for tutorials."""
-    data = []
+    """Create clustered synthetic graphs that are easy to learn."""
+    class_offsets = torch.tensor(
+        [
+            [2.0, 0.0, 0.5, 0.0, 0.0],   # pi cluster: high first feature
+            [0.0, 2.0, 0.0, 0.5, 0.0],   # mu cluster: high second feature
+            [-2.0, -2.0, -0.5, 0.0, 0.5],  # e+ cluster: negative drift
+        ]
+    )
+    data: list[Data] = []
     for _ in range(num_samples):
-        # Keep num_nodes different from num_classes to ensure graph-level labels
-        num_nodes = torch.randint(4, 8, (1,)).item()
-        x = torch.randn(num_nodes, 5)
-        edge_index = torch.randint(0, num_nodes, (2, num_nodes * 2))
-        edge_attr = torch.randn(edge_index.shape[1], 4)
-
-        # Random class label (0, 1, or 2)
+        num_nodes = torch.randint(6, 10, (1,)).item()
         label = torch.randint(0, 3, (1,)).item()
+
+        # Clustered node features with modest noise so the classifier can separate classes.
+        x = torch.randn(num_nodes, 5) * 0.4 + class_offsets[label]
+
+        # Dense-ish random edges; attributes keep small noise.
+        edge_index = torch.randint(0, num_nodes, (2, num_nodes * 3))
+        edge_attr = torch.randn(edge_index.shape[1], 4) * 0.3
+
         y = torch.zeros(3)
         y[label] = 1.0
-
         data.append(Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y))
     return data
 
@@ -46,7 +54,8 @@ def create_data() -> list[Data]:
 @step(output_materializers=GraphDataModuleMaterializer, enable_cache=False)
 def create_datamodule(data: list[Data]) -> GraphDataModule:
     """Step to create a DataModule from the data."""
-    return GraphDataModule(dataset=data, val_split=0.2, batch_size=32, num_workers=2)
+    # Use CPU-friendly defaults; keep workers=0 to avoid multiprocessing issues in constrained envs.
+    return GraphDataModule(dataset=data, val_split=0.2, batch_size=32, num_workers=0)
 
 
 @step

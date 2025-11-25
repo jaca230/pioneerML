@@ -25,7 +25,7 @@ from zenml import pipeline, step
 from zenml.utils import source_utils
 
 from pioneerml.models import GroupClassifier
-from pioneerml.training import GraphDataModule, GraphLightningModule
+from pioneerml.training import GraphDataModule, GraphLightningModule, plot_loss_curves
 from pioneerml.zenml.materializers import (
     GraphDataModuleMaterializer,
     PyGDataListMaterializer,
@@ -66,13 +66,26 @@ print(f"Active ZenML stack: {zenml_client.active_stack_model.name}")
 # %%
 
 def create_simple_synthetic_data(num_samples: int = 200) -> list[Data]:
-    data = []
+    """Generate clustered graphs so the model can learn a clear signal."""
+    class_offsets = torch.tensor(
+        [
+            [2.0, 0.0, 0.5, 0.0, 0.0],   # pi cluster: boost feature 0
+            [0.0, 2.0, 0.0, 0.5, 0.0],   # mu cluster: boost feature 1
+            [-2.0, -2.0, -0.5, 0.0, 0.5],  # e+ cluster: negative drift
+        ]
+    )
+    data: list[Data] = []
     for _ in range(num_samples):
-        num_nodes = torch.randint(4, 8, (1,)).item()
-        x = torch.randn(num_nodes, 5)
-        edge_index = torch.randint(0, num_nodes, (2, num_nodes * 2))
-        edge_attr = torch.randn(edge_index.shape[1], 4)
+        num_nodes = torch.randint(6, 10, (1,)).item()
         label = torch.randint(0, 3, (1,)).item()
+
+        # Clustered node features with light noise make class boundaries learnable.
+        x = torch.randn(num_nodes, 5) * 0.4 + class_offsets[label]
+
+        # Random edges with low-variance attributes keep the task simple.
+        edge_index = torch.randint(0, num_nodes, (2, num_nodes * 3))
+        edge_attr = torch.randn(edge_index.shape[1], 4) * 0.3
+
         y = torch.zeros(3)
         y[label] = 1.0
         data.append(Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y))
@@ -86,11 +99,13 @@ def create_data() -> list[Data]:
 
 @step(output_materializers=GraphDataModuleMaterializer, enable_cache=False)
 def create_datamodule(data: list[Data]) -> GraphDataModule:
-    return GraphDataModule(dataset=data, val_split=0.2, batch_size=32, num_workers=2)
+    # Slightly larger batch for faster iteration; keep workers=0 for portability/sandboxed runs.
+    return GraphDataModule(dataset=data, val_split=0.2, batch_size=32, num_workers=0)
 
 
 @step
 def create_model(num_classes: int = 3) -> GroupClassifier:
+    # Smaller hidden dim/block count to keep the tutorial quick on CPU.
     return GroupClassifier(num_classes=num_classes, hidden=64, num_blocks=1)
 
 
@@ -148,6 +163,7 @@ if trained_module is None or datamodule is None:
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 trained_module = trained_module.to(device).eval()
 datamodule.setup(stage="fit")
+plot_loss_curves(trained_module, title="Tutorial 1: Loss Curves", show=True)
 
 # %% [markdown]
 # ## Inspect the outputs

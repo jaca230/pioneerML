@@ -20,7 +20,6 @@ from pioneerml.training.datamodules import (
     SplitterDataModule,
     PionStopDataModule,
 )
-from pioneerml.training.visualization import plot_loss_curves
 from pioneerml.training.utils import set_tensor_core_precision, default_precision_for_accelerator
 from pioneerml.training.progress import CleanProgressBar
 
@@ -30,7 +29,6 @@ __all__ = [
     "GroupClassificationDataModule",
     "SplitterDataModule",
     "PionStopDataModule",
-    "plot_loss_curves",
     "set_tensor_core_precision",
     "default_precision_for_accelerator",
     "CleanProgressBar",

@@ -74,7 +74,7 @@ def train_module(module: GraphLightningModule, datamodule: GraphDataModule) -> G
 
 @step(
     enable_cache=False,
-    output_materializers={"predictions": TorchTensorMaterializer, "targets": TorchTensorMaterializer}
+    output_materializers=(TorchTensorMaterializer, TorchTensorMaterializer)
 )
 def collect_predictions(module: GraphLightningModule, datamodule: GraphDataModule) -> tuple[torch.Tensor, torch.Tensor]:
     datamodule.setup(stage="fit")

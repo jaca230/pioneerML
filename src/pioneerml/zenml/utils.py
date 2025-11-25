@@ -147,6 +147,7 @@ def load_step_output(
         run: ZenML pipeline run object returned by executing a pipeline.
         step_name: Name of the step to load output from.
         output_name: Output key to load (defaults to \"output\").
+            For tuple outputs, ZenML typically names them \"output_0\", \"output_1\", etc.
         index: Index within the output list (defaults to first).
 
     Returns:
@@ -157,11 +158,25 @@ def load_step_output(
         if step is None:
             return None
 
+        # Try to get the output - ZenML may use different naming conventions
         artifacts = step.outputs.get(output_name)
         if not artifacts or len(artifacts) <= index:
+            # Try alternative naming for tuple outputs
+            if output_name == "output":
+                # For tuple returns, try output_0, output_1, etc.
+                alt_name = f"output_{index}"
+                artifacts = step.outputs.get(alt_name)
+                if not artifacts or len(artifacts) == 0:
+                    return None
+                artifact = artifacts[0] if artifacts else None
+            else:
+                return None
+        else:
+            artifact = artifacts[index]
+        
+        if artifact is None:
             return None
-
-        artifact = artifacts[index]
+            
         if hasattr(artifact, "load"):
             return artifact.load()
     except Exception:

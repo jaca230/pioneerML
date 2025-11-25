@@ -11,6 +11,7 @@ from zenml import pipeline, step
 
 from pioneerml.models import GroupClassifier
 from pioneerml.training import GraphDataModule, GraphLightningModule
+from pioneerml.zenml.materializers import TorchTensorMaterializer
 
 
 def make_synthetic_group(num_nodes: int, num_classes: int) -> Data:
@@ -71,7 +72,10 @@ def train_module(module: GraphLightningModule, datamodule: GraphDataModule) -> G
     return module.eval()
 
 
-@step(enable_cache=False)
+@step(
+    enable_cache=False,
+    output_materializers={"predictions": TorchTensorMaterializer, "targets": TorchTensorMaterializer}
+)
 def collect_predictions(module: GraphLightningModule, datamodule: GraphDataModule) -> tuple[torch.Tensor, torch.Tensor]:
     datamodule.setup(stage="fit")
     val_loader = datamodule.val_dataloader()

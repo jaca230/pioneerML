@@ -5,7 +5,7 @@ This allows for easier debugging than running in a notebook.
 """
 
 from zenml.client import Client
-from pioneerml.zenml.pipelines import zenml_training_pipeline
+from pioneerml.zenml.pipelines import quickstart_pipeline
 
 def main():
     print("Initializing ZenML client...")
@@ -16,7 +16,7 @@ def main():
         print("Using existing repository...")
 
     print("Running ZenML training pipeline...")
-    run = zenml_training_pipeline()
+    run = quickstart_pipeline()
 
     print(f"\nPipeline run completed: {run}")
     print(f"Run ID: {run.id}")

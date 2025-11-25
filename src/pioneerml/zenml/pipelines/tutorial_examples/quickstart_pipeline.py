@@ -104,7 +104,7 @@ def collect_predictions(module: GraphLightningModule, datamodule: GraphDataModul
 
 
 @pipeline
-def zenml_training_pipeline():
+def quickstart_pipeline():
     dm = build_datamodule()
     module = build_module()
     trained_module = train_module(module, dm)

@@ -24,7 +24,7 @@ from pioneerml.evaluation.plots import (
 from pioneerml.training import plot_loss_curves
 from pioneerml.zenml import load_step_output
 from pioneerml.zenml import utils as zenml_utils
-from pioneerml.zenml.pipelines import zenml_training_pipeline
+from pioneerml.zenml.pipelines import quickstart_pipeline
 
 
 def find_project_root() -> Path:
@@ -54,7 +54,7 @@ print(f"ZenML initialized with stack: {zenml_client.active_stack_model.name}")
 #   and will load onto whatever is available now.
 
 # %%
-run = zenml_training_pipeline.with_options(enable_cache=False)()
+run = quickstart_pipeline.with_options(enable_cache=False)()
 print(f"Pipeline run status: {run.status}")
 
 trained_module = load_step_output(run, "train_module")
@@ -63,7 +63,7 @@ predictions = load_step_output(run, "collect_predictions", index=0)
 targets = load_step_output(run, "collect_predictions", index=1)
 
 if trained_module is None or datamodule is None:
-    raise RuntimeError("Could not load artifacts from the zenml_training_pipeline run.")
+    raise RuntimeError("Could not load artifacts from the quickstart_pipeline run.")
 
 trained_module.eval()
 datamodule.setup(stage="fit")

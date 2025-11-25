@@ -107,6 +107,8 @@ Thumbs.db
 
 # Artifacts
 artifacts/
+.code-instructions/
+.github/
 
 #data
 outputs/
@@ -117,3 +119,4 @@ outputs/
 
 #deprecated
 deprecated/
+

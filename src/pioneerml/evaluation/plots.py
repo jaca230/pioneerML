@@ -161,6 +161,9 @@ def plot_precision_recall_curves(
     if y_true.size == y_score.size and y_true.shape != y_score.shape:
         y_true = y_true.reshape(y_score.shape)
 
+    # Binarize targets to avoid continuous-format errors in sklearn
+    y_true = (y_true >= 0.5).astype(int)
+
     num_classes = y_true.shape[1]
     labels = _resolve_labels(num_classes, class_names)
 
@@ -218,6 +221,9 @@ def plot_roc_curves(
     # Normalize targets to predictions shape if possible
     if y_true.size == y_score.size and y_true.shape != y_score.shape:
         y_true = y_true.reshape(y_score.shape)
+
+    # Binarize targets to avoid continuous-format errors in sklearn
+    y_true = (y_true >= 0.5).astype(int)
 
     num_classes = y_true.shape[1]
     labels = _resolve_labels(num_classes, class_names)

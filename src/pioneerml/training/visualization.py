@@ -23,6 +23,11 @@ def _resolve_histories(train_losses, val_losses=None):
 
     train_hist = list(train_losses) if train_losses is not None else []
     val_hist = list(val_losses) if val_losses is not None else []
+
+    # Lightning runs a val sanity check before the first train epoch; trim any
+    # leading val entries so lengths align with train epochs.
+    while len(val_hist) > len(train_hist) and len(train_hist) > 0:
+        val_hist = val_hist[1:]
     return train_hist, val_hist
 
 

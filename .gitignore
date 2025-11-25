@@ -110,3 +110,10 @@ artifacts/
 
 #data
 outputs/
+
+# zen
+.zen
+.zenml/
+
+#deprecated
+deprecated/

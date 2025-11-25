@@ -85,6 +85,8 @@ def plot_multilabel_confusion_matrix(
     if y_true.size == y_score.size and y_true.shape != y_score.shape:
         y_true = y_true.reshape(y_score.shape)
 
+    # Binarize targets in case they come in as floats (one-hot or probabilities)
+    y_true_binary = (y_true >= 0.5).astype(int)
     y_pred = (y_score >= threshold).astype(int)
     num_classes = y_true.shape[1]
     labels = _resolve_labels(num_classes, class_names)
@@ -99,7 +101,7 @@ def plot_multilabel_confusion_matrix(
             ax.axis("off")
             continue
         cm = confusion_matrix(
-            y_true[:, idx], y_pred[:, idx], labels=[0, 1], normalize="all" if normalize else None
+            y_true_binary[:, idx], y_pred[:, idx], labels=[0, 1], normalize="all" if normalize else None
         )
         if normalize and cm.sum() > 0:
             cm = cm / cm.sum()

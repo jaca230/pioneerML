@@ -21,6 +21,8 @@ tqdm>=4.65.0
 pyyaml>=6.0
 dataclasses-json>=0.6.0
 scikit-learn>=1.3.0
+# Optimization / HPO
+optuna>=3.5.0
 
 # Orchestration
 zenml[local]>=0.61.0

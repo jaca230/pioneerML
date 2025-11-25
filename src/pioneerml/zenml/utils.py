@@ -35,31 +35,39 @@ def detect_available_accelerator():
         return "cpu", 1
 
 
-def find_project_root(start_path: Path | None = None) -> Path:
+def find_project_root(start: Path | None = None) -> Path:
     """
-    Find the project root by searching upward for .zen or .zenml directory.
-    
-    This utility ensures we always use the root .zen/.zenml configuration
-    regardless of where the notebook is executed from.
-    
+    Locate the project root by walking upward until a known sentinel file/dir
+    is found.
+
+    Sentinel order (can add more if needed):
+      - pyproject.toml : modern Python project root marker (preferred)
+
     Args:
-        start_path: Starting path for search. If None, uses current working directory.
-    
+        start:
+            Directory to begin searching from. Defaults to the current working
+            directory.
+
     Returns:
-        Path to project root where .zen or .zenml exists.
+        Path:
+            The detected project root. If no sentinel is found, returns the
+            starting directory.
     """
-    if start_path is None:
-        start_path = Path.cwd()
-    else:
-        start_path = Path(start_path)
-    
-    # Search upward for .zen or .zenml directory
-    for path in [start_path] + list(start_path.parents):
-        if (path / ".zen").exists() or (path / ".zenml").exists():
-            return path
-    
-    # If not found, return the starting path
-    return start_path
+    # Use cwd if no starting path is provided
+    path = Path(start or Path.cwd()).resolve()
+
+    # Define sentinels locally (no need for global constants)
+    sentinels = [
+        "pyproject.toml",
+    ]
+
+    # Walk upward: starting directory + all parent directories
+    for parent in [path, *path.parents]:
+        if any((parent / s).exists() for s in sentinels):
+            return parent
+
+    # Fallback if nothing is found
+    return path
 
 
 def setup_zenml_for_notebook(
@@ -67,68 +75,39 @@ def setup_zenml_for_notebook(
     use_in_memory: bool = True,
 ) -> Client:
     """
-    Set up ZenML for use in notebooks using the project's global configuration.
-    
-    This function:
-    1. Finds the project root (where .zen or .zenml exists) automatically
-    2. Uses the existing global ZenML configuration
-    3. Optionally switches to in-memory storage if requested
-    
-    Args:
-        root_path: Path to project root. If None, automatically finds project root
-            by searching upward for .zen or .zenml directory.
-        use_in_memory: If True, use in-memory SQLite instead of file-based storage.
-    
-    Returns:
-        Initialized ZenML Client
+    Set up ZenML for use in notebooks using the proper global Client behavior.
+
+    This version follows ZenML's documented API:
+    - Client().activate_root(path) is the ONLY supported way to set the repo root.
     """
-    # Disable analytics for quickstart
+
     os.environ["ZENML_DISABLE_ANALYTICS"] = "true"
-    
-    # Find project root automatically if not provided
+
+    # Determine repo root
     if root_path is None:
         root_path = find_project_root()
-    else:
-        root_path = Path(root_path)
-    
-    # Get global configuration
-    gc = GlobalConfiguration()
-    
-    # Optionally switch to in-memory storage
+    root_path = Path(root_path).resolve()
+
+    print(
+        f"Using ZenML repository root: {root_path}\n"
+        f"Ensure this is the top-level of your repo (.zen must live here)."
+    )
+
+    # Switch to in-memory store if requested
     if use_in_memory:
+        gc = GlobalConfiguration()
         try:
-            store_config = gc.store_configuration
-            # If there's a URL and it's not already in-memory, switch to in-memory
-            if hasattr(store_config, 'url') and store_config.url:
-                if ':memory:' not in store_config.url:
-                    from zenml.config.store_config import StoreConfiguration
-                    in_memory_store_config = StoreConfiguration(
-                        type="sql",
-                        url="sqlite:///:memory:"
-                    )
-                    gc.set_store(in_memory_store_config)
+            from zenml.config.store_config import StoreConfiguration
+            gc.set_store(StoreConfiguration(type="sql", url="sqlite:///:memory:"))
         except Exception:
-            # If there's an error, try to create a fresh in-memory store
-            try:
-                from zenml.config.store_config import StoreConfiguration
-                in_memory_store_config = StoreConfiguration(
-                    type="sql",
-                    url="sqlite:///:memory:"
-                )
-                gc.set_store(in_memory_store_config)
-            except Exception:
-                pass  # Continue with existing config
-    
-    # Initialize client - it will use the global configuration
-    # The global config points to the .zen/.zenml in the project root
-    try:
-        client = Client(root=root_path)
-        client.initialize()
-    except Exception:
-        # Already initialized or using existing config
-        client = Client(root=root_path)
-    
-    return client
+            pass  # fallback silently
+
+    # activate_root updates the *global* Client singleton
+    Client().activate_root(root_path)
+
+    # Return the global client
+    return Client()
+
 
 
 def load_step_output(

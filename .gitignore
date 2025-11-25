@@ -22,6 +22,10 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+#test
+.pytest_cache/
+.coverage
+
 # Virtual environments
 venv/
 ENV/
@@ -109,13 +113,16 @@ Thumbs.db
 artifacts/
 .code-instructions/
 .github/
+.claude/
+
 
 #data
 outputs/
 
 # zen
-.zen
+.zen/
 .zenml/
+htmlcov/
 
 #deprecated
 deprecated/

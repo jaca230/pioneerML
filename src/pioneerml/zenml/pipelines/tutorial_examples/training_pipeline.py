@@ -88,8 +88,17 @@ def collect_predictions(module: GraphLightningModule, datamodule: GraphDataModul
     for batch in val_loader:
         batch = batch.to(device)
         with torch.no_grad():
-            preds.append(module(batch).detach().cpu())
-            targets.append(batch.y.detach().cpu())
+            out = module(batch).detach().cpu()
+        target = batch.y.detach().cpu()
+
+        # Ensure targets retain (num_graphs, num_classes) shape for plotting/metrics
+        if target.dim() == 1 and out.dim() == 2 and target.numel() % out.shape[-1] == 0:
+            target = target.view(-1, out.shape[-1])
+        elif target.dim() == 1:
+            target = target.unsqueeze(0)
+
+        preds.append(out)
+        targets.append(target)
 
     return torch.cat(preds), torch.cat(targets)
 

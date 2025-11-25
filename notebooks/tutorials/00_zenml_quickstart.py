@@ -59,8 +59,8 @@ print(f"Pipeline run status: {run.status}")
 
 trained_module = load_step_output(run, "train_module")
 datamodule = load_step_output(run, "build_datamodule")
-predictions = load_step_output(run, "collect_predictions")[0]
-targets = load_step_output(run, "collect_predictions")[1]
+predictions = load_step_output(run, "collect_predictions", index=0)
+targets = load_step_output(run, "collect_predictions", index=1)
 
 if trained_module is None or datamodule is None:
     raise RuntimeError("Could not load artifacts from the zenml_training_pipeline run.")

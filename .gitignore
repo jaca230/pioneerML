@@ -118,6 +118,7 @@ artifacts/
 
 #data
 outputs/
+data/
 
 # zen
 .zen/

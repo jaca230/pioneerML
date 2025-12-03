@@ -21,10 +21,18 @@ def detect_available_accelerator():
 
     Returns:
         tuple: (accelerator, devices) where:
-            - accelerator: "gpu", "mps", or "cpu"
+            - accelerator: "tpu", "gpu", "mps", or "cpu"
             - devices: number of devices to use (typically 1)
     """
     import torch
+
+    # Check for TPU first (highest priority)
+    try:
+        import torch_xla
+        if torch_xla._XLAC._xla_get_default_device() != "CPU":
+            return "tpu", 1
+    except (ImportError, AttributeError, RuntimeError):
+        pass
 
     if torch.cuda.is_available():
         return "gpu", 1

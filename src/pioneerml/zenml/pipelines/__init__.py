@@ -12,9 +12,17 @@ from pioneerml.zenml.pipelines.tutorial_examples.dummy_particle_grouping_optuna_
     dummy_particle_grouping_optuna_pipeline,
 )
 from pioneerml.zenml.pipelines.tutorial_examples.quickstart_pipeline import quickstart_pipeline
+from pioneerml.zenml.pipelines.training import (
+    group_classification_optuna_pipeline,
+    pion_stop_optuna_pipeline,
+    group_splitter_optuna_pipeline,
+)
 
 __all__ = [
     "dummy_particle_grouping_pipeline",
     "dummy_particle_grouping_optuna_pipeline",
     "quickstart_pipeline",
+    "group_classification_optuna_pipeline",
+    "pion_stop_optuna_pipeline",
+    "group_splitter_optuna_pipeline",
 ]

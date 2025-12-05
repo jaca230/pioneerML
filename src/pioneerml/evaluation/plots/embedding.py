@@ -10,6 +10,11 @@ from sklearn.manifold import TSNE
 
 from .base import BasePlot, _prepare_classification_inputs, _resolve_labels, _to_numpy
 
+try:
+    from IPython.display import display  # type: ignore
+except Exception:  # pragma: no cover
+    display = None
+
 
 class EmbeddingSpacePlot(BasePlot):
     name = "embedding_space"
@@ -82,12 +87,11 @@ class EmbeddingSpacePlot(BasePlot):
         if show:
             backend = plt.get_backend().lower()
             if backend.startswith("agg"):
-                try:
-                    from IPython.display import display
-
-                    display(fig)
-                except Exception:
-                    pass
+                if display is not None:
+                    try:
+                        display(fig)
+                    except Exception:
+                        pass
             else:
                 plt.show()
         plt.close(fig)

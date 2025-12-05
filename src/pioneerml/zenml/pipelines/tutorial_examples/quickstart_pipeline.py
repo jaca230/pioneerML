@@ -8,10 +8,12 @@ and logs metrics.
 import torch
 from torch_geometric.data import Data
 from zenml import pipeline, step
+import pytorch_lightning as pl
 
 from pioneerml.models import GroupClassifier
 from pioneerml.training import GraphDataModule, GraphLightningModule
 from pioneerml.zenml.materializers import TorchTensorMaterializer
+from pioneerml.zenml.utils import detect_available_accelerator
 
 
 def make_synthetic_group(num_nodes: int, num_classes: int) -> Data:
@@ -51,11 +53,6 @@ def build_module(num_classes: int = 3, lr: float = 5e-4) -> GraphLightningModule
 
 @step
 def train_module(module: GraphLightningModule, datamodule: GraphDataModule) -> GraphLightningModule:
-    import pytorch_lightning as pl
-
-    # Import hardware detection utility
-    from pioneerml.zenml.utils import detect_available_accelerator
-
     # Auto-detect available hardware
     accelerator, devices = detect_available_accelerator()
 

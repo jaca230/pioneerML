@@ -7,6 +7,11 @@ import matplotlib.pyplot as plt
 
 from .base import BasePlot
 
+try:
+    from IPython.display import display  # type: ignore
+except Exception:  # pragma: no cover - optional
+    display = None
+
 
 def _resolve_histories(train_losses, val_losses=None):
     """Accept either explicit loss arrays or a LightningModule with stored histories."""
@@ -66,16 +71,13 @@ class LossCurvesPlot(BasePlot):
 
         # Show
         if show:
-            import matplotlib.pyplot as plt
-
             backend = plt.get_backend().lower()
             if backend.startswith("agg"):
-                try:
-                    from IPython.display import display
-
-                    display(fig)
-                except Exception:
-                    pass
+                if display is not None:
+                    try:
+                        display(fig)
+                    except Exception:
+                        pass
             else:
                 plt.show()
 

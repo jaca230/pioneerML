@@ -8,6 +8,11 @@ import numpy as np
 
 from .base import BasePlot, _prepare_classification_inputs
 
+try:
+    from IPython.display import display  # type: ignore
+except Exception:  # pragma: no cover
+    display = None
+
 
 class ProbabilityDistributionsPlot(BasePlot):
     name = "probability_distributions"
@@ -44,12 +49,11 @@ class ProbabilityDistributionsPlot(BasePlot):
         if show:
             backend = plt.get_backend().lower()
             if backend.startswith("agg"):
-                try:
-                    from IPython.display import display
-
-                    display(fig)
-                except Exception:
-                    pass
+                if display is not None:
+                    try:
+                        display(fig)
+                    except Exception:
+                        pass
             else:
                 plt.show()
         plt.close(fig)

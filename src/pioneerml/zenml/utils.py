@@ -11,8 +11,19 @@ import os
 from pathlib import Path
 from typing import Any
 
+import torch
 from zenml.client import Client
 from zenml.config.global_config import GlobalConfiguration
+
+try:
+    import torch_xla  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    torch_xla = None
+
+try:
+    from zenml.config.store_config import StoreConfiguration  # type: ignore
+except Exception:  # pragma: no cover - optional optional import
+    StoreConfiguration = None
 
 
 def detect_available_accelerator():
@@ -24,15 +35,13 @@ def detect_available_accelerator():
             - accelerator: "tpu", "gpu", "mps", or "cpu"
             - devices: number of devices to use (typically 1)
     """
-    import torch
-
     # Check for TPU first (highest priority)
-    try:
-        import torch_xla
-        if torch_xla._XLAC._xla_get_default_device() != "CPU":
-            return "tpu", 1
-    except (ImportError, AttributeError, RuntimeError):
-        pass
+    if torch_xla is not None:
+        try:
+            if torch_xla._XLAC._xla_get_default_device() != "CPU":  # type: ignore[attr-defined]
+                return "tpu", 1
+        except (AttributeError, RuntimeError):
+            pass
 
     if torch.cuda.is_available():
         return "gpu", 1
@@ -104,11 +113,11 @@ def setup_zenml_for_notebook(
     # Switch to in-memory store if requested
     if use_in_memory:
         gc = GlobalConfiguration()
-        try:
-            from zenml.config.store_config import StoreConfiguration
-            gc.set_store(StoreConfiguration(type="sql", url="sqlite:///:memory:"))
-        except Exception:
-            pass  # fallback silently
+        if StoreConfiguration is not None:
+            try:
+                gc.set_store(StoreConfiguration(type="sql", url="sqlite:///:memory:"))
+            except Exception:
+                pass  # fallback silently
 
     # activate_root updates the *global* Client singleton
     Client().activate_root(root_path)

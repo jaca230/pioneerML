@@ -7,6 +7,8 @@ hyperparameter search, trains the best model, and collects predictions for evalu
 
 import contextlib
 import io
+import os
+import sys
 import warnings
 from typing import Any, Dict, Mapping, Optional
 
@@ -59,7 +61,6 @@ def _compute_pos_weight(datamodule: SplitterDataModule) -> torch.Tensor:
 
 @step
 def build_splitter_datamodule(
-    *,
     file_pattern: Optional[str] = None,
     max_files: Optional[int] = None,
     limit_groups: Optional[int] = None,
@@ -82,9 +83,6 @@ def build_splitter_datamodule(
         num_workers: Number of DataLoader workers. If None, auto-detects based on CPU count.
             Set to 0 to disable multiprocessing.
     """
-    import os
-    import sys
-    
     if file_pattern is None:
         raise ValueError("file_pattern is required but was not provided")
     
@@ -135,9 +133,6 @@ def run_splitter_hparam_search(
     """
     Run Optuna hyperparameter search for group splitter.
     """
-    import sys
-    import torch
-    
     datamodule.setup(stage="fit")
     accelerator, devices = detect_available_accelerator()
     
@@ -171,14 +166,16 @@ def run_splitter_hparam_search(
         print(f"Trial {trial_num}/{n_trials} starting...", file=sys.stderr, flush=True)
         
         batch_size = trial.suggest_categorical("batch_size", [4, 8, 16])
-        hidden = trial.suggest_categorical("hidden", [128, 150, 192])
         heads = trial.suggest_int("heads", 6, 12)
+        # Sample hidden, then round down to nearest multiple of heads to ensure compatibility
+        hidden_raw = trial.suggest_categorical("hidden", [128, 150, 192])
+        hidden = (hidden_raw // heads) * heads  # Ensure hidden is divisible by heads
         layers = trial.suggest_int("layers", 2, 4)
         dropout = trial.suggest_float("dropout", 0.05, 0.25)
         lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-3, log=True)
 
-        print(f"Trial {trial_num} params: batch_size={batch_size}, hidden={hidden}, heads={heads}, layers={layers}, dropout={dropout:.4f}, lr={lr:.6f}, weight_decay={weight_decay:.6f}", file=sys.stderr, flush=True)
+        print(f"Trial {trial_num} params: batch_size={batch_size}, hidden={hidden} (from {hidden_raw}), heads={heads}, layers={layers}, dropout={dropout:.4f}, lr={lr:.6f}, weight_decay={weight_decay:.6f}", file=sys.stderr, flush=True)
 
         datamodule.batch_size = batch_size
 
@@ -260,10 +257,14 @@ def train_best_splitter(
         datamodule.batch_size = int(best_params["batch_size"])
 
     in_channels = 8 if datamodule.use_group_probs else 5
+    # Ensure hidden is divisible by heads
+    heads = int(best_params.get("heads", 10))
+    hidden_raw = int(best_params.get("hidden", 150))
+    hidden = (hidden_raw // heads) * heads  # Ensure hidden is divisible by heads
     model = GroupSplitter(
         in_channels=in_channels,
-        hidden=int(best_params.get("hidden", 150)),
-        heads=int(best_params.get("heads", 10)),
+        hidden=hidden,
+        heads=heads,
         layers=int(best_params.get("layers", 3)),
         dropout=float(best_params.get("dropout", 0.15)),
         num_classes=NUM_NODE_CLASSES,
@@ -365,36 +366,21 @@ def group_splitter_optuna_pipeline(
     search_kwargs = dict(run_hparam_search_params or {})
     train_kwargs = dict(train_best_model_params or {})
 
-    # Explicitly extract and pass each parameter (ZenML has issues with **kwargs unpacking)
-    datamodule = build_splitter_datamodule(
-        file_pattern=dm_kwargs.get("file_pattern"),
-        max_files=dm_kwargs.get("max_files"),
-        limit_groups=dm_kwargs.get("limit_groups"),
-        min_hits=dm_kwargs.get("min_hits", 3),
-        use_group_probs=dm_kwargs.get("use_group_probs", False),
-        batch_size=dm_kwargs.get("batch_size", 8),
-        num_workers=dm_kwargs.get("num_workers"),
-        pin_memory=dm_kwargs.get("pin_memory", False),
-        val_split=dm_kwargs.get("val_split", 0.15),
-        test_split=dm_kwargs.get("test_split", 0.0),
-        seed=dm_kwargs.get("seed", 42),
+    # Pass overrides via ZenML step options to ensure they are honored.
+    datamodule = (
+        build_splitter_datamodule.with_options(parameters=dm_kwargs)()
+        if dm_kwargs
+        else build_splitter_datamodule()
     )
-    best_params = run_splitter_hparam_search(
-        datamodule,
-        n_trials=search_kwargs.get("n_trials", 25),
-        max_epochs=search_kwargs.get("max_epochs", 20),
-        limit_train_batches=search_kwargs.get("limit_train_batches", 0.8),
-        limit_val_batches=search_kwargs.get("limit_val_batches", 1.0),
+    best_params = (
+        run_splitter_hparam_search.with_options(parameters=search_kwargs)(datamodule)
+        if search_kwargs
+        else run_splitter_hparam_search(datamodule)
     )
-    trained_module = train_best_splitter(
-        best_params,
-        datamodule,
-        max_epochs=train_kwargs.get("max_epochs", 50),
-        early_stopping=train_kwargs.get("early_stopping", True),
-        early_stopping_patience=train_kwargs.get("early_stopping_patience", 6),
-        early_stopping_monitor=train_kwargs.get("early_stopping_monitor", "val_loss"),
-        early_stopping_mode=train_kwargs.get("early_stopping_mode", "min"),
+    trained_module = (
+        train_best_splitter.with_options(parameters=train_kwargs)(best_params, datamodule)
+        if train_kwargs
+        else train_best_splitter(best_params, datamodule)
     )
     predictions, targets = collect_splitter_predictions(trained_module, datamodule)
     return trained_module, datamodule, predictions, targets, best_params
-

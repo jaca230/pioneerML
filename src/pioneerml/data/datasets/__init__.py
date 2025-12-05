@@ -6,6 +6,7 @@ from pioneerml.data.datasets.utils import fully_connected_edge_index, build_edge
 from pioneerml.data.datasets.graph_group import GraphRecord, GraphGroupDataset
 from pioneerml.data.datasets.pion_stop import PionStopRecord, PionStopGraphDataset
 from pioneerml.data.datasets.splitter import SplitterGraphDataset
+from pioneerml.data.datasets.positron_angle import PositronAngleRecord, PositronAngleDataset
 
 __all__ = [
     "GraphRecord",
@@ -13,6 +14,8 @@ __all__ = [
     "PionStopRecord",
     "PionStopGraphDataset",
     "SplitterGraphDataset",
+    "PositronAngleRecord",
+    "PositronAngleDataset",
     "fully_connected_edge_index",
     "build_edge_attr",
 ]

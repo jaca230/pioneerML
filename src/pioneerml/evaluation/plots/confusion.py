@@ -11,6 +11,11 @@ from sklearn.metrics import confusion_matrix
 
 from .base import BasePlot, _overall_normalize, _prepare_classification_inputs
 
+try:
+    from IPython.display import display  # type: ignore
+except Exception:  # pragma: no cover
+    display = None
+
 
 class ConfusionMatrixPlot(BasePlot):
     name = "multilabel_confusion"
@@ -67,12 +72,11 @@ class ConfusionMatrixPlot(BasePlot):
             if show:
                 backend = plt.get_backend().lower()
                 if backend.startswith("agg"):
-                    try:
-                        from IPython.display import display
-
-                        display(fig)
-                    except Exception:
-                        pass
+                    if display is not None:
+                        try:
+                            display(fig)
+                        except Exception:
+                            pass
                 else:
                     plt.show()
             plt.close(fig)
@@ -117,13 +121,12 @@ class ConfusionMatrixPlot(BasePlot):
         if show:
             backend = plt.get_backend().lower()
             if backend.startswith("agg"):
-                try:
-                    from IPython.display import display
-
-                    display(fig)
-                except Exception:
-                    # Fall back silently when display is unavailable
-                    pass
+                if display is not None:
+                    try:
+                        display(fig)
+                    except Exception:
+                        # Fall back silently when display is unavailable
+                        pass
             else:
                 plt.show()
         plt.close(fig)

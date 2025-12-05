@@ -8,6 +8,11 @@ from sklearn.metrics import average_precision_score, precision_recall_curve
 
 from .base import BasePlot, _prepare_classification_inputs
 
+try:
+    from IPython.display import display  # type: ignore
+except Exception:  # pragma: no cover
+    display = None
+
 
 class PrecisionRecallPlot(BasePlot):
     name = "precision_recall"
@@ -44,12 +49,11 @@ class PrecisionRecallPlot(BasePlot):
         if show:
             backend = plt.get_backend().lower()
             if backend.startswith("agg"):
-                try:
-                    from IPython.display import display
-
-                    display(fig)
-                except Exception:
-                    pass
+                if display is not None:
+                    try:
+                        display(fig)
+                    except Exception:
+                        pass
             else:
                 plt.show()
         plt.close(fig)

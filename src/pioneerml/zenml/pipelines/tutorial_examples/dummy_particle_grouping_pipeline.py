@@ -9,6 +9,7 @@ resulting multi-label task.
 
 import numpy as np
 import torch
+import pytorch_lightning as pl
 from zenml import pipeline, step
 
 from pioneerml.data.datasets.graph_group import GraphRecord
@@ -109,8 +110,6 @@ def train_dummy_module(
     limit_train_batches: int | float | None = None,
     limit_val_batches: int | float | None = None,
 ) -> GraphLightningModule:
-    import pytorch_lightning as pl
-
     accelerator, devices = detect_available_accelerator()
     trainer = pl.Trainer(
         accelerator=accelerator,

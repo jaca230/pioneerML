@@ -59,8 +59,6 @@ def _pad_columns(arr: np.ndarray, num_classes: int) -> np.ndarray:
 
 def _prepare_classification_inputs(predictions, targets, class_names):
     """Normalize predictions/targets to aligned 2D arrays."""
-    import numpy as np
-
     y_true_raw = _to_numpy(targets)
     y_score_raw = _to_numpy(predictions)
 

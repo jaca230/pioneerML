@@ -1,23 +1,22 @@
 """
-DataModule for hit-level splitter datasets.
+DataModule for positron angle regression datasets.
 """
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Optional, Sequence
 
-from pioneerml.data import SplitterGraphDataset
+from pioneerml.data import PositronAngleDataset
 from pioneerml.training.datamodules.base import GraphDataModule
 
 
-class SplitterDataModule(GraphDataModule):
-    """DataModule for hit-level splitter datasets."""
+class PositronAngleDataModule(GraphDataModule):
+    """DataModule for positron angle regression datasets."""
 
     def __init__(
         self,
         records: Sequence,
         *,
-        use_group_probs: bool = False,
         batch_size: int = 32,
         num_workers: int = 0,
         pin_memory: bool = False,
@@ -25,8 +24,7 @@ class SplitterDataModule(GraphDataModule):
         test_split: float = 0.0,
         seed: int = 42,
     ):
-        self.use_group_probs = use_group_probs
-        dataset = SplitterGraphDataset(records, use_group_probs=use_group_probs)
+        dataset = PositronAngleDataset(records)
         super().__init__(
             dataset,
             batch_size=batch_size,

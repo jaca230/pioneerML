@@ -8,6 +8,11 @@ import seaborn as sns
 
 from .base import BasePlot, _to_numpy
 
+try:
+    from IPython.display import display  # type: ignore
+except Exception:  # pragma: no cover
+    display = None
+
 
 class RegressionDiagnosticsPlot(BasePlot):
     name = "regression_diagnostics"
@@ -49,12 +54,11 @@ class RegressionDiagnosticsPlot(BasePlot):
         if show:
             backend = plt.get_backend().lower()
             if backend.startswith("agg"):
-                try:
-                    from IPython.display import display
-
-                    display(fig)
-                except Exception:
-                    pass
+                if display is not None:
+                    try:
+                        display(fig)
+                    except Exception:
+                        pass
             else:
                 plt.show()
         plt.close(fig)

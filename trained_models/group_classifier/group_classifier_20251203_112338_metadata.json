@@ -1,0 +1,40 @@
+{
+  "model_type": "GroupClassifier",
+  "timestamp": "20251203_112338",
+  "run_name": "group_classification_optuna_pipeline-2025_12_03-08_33_51_957863",
+  "best_hyperparameters": {
+    "batch_size": 64,
+    "hidden": 128,
+    "num_blocks": 4,
+    "dropout": 0.1675984580563084,
+    "lr": 0.0004183225138581784,
+    "weight_decay": 0.0003275599625318856,
+    "best_score": 0.9991195797920227,
+    "n_trials": 32
+  },
+  "training_config": {
+    "max_epochs": 25,
+    "min_epochs": null,
+    "early_stopping": true,
+    "early_stopping_patience": 6,
+    "early_stopping_monitor": "val_loss",
+    "early_stopping_mode": "min"
+  },
+  "epochs_run": 15,
+  "dataset_info": {
+    "train_size": 274487,
+    "val_size": 48438,
+    "num_classes": 3,
+    "class_names": [
+      "pion",
+      "muon",
+      "mip"
+    ]
+  },
+  "model_architecture": {
+    "num_classes": 3,
+    "hidden": 128,
+    "num_blocks": 4,
+    "dropout": 0.1675984580563084
+  }
+}

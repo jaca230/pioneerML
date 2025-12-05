@@ -22,6 +22,8 @@ from sklearn.metrics import (
     roc_auc_score,
     roc_curve,
 )
+from sklearn.manifold import TSNE
+from scipy.stats import entropy
 
 PLOT_REGISTRY: dict[str, Callable[..., str | None]] = {}
 
@@ -48,8 +50,145 @@ def _to_numpy(arr: Any) -> np.ndarray:
 
 def _normalize_probs(scores: np.ndarray) -> np.ndarray:
     if scores.min() < 0.0 or scores.max() > 1.0:
+        scores = np.clip(scores, -60.0, 60.0)  # avoid overflow in exp
         return 1.0 / (1.0 + np.exp(-scores))
     return scores
+
+
+def _overall_normalize(cm: np.ndarray) -> np.ndarray:
+    total = cm.sum()
+    if total == 0:
+        return cm.astype(float)
+    return cm.astype(float) / float(total)
+
+
+@register_plot("embedding_space")
+def plot_embedding_space(
+    embeddings: Any,
+    targets: Any,
+    *,
+    class_names: Sequence[str] | None = None,
+    method: str = "tsne",
+    perplexity: float = 30.0,
+    n_components: int = 2,
+    save_path: str | Path | None = None,
+    show: bool = False,
+) -> str | None:
+    """
+    Visualize embeddings in 2D using t-SNE.
+
+    Note: t-SNE is slow; use small samples for large datasets.
+    """
+    emb = _to_numpy(embeddings)
+    tgt = _to_numpy(targets)
+
+    if emb.ndim != 2:
+        raise ValueError(f"Embeddings must be 2D [N, D]; got shape {emb.shape}")
+    if emb.shape[0] != tgt.shape[0]:
+        raise ValueError(f"Embeddings and targets must align on batch dimension: {emb.shape[0]} vs {tgt.shape[0]}")
+
+    # Collapse targets to single class per sample for coloring
+    if tgt.ndim == 1 and tgt.size % emb.shape[0] == 0:
+        # Common case where labels were flattened; reshape to [N, C]
+        tgt = tgt.reshape(emb.shape[0], -1)
+
+    if tgt.ndim > 1 and tgt.shape[1] > 1:
+        tgt_idx = np.argmax(tgt, axis=1)
+        labels = _resolve_labels(tgt.shape[1], class_names)
+    else:
+        tgt_idx = tgt.reshape(-1).astype(int)
+        max_cls = int(tgt_idx.max()) + 1 if tgt_idx.size else 0
+        labels = _resolve_labels(max_cls, class_names)
+
+    if method.lower() != "tsne":
+        raise ValueError(f"Unsupported embedding projection method: {method}")
+
+    reducer = TSNE(n_components=n_components, perplexity=perplexity, init="random", learning_rate="auto")
+    emb_2d = reducer.fit_transform(emb)
+
+    fig, ax = plt.subplots(figsize=(6, 5))
+    palette = sns.color_palette(n_colors=max(1, len(labels)))
+    for cls in np.unique(tgt_idx):
+        cls_mask = tgt_idx == cls
+        label = labels[cls] if cls < len(labels) else str(cls)
+        ax.scatter(
+            emb_2d[cls_mask, 0],
+            emb_2d[cls_mask, 1],
+            s=12,
+            alpha=0.35,  # more transparency to reveal overlap
+            label=label,
+            color=palette[cls % len(palette)],
+            edgecolors="none",
+        )
+
+    ax.set_title("Embedding Space (t-SNE)")
+    ax.set_xlabel("Component 1")
+    ax.set_ylabel("Component 2")
+    ax.legend(markerscale=2, fontsize="small", frameon=True)
+    ax.grid(True, linestyle="--", alpha=0.3)
+    plt.tight_layout()
+
+    if save_path is not None:
+        save_path = str(save_path)
+        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+    if show:
+        backend = plt.get_backend().lower()
+        if backend.startswith("agg"):
+            try:
+                from IPython.display import display
+                display(fig)
+            except Exception:
+                pass
+        else:
+            plt.show()
+    plt.close(fig)
+    return save_path
+
+
+@register_plot("probability_distributions")
+def plot_probability_distributions(
+    predictions: Any,
+    targets: Any,
+    *,
+    class_names: Sequence[str] | None = None,
+    bins: int = 25,
+    save_path: str | Path | None = None,
+    show: bool = False,
+) -> str | None:
+    """
+    Plot probability distributions per class (log-scaled counts).
+    """
+    y_true_binary, y_score, labels, _, num_classes = _prepare_classification_inputs(
+        predictions, targets, class_names
+    )
+
+    fig, axes = plt.subplots(1, num_classes, figsize=(4 * num_classes, 4))
+    axes = np.atleast_1d(axes)
+
+    for idx in range(num_classes):
+        ax = axes[idx]
+        counts, bin_edges, _ = ax.hist(y_score[:, idx], bins=bins, alpha=0.7, color="tab:blue")
+        ax.set_yscale("log")
+        ax.set_title(f"{labels[idx]} (N={len(y_score)})")
+        ax.set_xlabel("Predicted probability")
+        ax.set_ylabel("Count (log scale)")
+
+    plt.tight_layout()
+    if save_path is not None:
+        save_path = str(save_path)
+        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+    if show:
+        backend = plt.get_backend().lower()
+        if backend.startswith("agg"):
+            try:
+                from IPython.display import display
+                display(fig)
+            except Exception:
+                pass
+        else:
+            plt.show()
+    plt.close(fig)
+    return save_path
 
 
 def _resolve_labels(num_classes: int, class_names: Sequence[str] | None) -> list[str]:
@@ -85,7 +224,14 @@ def _prepare_classification_inputs(
 
     # Align shapes before normalization so class-index inputs become one-hot.
     if y_true_raw.ndim == 1 and y_score_raw.ndim > 1:
-        y_true = _one_hot_from_int(y_true_raw, y_score_raw.shape[1])
+        # Common PyG pattern: graph-level labels [B, C] are concatenated to [B*C]
+        # during batching. If sizes align, reshape instead of treating them as class
+        # indices to avoid exploding the sample count (e.g., 30k vs 10k).
+        if y_true_raw.size % y_score_raw.shape[1] == 0:
+            reshaped = y_true_raw.reshape(-1, y_score_raw.shape[1])
+            y_true = reshaped
+        else:
+            y_true = _one_hot_from_int(y_true_raw, y_score_raw.shape[1])
     elif y_true_raw.ndim == 1:
         y_true = y_true_raw.reshape(-1, 1)
     else:
@@ -193,17 +339,64 @@ def plot_multilabel_confusion_matrix(
     show: bool = False,
 ) -> str | None:
     """
-    Plot per-class confusion matrices for multi-label outputs.
+    Plot confusion matrices for classification outputs.
+
+    - Multi-label: per-class 2x2 matrices.
+    - Multi-class: single matrix across all classes.
     """
     y_true_binary, y_score, labels, multi_label, num_classes = _prepare_classification_inputs(
         predictions, targets, class_names
     )
 
-    if multi_label or num_classes == 1:
-        y_pred = (y_score >= threshold).astype(int)
-    else:
-        pred_idx = np.argmax(y_score, axis=1)
-        y_pred = _one_hot_from_int(pred_idx, num_classes)
+    # Multi-class case: show a single confusion matrix across classes
+    if not multi_label and num_classes > 1:
+        true_mask = y_true_binary.sum(axis=1) > 0
+        if not np.any(true_mask):
+            raise ValueError("No labeled samples available for confusion matrix.")
+
+        y_true_idx = np.argmax(y_true_binary, axis=1)[true_mask]
+        y_pred_idx = np.argmax(y_score, axis=1)[true_mask]
+        cm_raw = confusion_matrix(y_true_idx, y_pred_idx, labels=list(range(num_classes)))
+        cm = _overall_normalize(cm_raw) if normalize else cm_raw
+        annot = np.empty_like(cm, dtype=object)
+        for i in range(cm.shape[0]):
+            for j in range(cm.shape[1]):
+                norm_val = f"{cm[i, j]:.2f}" if normalize else f"{int(cm_raw[i, j])}"
+                annot[i, j] = f"{norm_val}\n({int(cm_raw[i, j])})"
+
+        fig, ax = plt.subplots(figsize=(4 + 0.4 * num_classes, 4 + 0.4 * num_classes))
+        sns.heatmap(
+            cm,
+            annot=annot,
+            fmt="",
+            cbar=False,
+            xticklabels=labels,
+            yticklabels=labels,
+            ax=ax,
+        )
+        ax.set_xlabel("Predicted")
+        ax.set_ylabel("True")
+        ax.set_title(f"Confusion Matrix (N={cm_raw.sum()})")
+
+        plt.tight_layout()
+        if save_path is not None:
+            save_path = str(save_path)
+            fig.savefig(save_path, dpi=150, bbox_inches="tight")
+        if show:
+            backend = plt.get_backend().lower()
+            if backend.startswith("agg"):
+                try:
+                    from IPython.display import display
+                    display(fig)
+                except Exception:
+                    pass
+            else:
+                plt.show()
+        plt.close(fig)
+        return save_path
+
+    # Multi-label / binary: per-class 2x2 matrices
+    y_pred = (y_score >= threshold).astype(int)
 
     cols = min(3, num_classes)
     rows = math.ceil(num_classes / cols)
@@ -214,15 +407,17 @@ def plot_multilabel_confusion_matrix(
         if idx >= num_classes:
             ax.axis("off")
             continue
-        cm = confusion_matrix(
-            y_true_binary[:, idx], y_pred[:, idx], labels=[0, 1], normalize="all" if normalize else None
-        )
-        if normalize and cm.sum() > 0:
-            cm = cm / cm.sum()
+        cm_raw = confusion_matrix(y_true_binary[:, idx], y_pred[:, idx], labels=[0, 1])
+        cm = _overall_normalize(cm_raw) if normalize else cm_raw
+        annot = np.empty_like(cm, dtype=object)
+        for i in range(cm.shape[0]):
+            for j in range(cm.shape[1]):
+                norm_val = f"{cm[i, j]:.2f}" if normalize else f"{int(cm_raw[i, j])}"
+                annot[i, j] = f"{norm_val}\n({int(cm_raw[i, j])})"
         sns.heatmap(
             cm,
-            annot=True,
-            fmt=".2f" if normalize else "d",
+            annot=annot,
+            fmt="",
             cbar=False,
             ax=ax,
             xticklabels=["0", "1"],
@@ -230,7 +425,7 @@ def plot_multilabel_confusion_matrix(
         )
         ax.set_xlabel("Predicted")
         ax.set_ylabel("True")
-        ax.set_title(labels[idx])
+        ax.set_title(f"{labels[idx]} (N={cm_raw.sum()})")
 
     plt.tight_layout()
     if save_path is not None:

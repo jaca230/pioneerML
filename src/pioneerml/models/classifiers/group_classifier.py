@@ -106,23 +106,18 @@ class GroupClassifier(GraphModel):
         Returns:
             Class logits [batch_size, num_classes].
         """
-        # Embed input
-        x = self.input_embed(data.x)
+        pooled = self.extract_embeddings(data)
+        return self.head(pooled)
 
-        # Pass through transformer blocks, collecting outputs
+    def extract_embeddings(self, data: Data) -> torch.Tensor:
+        """Return graph-level embeddings before the classification head."""
+        x = self.input_embed(data.x)
         xs = []
         for block in self.blocks:
             x = block(x, data.edge_index, data.edge_attr)
             xs.append(x)
-
-        # Jumping Knowledge: concatenate all layers
         x_cat = self.jk(xs)
-
-        # Pool to graph level
-        pooled = self.pool(x_cat, data.batch)
-
-        # Classification
-        return self.head(pooled)
+        return self.pool(x_cat, data.batch)
 
     def summary(self) -> dict:
         """Get model summary."""

@@ -1,0 +1,114 @@
+{
+  "model_type": "GroupClassifier",
+  "timestamp": "20251206_002729",
+  "run_name": "group_classification_optuna_pipeline-2025_12_06-00_27_11_681545",
+  "dataset_info": {
+    "train_size": 850,
+    "val_size": 150,
+    "num_classes": 3,
+    "class_names": [
+      "pion",
+      "muon",
+      "mip"
+    ]
+  },
+  "training_config": {
+    "max_epochs": 5,
+    "min_epochs": null,
+    "early_stopping": true,
+    "early_stopping_patience": 4,
+    "early_stopping_monitor": "val_loss",
+    "early_stopping_mode": "min"
+  },
+  "model_architecture": {
+    "num_classes": 3,
+    "hidden": 256,
+    "num_blocks": 2,
+    "dropout": 0.19714872399407346
+  },
+  "best_hyperparameters": {
+    "batch_size": 128,
+    "hidden": 256,
+    "num_blocks": 2,
+    "dropout": 0.19714872399407346,
+    "lr": 0.001217973089497817,
+    "weight_decay": 0.0006082852327020667,
+    "best_score": 0.8133333325386047,
+    "n_trials": 2,
+    "trial_history": [
+      {
+        "number": 0,
+        "state": "COMPLETE",
+        "value": 0.7200000286102295,
+        "params": {
+          "batch_size": 128,
+          "hidden": 256,
+          "num_blocks": 3,
+          "dropout": 0.07960815568426133,
+          "lr": 0.0007621193131309724,
+          "weight_decay": 2.5782601621651235e-05
+        },
+        "user_attrs": {},
+        "datetime_start": "2025-12-05T19:27:13.441595",
+        "datetime_complete": "2025-12-05T19:27:16.718769"
+      },
+      {
+        "number": 1,
+        "state": "COMPLETE",
+        "value": 0.8133333325386047,
+        "params": {
+          "batch_size": 128,
+          "hidden": 256,
+          "num_blocks": 2,
+          "dropout": 0.19714872399407346,
+          "lr": 0.001217973089497817,
+          "weight_decay": 0.0006082852327020667
+        },
+        "user_attrs": {},
+        "datetime_start": "2025-12-05T19:27:16.720654",
+        "datetime_complete": "2025-12-05T19:27:18.961027"
+      }
+    ]
+  },
+  "best_score": 0.8133333325386047,
+  "n_trials": 2,
+  "epochs_run": 6,
+  "hyperparameter_history": [
+    {
+      "number": 0,
+      "state": "COMPLETE",
+      "value": 0.7200000286102295,
+      "params": {
+        "batch_size": 128,
+        "hidden": 256,
+        "num_blocks": 3,
+        "dropout": 0.07960815568426133,
+        "lr": 0.0007621193131309724,
+        "weight_decay": 2.5782601621651235e-05
+      },
+      "user_attrs": {},
+      "datetime_start": "2025-12-05T19:27:13.441595",
+      "datetime_complete": "2025-12-05T19:27:16.718769"
+    },
+    {
+      "number": 1,
+      "state": "COMPLETE",
+      "value": 0.8133333325386047,
+      "params": {
+        "batch_size": 128,
+        "hidden": 256,
+        "num_blocks": 2,
+        "dropout": 0.19714872399407346,
+        "lr": 0.001217973089497817,
+        "weight_decay": 0.0006082852327020667
+      },
+      "user_attrs": {},
+      "datetime_start": "2025-12-05T19:27:16.720654",
+      "datetime_complete": "2025-12-05T19:27:18.961027"
+    }
+  ],
+  "artifact_paths": {
+    "state_dict": "/home/jack/python_projects/pioneerML/trained_models/groupclassifier/groupclassifier_20251206_002729_group_classification_optuna_pipeline-2025_12_06-00_27_11_681545_state_dict.pt"
+  },
+  "extra": null
+}

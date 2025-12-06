@@ -1,0 +1,47 @@
+{
+  "model_type": "GroupClassifier",
+  "timestamp": "20251206_002042",
+  "run_name": "group_classification_optuna_pipeline-2025_12_06-00_20_23_644539",
+  "dataset_info": {
+    "train_size": 850,
+    "val_size": 150,
+    "num_classes": 3,
+    "class_names": [
+      "pion",
+      "muon",
+      "mip"
+    ]
+  },
+  "training_config": {
+    "max_epochs": 5,
+    "min_epochs": null,
+    "early_stopping": true,
+    "early_stopping_patience": 4,
+    "early_stopping_monitor": "val_loss",
+    "early_stopping_mode": "min"
+  },
+  "model_architecture": {
+    "num_classes": 3,
+    "hidden": 256,
+    "num_blocks": 3,
+    "dropout": 0.2311798475096269
+  },
+  "best_hyperparameters": {
+    "batch_size": 128,
+    "hidden": 256,
+    "num_blocks": 3,
+    "dropout": 0.2311798475096269,
+    "lr": 0.0005454864744998989,
+    "weight_decay": 0.0005244340161739625,
+    "best_score": 0.8733333349227905,
+    "n_trials": 2
+  },
+  "best_score": 0.8733333349227905,
+  "n_trials": 2,
+  "epochs_run": 6,
+  "hyperparameter_history": null,
+  "artifact_paths": {
+    "state_dict": "/home/jack/python_projects/pioneerML/trained_models/groupclassifier/groupclassifier_20251206_002042_group_classification_optuna_pipeline-2025_12_06-00_20_23_644539_state_dict.pt"
+  },
+  "extra": null
+}

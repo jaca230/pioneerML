@@ -119,12 +119,16 @@ artifacts/
 #data
 outputs/
 data/
+trained_models/
 
 # zen
 .zen/
 .zenml/
 htmlcov/
 
+#optuna
+.optuna/
+
 #deprecated
 deprecated/
-.optuna/
+

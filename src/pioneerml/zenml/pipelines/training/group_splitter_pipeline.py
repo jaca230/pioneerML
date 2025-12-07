@@ -20,6 +20,7 @@ from zenml import pipeline, step
 
 from pioneerml.data import load_splitter_groups, NUM_NODE_CLASSES
 from pioneerml.models.classifiers.group_splitter import GroupSplitter
+from pioneerml.optuna import OptunaStudyManager
 from pioneerml.training.datamodules import SplitterDataModule
 from pioneerml.training.lightning import GraphLightningModule
 from pioneerml.zenml.materializers import TorchTensorMaterializer
@@ -129,9 +130,16 @@ def run_splitter_hparam_search(
     max_epochs: int = 20,
     limit_train_batches: int | float | None = 0.8,
     limit_val_batches: int | float | None = 1.0,
+    storage: str | None = None,
+    study_name: str = "group_splitter",
 ) -> Dict[str, Any]:
     """
     Run Optuna hyperparameter search for group splitter.
+
+    If `storage` is provided, the study will be persisted (or resumed) from that
+    storage backend (e.g., sqlite:///.../optuna.db). Use n_trials=0 to skip new
+    trials and reuse the existing best trial. If no prior trials exist and
+    n_trials<=0, a small default hyperparameter set is returned without error.
     """
     datamodule.setup(stage="fit")
     accelerator, devices = detect_available_accelerator()
@@ -161,9 +169,19 @@ def run_splitter_hparam_search(
 
     pos_weight = _compute_pos_weight(datamodule)
 
+    existing_trials = 0  # set after study creation
+
     def objective(trial: optuna.Trial) -> float:
-        trial_num = trial.number + 1
-        print(f"Trial {trial_num}/{n_trials} starting...", file=sys.stderr, flush=True)
+        # Show both this-run index and cumulative index
+        this_run_idx = trial.number - existing_trials + 1
+        total_idx = trial.number + 1
+        total_planned = existing_trials + max(n_trials, 0)
+        trial_num = this_run_idx  # For consistency with print statements
+        print(
+            f"Trial {this_run_idx}/{n_trials} (cumulative {total_idx}/{total_planned}) starting...",
+            file=sys.stderr,
+            flush=True,
+        )
         
         batch_size = trial.suggest_categorical("batch_size", [4, 8, 16])
         heads = trial.suggest_int("heads", 6, 12)
@@ -228,14 +246,40 @@ def run_splitter_hparam_search(
         print(f"Trial {trial_num} completed with score: {score:.6f}", file=sys.stderr, flush=True)
         return score
 
-    study = optuna.create_study(direction="maximize")
-    print(f"Starting Optuna study...", file=sys.stderr, flush=True)
-    study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
-    
-    print(f"Optuna search complete! Best score: {study.best_value:.6f}", file=sys.stderr, flush=True)
-    print(f"Best params: {study.best_params}", file=sys.stderr, flush=True)
+    manager = OptunaStudyManager(
+        project_root=None,
+        study_name=study_name,
+        direction="maximize",
+        storage=storage,
+    )
+    study, storage_used = manager.create_or_load()
+    existing_trials = len(study.trials)
+    if n_trials > 0:
+        print(f"Starting Optuna study (storage={storage_used}, name={study_name})...", file=sys.stderr, flush=True)
+        study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
+        print(f"Optuna search complete! Best score: {study.best_value:.6f}", file=sys.stderr, flush=True)
+        print(f"Best params: {study.best_params}", file=sys.stderr, flush=True)
+    else:
+        print(f"Skipping new trials; reusing existing study best (storage={storage_used}, name={study_name})", file=sys.stderr, flush=True)
+        if study.best_trial is None:
+            # No trials exist; fall back to a reasonable default without error
+            print("No existing trials found. Returning default hyperparameters.", file=sys.stderr, flush=True)
+            default_params = {
+                "batch_size": 8,
+                "heads": 8,
+                "hidden": 128,
+                "layers": 3,
+                "dropout": 0.1,
+                "lr": 1e-3,
+                "weight_decay": 1e-4,
+                "best_score": 0.0,
+                "n_trials": 0,
+            }
+            return default_params
+        else:
+            print(f"Loaded prior study with {len(study.trials)} trials. Best score: {study.best_value:.6f}", file=sys.stderr, flush=True)
 
-    best_params = study.best_params
+    best_params = dict(study.best_params)
     best_params["best_score"] = study.best_value
     best_params["n_trials"] = len(study.trials)
     return best_params

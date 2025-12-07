@@ -20,6 +20,7 @@ from zenml import pipeline, step
 
 from pioneerml.data import load_positron_angle_groups
 from pioneerml.models.regressors.positron_angle import PositronAngleModel
+from pioneerml.optuna import OptunaStudyManager
 from pioneerml.training.datamodules import PositronAngleDataModule
 from pioneerml.training.lightning import GraphLightningModule
 from pioneerml.zenml.materializers import TorchTensorMaterializer
@@ -41,6 +42,7 @@ def _run_silently(fn):
 @step
 def build_positron_angle_datamodule(
     file_pattern: Optional[str] = None,
+    angle_targets_pattern: Optional[str] = None,
     max_files: Optional[int] = None,
     limit_groups: Optional[int] = None,
     min_hits: int = 2,
@@ -54,16 +56,33 @@ def build_positron_angle_datamodule(
     """
     Load data and build a GraphDataModule for positron angle regression.
     
-    This is a placeholder implementation. Replace with PositronAngleDataModule
-    when the data loader and dataset are implemented.
-    
     Args:
-        file_pattern: Glob pattern for data files (required, but can be passed via parameters)
+        file_pattern: Glob pattern for data files containing groups (required)
+        angle_targets_pattern: Glob pattern for separate angle target files (required).
+            Angles are not stored in the group arrays and must be loaded from separate files.
+        max_files: Maximum number of files to load
+        limit_groups: Maximum number of groups to load
+        min_hits: Minimum number of hits per group
+        batch_size: Batch size for DataLoader
         num_workers: Number of DataLoader workers. If None, auto-detects based on CPU count.
             Set to 0 to disable multiprocessing.
+        pin_memory: Whether to pin memory in DataLoader
+        val_split: Validation split fraction
+        test_split: Test split fraction
+        seed: Random seed for splitting
     """
     if file_pattern is None:
         raise ValueError("file_pattern is required but was not provided")
+    
+    # TODO: Angle data is not currently in mainTimeGroups files.
+    #       angle_targets_pattern is required until angles are added to the data format.
+    if angle_targets_pattern is None:
+        raise ValueError(
+            "angle_targets_pattern is REQUIRED. "
+            "Angle data is not currently stored in mainTimeGroups files. "
+            "Provide a pattern to load angle targets from separate files. "
+            "TODO: Update this once angles are added to mainTimeGroups."
+        )
     
     # Auto-detect num_workers if not specified
     if num_workers is None:
@@ -75,8 +94,10 @@ def build_positron_angle_datamodule(
         print(f"Using num_workers: {num_workers}", file=sys.stderr, flush=True)
     
     print(f"Starting to load data from: {file_pattern}", file=sys.stderr, flush=True)
+    print(f"Loading angle targets from: {angle_targets_pattern}", file=sys.stderr, flush=True)
     groups = load_positron_angle_groups(
         file_pattern,
+        angle_targets_pattern=angle_targets_pattern,
         max_files=max_files,
         limit_groups=limit_groups,
         min_hits=min_hits,
@@ -104,9 +125,16 @@ def run_positron_angle_hparam_search(
     max_epochs: int = 20,
     limit_train_batches: int | float | None = 0.8,
     limit_val_batches: int | float | None = 1.0,
+    storage: str | None = None,
+    study_name: str = "positron_angle",
 ) -> Dict[str, Any]:
     """
     Run Optuna hyperparameter search for positron angle regression.
+
+    If `storage` is provided, the study will be persisted (or resumed) from that
+    storage backend (e.g., sqlite:///.../optuna.db). Use n_trials=0 to skip new
+    trials and reuse the existing best trial. If no prior trials exist and
+    n_trials<=0, a small default hyperparameter set is returned without error.
     """
     datamodule.setup(stage="fit")
     accelerator, devices = detect_available_accelerator()
@@ -134,9 +162,19 @@ def run_positron_angle_hparam_search(
     print(f"Dataset sizes - Train: {train_size}, Val: {val_size}", file=sys.stderr, flush=True)
     print(f"Starting Optuna search with {n_trials} trials, {max_epochs} epochs per trial...", file=sys.stderr, flush=True)
 
+    existing_trials = 0  # set after study creation
+
     def objective(trial: optuna.Trial) -> float:
-        trial_num = trial.number + 1
-        print(f"Trial {trial_num}/{n_trials} starting...", file=sys.stderr, flush=True)
+        # Show both this-run index and cumulative index
+        this_run_idx = trial.number - existing_trials + 1
+        total_idx = trial.number + 1
+        total_planned = existing_trials + max(n_trials, 0)
+        trial_num = this_run_idx  # For consistency with print statements
+        print(
+            f"Trial {this_run_idx}/{n_trials} (cumulative {total_idx}/{total_planned}) starting...",
+            file=sys.stderr,
+            flush=True,
+        )
         
         batch_size = trial.suggest_categorical("batch_size", [16, 32, 64])
         hidden_raw = trial.suggest_categorical("hidden", [128, 160, 192])
@@ -193,14 +231,40 @@ def run_positron_angle_hparam_search(
         print(f"Trial {trial_num} completed with score: {score:.6f}", file=sys.stderr, flush=True)
         return score
 
-    study = optuna.create_study(direction="maximize")
-    print(f"Starting Optuna study...", file=sys.stderr, flush=True)
-    study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
-    
-    print(f"Optuna search complete! Best score: {study.best_value:.6f}", file=sys.stderr, flush=True)
-    print(f"Best params: {study.best_params}", file=sys.stderr, flush=True)
+    manager = OptunaStudyManager(
+        project_root=None,
+        study_name=study_name,
+        direction="maximize",
+        storage=storage,
+    )
+    study, storage_used = manager.create_or_load()
+    existing_trials = len(study.trials)
+    if n_trials > 0:
+        print(f"Starting Optuna study (storage={storage_used}, name={study_name})...", file=sys.stderr, flush=True)
+        study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
+        print(f"Optuna search complete! Best score: {study.best_value:.6f}", file=sys.stderr, flush=True)
+        print(f"Best params: {study.best_params}", file=sys.stderr, flush=True)
+    else:
+        print(f"Skipping new trials; reusing existing study best (storage={storage_used}, name={study_name})", file=sys.stderr, flush=True)
+        if study.best_trial is None:
+            # No trials exist; fall back to a reasonable default without error
+            print("No existing trials found. Returning default hyperparameters.", file=sys.stderr, flush=True)
+            default_params = {
+                "batch_size": 32,
+                "hidden": 160,
+                "heads": 4,
+                "layers": 2,
+                "dropout": 0.1,
+                "lr": 1e-3,
+                "weight_decay": 1e-4,
+                "best_score": 0.0,
+                "n_trials": 0,
+            }
+            return default_params
+        else:
+            print(f"Loaded prior study with {len(study.trials)} trials. Best score: {study.best_value:.6f}", file=sys.stderr, flush=True)
 
-    best_params = study.best_params
+    best_params = dict(study.best_params)
     best_params["best_score"] = study.best_value
     best_params["n_trials"] = len(study.trials)
     return best_params

@@ -118,7 +118,6 @@ artifacts/
 
 #data
 outputs/
-data/
 trained_models/
 
 # zen

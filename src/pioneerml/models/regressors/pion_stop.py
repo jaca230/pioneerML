@@ -75,6 +75,16 @@ class PionStopRegressor(GraphModel):
         pooled = self.pool(x_cat, data.batch)
         return self.head(pooled)
 
+    def extract_embeddings(self, data: Data) -> torch.Tensor:
+        """Return graph-level embeddings before the regression head."""
+        x = self.input_proj(data.x)
+        xs = []
+        for block in self.blocks:
+            x = block(x, data.edge_index, data.edge_attr)
+            xs.append(x)
+        x_cat = self.jk(xs)
+        return self.pool(x_cat, data.batch)
+
     def summary(self) -> dict:
         info = super().summary()
         info.update(

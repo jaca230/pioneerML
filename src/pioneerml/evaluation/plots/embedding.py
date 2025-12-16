@@ -11,6 +11,11 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.neighbors import NearestNeighbors
 
+try:
+    from tqdm import tqdm
+except ImportError:
+    tqdm = None
+
 from .base import BasePlot, _prepare_classification_inputs, _resolve_labels, _to_numpy
 
 # Disable numba JIT for UMAP globally to avoid environment-specific compile issues
@@ -152,13 +157,49 @@ class EmbeddingSpacePlot(BasePlot):
                     n_jobs=1,
                     low_memory=True,
                     init="spectral",
-                    verbose=verbose,
+                    verbose=False,  # Disable UMAP's verbose to avoid conflicts with tqdm
                     force_approximation_algorithm=precompute_neighbors,
                     precomputed_knn=(knn_indices, knn_dists, None),
                 )
-                if verbose:
-                    print(f"[embedding] Running UMAP on {emb_clean.shape[0]} samples...")
-                emb_2d = reducer.fit_transform(emb_clean)
+                
+                # Show progress bar for UMAP (it's a slow operation)
+                if tqdm is not None:
+                    import sys
+                    import time
+                    import threading
+                    
+                    # Simple tqdm progress bar that updates to show elapsed time
+                    pbar = tqdm(
+                        total=100,
+                        desc=f"UMAP ({emb_clean.shape[0]} samples)",
+                        file=sys.stderr,
+                        bar_format="{desc}: {percentage:3.0f}%|{bar}| {elapsed}",
+                    )
+                    
+                    stop_updating = threading.Event()
+                    
+                    def update_progress():
+                        """Update progress bar every second to show elapsed time."""
+                        while not stop_updating.is_set():
+                            time.sleep(1)
+                            if not stop_updating.is_set() and pbar.n < 99:
+                                pbar.update(1)
+                    
+                    update_thread = threading.Thread(target=update_progress, daemon=True)
+                    update_thread.start()
+                    
+                    try:
+                        emb_2d = reducer.fit_transform(emb_clean)
+                        # Complete the bar
+                        while pbar.n < 100:
+                            pbar.update(100 - pbar.n)
+                    finally:
+                        stop_updating.set()
+                        pbar.close()
+                else:
+                    if verbose:
+                        print(f"[embedding] Running UMAP on {emb_clean.shape[0]} samples...")
+                    emb_2d = reducer.fit_transform(emb_clean)
                 # Update tgt_idx to use cleaned version
                 tgt_idx = tgt_clean
             except Exception as e:

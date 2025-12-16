@@ -30,9 +30,27 @@ from .loaders import (
 from .managers import MetadataManager
 from .utils.optuna import serialize_optuna_study
 
+
+def save_model_and_metadata(
+    model,
+    metadata: TrainingMetadata,
+    *,
+    state_dict_only: bool = True,
+):
+    """
+    Convenience wrapper to save a model (or its state_dict) plus TrainingMetadata.
+    
+    This mirrors the older functional API used in notebooks while delegating to
+    the current MetadataManager under the hood.
+    """
+    manager = MetadataManager()
+    return manager.save_model(model, metadata, state_dict_only=state_dict_only)
+
+
 __all__ = [
     # Main API
     "MetadataManager",
+    "save_model_and_metadata",
     # Core
     "TrainingMetadata",
     "timestamp_now",

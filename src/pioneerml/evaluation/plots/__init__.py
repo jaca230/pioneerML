@@ -13,7 +13,11 @@ from .confusion import ConfusionMatrixPlot
 from .loss import LossCurvesPlot
 from .precision_recall import PrecisionRecallPlot
 from .roc import RocCurvesPlot
-from .regression import RegressionDiagnosticsPlot
+from .regression import (
+    RegressionDiagnosticsPlot,
+    EuclideanErrorHistogramPlot,
+    ErrorEmbeddingSpacePlot,
+)
 from .embedding import EmbeddingSpacePlot
 from .probability import ProbabilityDistributionsPlot
 from .confidence import ConfidenceAnalysisPlot
@@ -25,6 +29,8 @@ PLOT_CLASSES: Dict[str, type[BasePlot]] = {
     PrecisionRecallPlot.name: PrecisionRecallPlot,
     LossCurvesPlot.name: LossCurvesPlot,
     RegressionDiagnosticsPlot.name: RegressionDiagnosticsPlot,
+    EuclideanErrorHistogramPlot.name: EuclideanErrorHistogramPlot,
+    ErrorEmbeddingSpacePlot.name: ErrorEmbeddingSpacePlot,
     EmbeddingSpacePlot.name: EmbeddingSpacePlot,
     ProbabilityDistributionsPlot.name: ProbabilityDistributionsPlot,
     ConfidenceAnalysisPlot.name: ConfidenceAnalysisPlot,
@@ -46,6 +52,8 @@ plot_roc_curves = _wrap(RocCurvesPlot)
 plot_precision_recall_curves = _wrap(PrecisionRecallPlot)
 plot_loss_curves = _wrap(LossCurvesPlot)
 plot_regression_diagnostics = _wrap(RegressionDiagnosticsPlot)
+plot_euclidean_error_histogram = _wrap(EuclideanErrorHistogramPlot)
+plot_error_embedding_space = _wrap(ErrorEmbeddingSpacePlot)
 plot_embedding_space = _wrap(EmbeddingSpacePlot)
 plot_probability_distributions = _wrap(ProbabilityDistributionsPlot)
 plot_confidence_analysis = _wrap(ConfidenceAnalysisPlot)
@@ -59,6 +67,8 @@ __all__ = [
     "plot_precision_recall_curves",
     "plot_loss_curves",
     "plot_regression_diagnostics",
+    "plot_euclidean_error_histogram",
+    "plot_error_embedding_space",
     "plot_embedding_space",
     "plot_probability_distributions",
     "plot_confidence_analysis",
@@ -67,6 +77,8 @@ __all__ = [
     "PrecisionRecallPlot",
     "LossCurvesPlot",
     "RegressionDiagnosticsPlot",
+    "EuclideanErrorHistogramPlot",
+    "ErrorEmbeddingSpacePlot",
     "EmbeddingSpacePlot",
     "ProbabilityDistributionsPlot",
     "ConfidenceAnalysisPlot",

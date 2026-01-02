@@ -90,6 +90,40 @@ class GroupClassifierStereo(nn.Module):
         out = torch.cat([pool_x, pool_y, data.u, has_x, has_y], dim=1)
         return self.head(out)
 
+    def extract_embeddings(self, data: Data) -> torch.Tensor:
+        """
+        Return the fused stereo embedding before the classification head.
+        Shape: [num_graphs, hidden*2 + 1 + 2]
+        """
+        x = self.input_embed(data.x)
+
+        xs = []
+        for block in self.blocks:
+            x = block(x, data.edge_index, data.edge_attr)
+            xs.append(x)
+        x_cat = self.jk(xs)
+
+        raw_view = data.x[:, 3].long()
+        mask_x = raw_view == VIEW_X_VAL
+        mask_y = raw_view == VIEW_Y_VAL
+
+        def pool_and_count(mask, pool_layer):
+            if mask.any():
+                pooled = pool_layer(x_cat[mask], data.batch[mask], dim_size=data.num_graphs)
+                counts = torch.zeros(data.num_graphs, device=x.device)
+                counts.index_add_(0, data.batch, mask.float())
+                has_hits = (counts > 0).float().unsqueeze(1)
+                return pooled, has_hits
+            return (
+                torch.zeros(data.num_graphs, x_cat.size(1), device=x.device),
+                torch.zeros(data.num_graphs, 1, device=x.device),
+            )
+
+        pool_x, has_x = pool_and_count(mask_x, self.pool_x)
+        pool_y, has_y = pool_and_count(mask_y, self.pool_y)
+
+        return torch.cat([pool_x, pool_y, data.u, has_x, has_y], dim=1)
+
 
 # Backwards-compatible alias
 GroupClassifier = GroupClassifierStereo

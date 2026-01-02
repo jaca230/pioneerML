@@ -1,7 +1,7 @@
 """
 ZenML pipeline for training the pion stop regressor on real time-group data.
 
-This pipeline loads preprocessed pion groups from .npy files, runs Optuna
+This pipeline loads paired hits/info pion groups from .npy files, runs Optuna
 hyperparameter search, trains the best model, and collects predictions for evaluation.
 """
 
@@ -18,7 +18,7 @@ import torch
 import torch.nn as nn
 from zenml import pipeline, step
 
-from pioneerml.data import load_pion_stop_groups
+from pioneerml.data import load_hits_and_info
 from pioneerml.models.regressors.pion_stop import PionStopRegressor
 from pioneerml.optuna import OptunaStudyManager
 from pioneerml.training.datamodules import PionStopDataModule
@@ -39,7 +39,8 @@ def _run_silently(fn):
 
 @step
 def build_pion_stop_datamodule(
-    file_pattern: Optional[str] = None,
+    hits_pattern: Optional[str] = None,
+    info_pattern: Optional[str] = None,
     pion_pdg: int = 1,
     max_files: Optional[int] = None,
     limit_groups: Optional[int] = None,
@@ -59,12 +60,13 @@ def build_pion_stop_datamodule(
     This avoids materializing a large list of dictionaries between steps.
     
     Args:
-        file_pattern: Glob pattern for data files (required, but can be passed via parameters)
+        hits_pattern: Glob pattern for hits_batch_*.npy (required).
+        info_pattern: Glob pattern for group_info_batch_*.npy (required).
         num_workers: Number of DataLoader workers. If None, auto-detects based on CPU count.
             Set to 0 to disable multiprocessing.
     """
-    if file_pattern is None:
-        raise ValueError("file_pattern is required but was not provided")
+    if hits_pattern is None or info_pattern is None:
+        raise ValueError("hits_pattern and info_pattern are required but were not provided")
     
     # Auto-detect num_workers if not specified
     if num_workers is None:
@@ -75,16 +77,18 @@ def build_pion_stop_datamodule(
     else:
         print(f"Using num_workers: {num_workers}", file=sys.stderr, flush=True)
     
-    print(f"Starting to load data from: {file_pattern}", file=sys.stderr, flush=True)
-    groups = load_pion_stop_groups(
-        file_pattern,
-        pion_pdg=pion_pdg,
+    print(f"Starting to load data from: hits={hits_pattern}, info={info_pattern}", file=sys.stderr, flush=True)
+    groups = load_hits_and_info(
+        hits_pattern=hits_pattern,
+        info_pattern=info_pattern,
         max_files=max_files,
         limit_groups=limit_groups,
         min_hits=min_hits,
-        min_pion_hits=min_pion_hits,
+        include_hit_labels=False,
         verbose=True,
     )
+    # Keep only groups with a true pion stop defined
+    groups = [g for g in groups if getattr(g, "true_pion_stop", None) is not None]
     print(f"Loaded {len(groups)} groups. Building datamodule...", file=sys.stderr, flush=True)
     datamodule = PionStopDataModule(
         records=groups,
@@ -183,7 +187,7 @@ def run_pion_stop_hparam_search(
         datamodule.batch_size = batch_size
 
         model = PionStopRegressor(
-            in_channels=5,
+            in_channels=4,
             hidden=hidden,
             heads=heads,
             layers=layers,

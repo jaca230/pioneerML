@@ -234,7 +234,7 @@ class ConfusionMatrixPlot(BasePlot):
                         ax=ax,
                     )
                 ax.set_xlabel("Metric")
-                ax.set_ylabel("Class")
+                ax.set_ylabel("True Class")
                 total_samples = cm_raw.sum()
                 if norm_mode is not None:
                     ax.set_title(f"Confusion Matrix Summary - Normalized per Class (N={total_samples})")
@@ -480,7 +480,7 @@ class ConfusionMatrixPlot(BasePlot):
                     ax=ax,
                 )
             ax.set_xlabel("Metric")
-            ax.set_ylabel("Class")
+            ax.set_ylabel("True Class")
             total_samples = y_true_binary.shape[0]
             if norm_mode is not None:
                 ax.set_title(f"Confusion Matrix Summary - Normalized per Class (N={total_samples})")

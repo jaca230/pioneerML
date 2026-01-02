@@ -21,10 +21,11 @@ class PositronAngleRecord:
     z: Iterable[float]
     energy: Iterable[float]
     view: Iterable[float]
-    angle: Sequence[float]  # target regression vector length 2
+    angle: Sequence[float] | None = None  # target regression vector length 2
     event_id: Optional[int] = None
     group_id: Optional[int] = None
     pion_stop: Optional[Sequence[float]] = None
+    true_angle_vector: Optional[Sequence[float]] = None
 
 
 class PositronAngleDataset(Dataset):
@@ -48,18 +49,21 @@ class PositronAngleDataset(Dataset):
             raise ValueError("All per-hit arrays must share the same shape.")
 
         num_hits = coord.shape[0]
-        group_energy = np.full(num_hits, energy.sum(), dtype=np.float32)
-        node_features = torch.tensor(
-            np.stack([coord, z_pos, energy, view, group_energy], axis=1), dtype=torch.float
-        )
+        node_features = torch.tensor(np.stack([coord, z_pos, energy, view], axis=1), dtype=torch.float)
 
         edge_index = fully_connected_edge_index(num_hits, device=node_features.device)
         edge_attr = build_edge_attr(node_features, edge_index)
 
         data = Data(x=node_features, edge_index=edge_index, edge_attr=edge_attr)
+        data.u = torch.tensor([[energy.sum()]], dtype=torch.float)
 
         # Target angle vector
-        angle = np.asarray(item.angle, dtype=np.float32).reshape(-1)
+        if item.angle is not None:
+            angle = np.asarray(item.angle, dtype=np.float32).reshape(-1)
+        elif item.true_angle_vector is not None:
+            angle = np.asarray(item.true_angle_vector, dtype=np.float32).reshape(-1)
+        else:
+            angle = np.zeros(2, dtype=np.float32)
         if angle.size < 2:
             # Pad missing angles with zeros
             angle = np.pad(angle, (0, 2 - angle.size), mode="constant")
@@ -69,6 +73,8 @@ class PositronAngleDataset(Dataset):
             data.event_id = torch.tensor(int(item.event_id), dtype=torch.long)
         if item.group_id is not None:
             data.group_id = torch.tensor(int(item.group_id), dtype=torch.long)
+        if item.pion_stop is not None:
+            data.pion_stop = torch.tensor(item.pion_stop, dtype=torch.float).unsqueeze(0)
 
         return data
 
@@ -85,4 +91,5 @@ class PositronAngleDataset(Dataset):
             event_id=raw.get("event_id"),
             group_id=raw.get("group_id"),
             pion_stop=raw.get("pion_stop"),
+            true_angle_vector=raw.get("true_angle_vector"),
         )

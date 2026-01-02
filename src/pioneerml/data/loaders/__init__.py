@@ -5,10 +5,7 @@ Each loader is implemented as a class for better organization and extensibility.
 """
 
 from .base import BaseLoader
-from .preprocessed_time_groups import PreprocessedTimeGroupsLoader
-from .splitter_groups import SplitterGroupsLoader
-from .pion_stop_groups import PionStopGroupsLoader
-from .positron_angle_groups import PositronAngleGroupsLoader
+from .hits_info import HitsAndInfoLoader
 
 # Export constants
 from .constants import (
@@ -25,100 +22,33 @@ from .constants import (
 )
 
 # Functional API for backwards compatibility
-def load_preprocessed_time_groups(
-    file_pattern: str,
+def load_hits_and_info(
+    hits_pattern: str,
+    info_pattern: str,
     *,
     max_files: int | None = None,
     limit_groups: int | None = None,
     min_hits: int = 2,
-    min_hits_per_label: int = 2,
     verbose: bool = True,
+    include_hit_labels: bool = False,
 ):
-    """Load preprocessed time-group files into dictionaries for the dataset."""
-    loader = PreprocessedTimeGroupsLoader()
+    """Load paired hits/info NPY dumps into GraphRecords."""
+    loader = HitsAndInfoLoader()
     return loader.load(
-        file_pattern,
-        max_files=max_files,
-        limit_groups=limit_groups,
-        min_hits=min_hits,
-        min_hits_per_label=min_hits_per_label,
-        verbose=verbose,
-    )
-
-
-def load_splitter_groups(
-    file_pattern: str,
-    *,
-    max_files: int | None = None,
-    limit_groups: int | None = None,
-    min_hits: int = 3,
-    verbose: bool = True,
-):
-    """Load groups for the splitter network (per-hit classification)."""
-    loader = SplitterGroupsLoader()
-    return loader.load(
-        file_pattern,
+        hits_pattern,
+        info_pattern,
         max_files=max_files,
         limit_groups=limit_groups,
         min_hits=min_hits,
         verbose=verbose,
-    )
-
-
-def load_pion_stop_groups(
-    file_pattern: str,
-    *,
-    pion_pdg: int = 1,
-    max_files: int | None = None,
-    limit_groups: int | None = None,
-    min_hits: int = 3,
-    min_pion_hits: int = 1,
-    verbose: bool = True,
-):
-    """Load preprocessed pion groups for stop position regression."""
-    loader = PionStopGroupsLoader()
-    return loader.load(
-        file_pattern,
-        pion_pdg=pion_pdg,
-        max_files=max_files,
-        limit_groups=limit_groups,
-        min_hits=min_hits,
-        min_pion_hits=min_pion_hits,
-        verbose=verbose,
-    )
-
-
-def load_positron_angle_groups(
-    file_pattern: str,
-    *,
-    max_files: int | None = None,
-    limit_groups: int | None = None,
-    min_hits: int = 2,
-    angle_targets_pattern: str | None = None,
-    verbose: bool = True,
-):
-    """Load groups for positron angle regression."""
-    loader = PositronAngleGroupsLoader()
-    return loader.load(
-        file_pattern,
-        max_files=max_files,
-        limit_groups=limit_groups,
-        min_hits=min_hits,
-        angle_targets_pattern=angle_targets_pattern,
-        verbose=verbose,
+        include_hit_labels=include_hit_labels,
     )
 
 
 __all__ = [
     "BaseLoader",
-    "PreprocessedTimeGroupsLoader",
-    "SplitterGroupsLoader",
-    "PionStopGroupsLoader",
-    "PositronAngleGroupsLoader",
-    "load_preprocessed_time_groups",
-    "load_splitter_groups",
-    "load_pion_stop_groups",
-    "load_positron_angle_groups",
+    "HitsAndInfoLoader",
+    "load_hits_and_info",
     "CLASS_NAMES",
     "NUM_GROUP_CLASSES",
     "NODE_LABEL_TO_NAME",
@@ -130,5 +60,3 @@ __all__ = [
     "OTHER_MASK",
     "BIT_TO_CLASS",
 ]
-
-

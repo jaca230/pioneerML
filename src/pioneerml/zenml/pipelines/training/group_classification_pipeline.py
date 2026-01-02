@@ -1,7 +1,7 @@
 """
 ZenML pipeline for training the group classifier on real time-group data.
 
-This pipeline loads preprocessed time groups from .npy files, runs Optuna
+This pipeline loads paired hits/info time groups from .npy files, runs Optuna
 hyperparameter search, trains the best model, and collects predictions for evaluation.
 """
 
@@ -18,7 +18,7 @@ import torch
 import torch.nn as nn
 from zenml import pipeline, step
 
-from pioneerml.data import load_preprocessed_time_groups, NUM_GROUP_CLASSES
+from pioneerml.data import load_hits_and_info, NUM_GROUP_CLASSES
 from pioneerml.models.classifiers.group_classifier import GroupClassifier
 from pioneerml.optuna import OptunaStudyManager
 from pioneerml.training.datamodules import GroupClassificationDataModule
@@ -62,7 +62,8 @@ def _compute_pos_weight(datamodule: GroupClassificationDataModule) -> torch.Tens
 
 @step
 def build_group_classification_datamodule(
-    file_pattern: Optional[str] = None,
+    hits_pattern: Optional[str] = None,
+    info_pattern: Optional[str] = None,
     max_files: Optional[int] = None,
     limit_groups: Optional[int] = None,
     min_hits: int = 2,
@@ -80,12 +81,13 @@ def build_group_classification_datamodule(
     This avoids materializing a large list of dictionaries between steps.
     
     Args:
-        file_pattern: Glob pattern for data files (required, but can be passed via parameters)
+        hits_pattern: Glob pattern for hits_batch_*.npy (required).
+        info_pattern: Glob pattern for group_info_batch_*.npy (required).
         num_workers: Number of DataLoader workers. If None, auto-detects based on CPU count.
             Set to 0 to disable multiprocessing.
     """
-    if file_pattern is None:
-        raise ValueError("file_pattern is required but was not provided")
+    if hits_pattern is None or info_pattern is None:
+        raise ValueError("hits_pattern and info_pattern are required but were not provided")
     
     # Auto-detect num_workers if not specified
     if num_workers is None:
@@ -96,13 +98,14 @@ def build_group_classification_datamodule(
     else:
         print(f"Using num_workers: {num_workers}", file=sys.stderr, flush=True)
     
-    print(f"Starting to load data from: {file_pattern}", file=sys.stderr, flush=True)
-    groups = load_preprocessed_time_groups(
-        file_pattern,
+    print(f"Starting to load data from: hits={hits_pattern}, info={info_pattern}", file=sys.stderr, flush=True)
+    groups = load_hits_and_info(
+        hits_pattern=hits_pattern,
+        info_pattern=info_pattern,
         max_files=max_files,
         limit_groups=limit_groups,
         min_hits=min_hits,
-        min_hits_per_label=min_hits_per_label,
+        include_hit_labels=False,
         verbose=True,
     )
     print(f"Loaded {len(groups)} groups. Building datamodule...", file=sys.stderr, flush=True)
@@ -185,13 +188,15 @@ def run_group_classification_hparam_search(
         )
         
         batch_size = trial.suggest_categorical("batch_size", [32, 64, 128])
-        hidden = trial.suggest_categorical("hidden", [128, 192, 256])
+        hidden_raw = trial.suggest_categorical("hidden", [128, 192, 256])
+        heads = trial.suggest_categorical("heads", [4, 8])
+        hidden = max(heads, (hidden_raw // heads) * heads)
         num_blocks = trial.suggest_int("num_blocks", 2, 4)
         dropout = trial.suggest_float("dropout", 0.05, 0.25)
         lr = trial.suggest_float("lr", 3e-4, 3e-3, log=True)
         weight_decay = trial.suggest_float("weight_decay", 1e-5, 1e-3, log=True)
 
-        print(f"Trial {trial_num} params: batch_size={batch_size}, hidden={hidden}, num_blocks={num_blocks}, dropout={dropout:.4f}, lr={lr:.6f}, weight_decay={weight_decay:.6f}", file=sys.stderr, flush=True)
+        print(f"Trial {trial_num} params: batch_size={batch_size}, hidden={hidden} (from {hidden_raw}), heads={heads}, num_blocks={num_blocks}, dropout={dropout:.4f}, lr={lr:.6f}, weight_decay={weight_decay:.6f}", file=sys.stderr, flush=True)
 
         datamodule.batch_size = batch_size
 
@@ -199,6 +204,7 @@ def run_group_classification_hparam_search(
             num_classes=NUM_GROUP_CLASSES,
             hidden=hidden,
             num_blocks=num_blocks,
+            heads=heads,
             dropout=dropout,
         )
         lightning_module = GraphLightningModule(

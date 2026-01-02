@@ -1,6 +1,4 @@
-"""
-SplitterGraphDataset for per-hit classification.
-"""
+"""SplitterGraphDataset for per-hit classification."""
 
 from __future__ import annotations
 
@@ -19,12 +17,10 @@ class SplitterGraphDataset(Dataset):
     """
     Dataset for the splitter network.
 
-    - Uses the same standardized node features as GraphGroupDataset:
-      [coord, z, energy, view, group_energy]
-    - Expects per-hit multi-label targets in GraphRecord.hit_labels
-      with shape [num_hits, 3] corresponding to [is_pion, is_muon, is_mip].
-    - Optionally appends group-level classifier probabilities
-      [p_pi, p_mu, p_mip] to each node's feature vector.
+    Uses standardized node features [coord, z, energy, view] and optional
+    group probabilities stored separately on the Data object.
+    Expects per-hit multi-label targets in GraphRecord.hit_labels with shape
+    [num_hits, 3] corresponding to [is_pion, is_muon, is_mip].
     """
 
     def __init__(
@@ -33,7 +29,6 @@ class SplitterGraphDataset(Dataset):
         *,
         use_group_probs: bool = False,
     ):
-        # Normalize to GraphRecord
         self.items: list[GraphRecord] = [self._coerce(item) for item in records]
         self.use_group_probs = use_group_probs
 
@@ -52,24 +47,8 @@ class SplitterGraphDataset(Dataset):
             raise ValueError("All per-hit arrays must share the same shape.")
 
         num_hits = coord.shape[0]
-        group_energy = np.full(num_hits, energy.sum(), dtype=np.float32)
 
-        # Base node features: identical to GraphGroupDataset
-        base_features = np.stack(
-            [coord, z_pos, energy, view, group_energy],
-            axis=1,
-        )  # [N, 5]
-
-        # Optional classifier probabilities [p_pi, p_mu, p_mip]
-        if self.use_group_probs and item.group_probs is not None:
-            probs = np.asarray(item.group_probs, dtype=np.float32)  # [3]
-            if probs.shape != (3,):
-                raise ValueError(f"group_probs must have shape (3,), got {probs.shape}")
-            probs_expanded = np.repeat(probs[None, :], num_hits, axis=0)  # [N, 3]
-            node_features = np.concatenate([base_features, probs_expanded], axis=1)  # [N, 8]
-        else:
-            node_features = base_features  # [N, 5]
-
+        node_features = np.stack([coord, z_pos, energy, view], axis=1)  # [N, 4]
         x = torch.tensor(node_features, dtype=torch.float)
 
         # Per-hit multi-label targets: [N, 3] of 0/1
@@ -92,6 +71,10 @@ class SplitterGraphDataset(Dataset):
         edge_attr = build_edge_attr(x, edge_index)
 
         data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
+        data.u = torch.tensor([[energy.sum()]], dtype=torch.float)
+
+        if item.group_probs is not None and self.use_group_probs:
+            data.group_probs = torch.tensor(item.group_probs, dtype=torch.float).unsqueeze(0)
 
         if item.event_id is not None:
             data.event_id = torch.tensor(int(item.event_id), dtype=torch.long)
@@ -114,4 +97,11 @@ class SplitterGraphDataset(Dataset):
             group_id=raw.get("group_id"),
             hit_labels=raw.get("hit_labels"),
             group_probs=raw.get("group_probs"),
+            hit_pdgs=raw.get("hit_pdgs"),
+            class_energies=raw.get("class_energies"),
+            true_pion_stop=raw.get("true_pion_stop"),
+            true_angle_vector=raw.get("true_angle_vector"),
+            pred_pion_stop=raw.get("pred_pion_stop"),
+            matched_pion_index=raw.get("matched_pion_index"),
+            pion_stop_for_angle=raw.get("pion_stop_for_angle"),
         )

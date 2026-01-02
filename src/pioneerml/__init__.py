@@ -8,7 +8,7 @@ reconstructing particle physics events from the PIONEER Active Target detector.
 __version__ = "0.1.0"
 __author__ = "Jack"
 
-from pioneerml import models, data, training, evaluation, utils
+from pioneerml import models, data, training, evaluation, utils, pipelines
 
 __all__ = [
     "models",
@@ -16,5 +16,6 @@ __all__ = [
     "training",
     "evaluation",
     "utils",
+    "pipelines",
     "__version__",
 ]

@@ -106,7 +106,9 @@ class GraphLightningModule(pl.LightningModule):
     def _shared_step(self, batch: Batch) -> tuple[torch.Tensor, torch.Tensor]:
         if not hasattr(batch, "y"):
             raise AttributeError("Batch is missing target attribute 'y' required for training.")
-        preds = self(batch)
+        raw_preds = self(batch)
+        # If the model returns multiple outputs, use the first for loss/metrics
+        preds = raw_preds[0] if isinstance(raw_preds, (tuple, list)) else raw_preds
         target = batch.y
 
         # Ensure target shape matches preds for BCE/CE losses

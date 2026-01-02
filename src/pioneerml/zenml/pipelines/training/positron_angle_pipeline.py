@@ -1,7 +1,7 @@
 """
 ZenML pipeline for training the positron angle regressor on real time-group data.
 
-This pipeline loads positron angle groups from .npy files, runs Optuna
+This pipeline loads positron angle groups from paired hits/info .npy files, runs Optuna
 hyperparameter search, trains the best model, and collects predictions for evaluation.
 """
 
@@ -18,7 +18,7 @@ import torch
 import torch.nn as nn
 from zenml import pipeline, step
 
-from pioneerml.data import load_positron_angle_groups
+from pioneerml.data import load_hits_and_info
 from pioneerml.models.regressors.positron_angle import PositronAngleModel
 from pioneerml.optuna import OptunaStudyManager
 from pioneerml.training.datamodules import PositronAngleDataModule
@@ -41,8 +41,8 @@ def _run_silently(fn):
 
 @step
 def build_positron_angle_datamodule(
-    file_pattern: Optional[str] = None,
-    angle_targets_pattern: Optional[str] = None,
+    hits_pattern: Optional[str] = None,
+    info_pattern: Optional[str] = None,
     max_files: Optional[int] = None,
     limit_groups: Optional[int] = None,
     min_hits: int = 2,
@@ -57,9 +57,8 @@ def build_positron_angle_datamodule(
     Load data and build a GraphDataModule for positron angle regression.
     
     Args:
-        file_pattern: Glob pattern for data files containing groups (required)
-        angle_targets_pattern: Glob pattern for separate angle target files (required).
-            Angles are not stored in the group arrays and must be loaded from separate files.
+        hits_pattern: Glob pattern for hits_batch_*.npy (required).
+        info_pattern: Glob pattern for group_info_batch_*.npy (required).
         max_files: Maximum number of files to load
         limit_groups: Maximum number of groups to load
         min_hits: Minimum number of hits per group
@@ -71,18 +70,8 @@ def build_positron_angle_datamodule(
         test_split: Test split fraction
         seed: Random seed for splitting
     """
-    if file_pattern is None:
-        raise ValueError("file_pattern is required but was not provided")
-    
-    # TODO: Angle data is not currently in mainTimeGroups files.
-    #       angle_targets_pattern is required until angles are added to the data format.
-    if angle_targets_pattern is None:
-        raise ValueError(
-            "angle_targets_pattern is REQUIRED. "
-            "Angle data is not currently stored in mainTimeGroups files. "
-            "Provide a pattern to load angle targets from separate files. "
-            "TODO: Update this once angles are added to mainTimeGroups."
-        )
+    if hits_pattern is None or info_pattern is None:
+        raise ValueError("hits_pattern and info_pattern are required but were not provided")
     
     # Auto-detect num_workers if not specified
     if num_workers is None:
@@ -93,16 +82,18 @@ def build_positron_angle_datamodule(
     else:
         print(f"Using num_workers: {num_workers}", file=sys.stderr, flush=True)
     
-    print(f"Starting to load data from: {file_pattern}", file=sys.stderr, flush=True)
-    print(f"Loading angle targets from: {angle_targets_pattern}", file=sys.stderr, flush=True)
-    groups = load_positron_angle_groups(
-        file_pattern,
-        angle_targets_pattern=angle_targets_pattern,
+    print(f"Starting to load data from: hits={hits_pattern}, info={info_pattern}", file=sys.stderr, flush=True)
+    groups = load_hits_and_info(
+        hits_pattern=hits_pattern,
+        info_pattern=info_pattern,
         max_files=max_files,
         limit_groups=limit_groups,
         min_hits=min_hits,
+        include_hit_labels=False,
         verbose=True,
     )
+    # Keep only groups with truth angle vectors available
+    groups = [g for g in groups if getattr(g, "true_angle_vector", None) is not None]
 
     print(f"Loaded {len(groups)} groups. Building datamodule...", file=sys.stderr, flush=True)
     datamodule = PositronAngleDataModule(
@@ -190,7 +181,7 @@ def run_positron_angle_hparam_search(
         datamodule.batch_size = batch_size
 
         model = PositronAngleModel(
-            in_channels=5,
+            in_channels=4,
             hidden=hidden,
             heads=heads,
             layers=layers,

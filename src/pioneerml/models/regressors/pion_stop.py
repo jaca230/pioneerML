@@ -1,6 +1,4 @@
-"""
-Regressor for predicting pion stop position from a time-group graph.
-"""
+"""Regressor for predicting pion stop position from a time-group graph."""
 
 from __future__ import annotations
 
@@ -9,27 +7,21 @@ import torch.nn as nn
 from torch_geometric.data import Data
 from torch_geometric.nn import AttentionalAggregation, JumpingKnowledge
 
-from pioneerml.models.base import GraphModel
 from pioneerml.models.blocks import FullGraphTransformerBlock
 
 
-class PionStopRegressor(GraphModel):
+class PionStopRegressor(nn.Module):
     """Graph-level regressor for the pion stop 3D coordinate."""
 
     def __init__(
         self,
-        in_channels: int = 5,
+        in_channels: int = 4,
         hidden: int = 128,
         heads: int = 4,
         layers: int = 3,
         dropout: float = 0.1,
     ):
-        super().__init__(
-            in_channels=in_channels,
-            hidden=hidden,
-            edge_dim=4,
-            dropout=dropout,
-        )
+        super().__init__()
         self.layers = layers
         self.heads = heads
 
@@ -59,13 +51,12 @@ class PionStopRegressor(GraphModel):
         )
 
         self.head = nn.Sequential(
-            nn.Linear(jk_dim, hidden),
+            nn.Linear(jk_dim + 1, hidden),
             nn.ReLU(),
             nn.Linear(hidden, 3),
         )
 
     def forward(self, data: Data) -> torch.Tensor:
-        """Forward pass returning a 3D coordinate for each graph."""
         x = self.input_proj(data.x)
         xs = []
         for block in self.blocks:
@@ -73,24 +64,15 @@ class PionStopRegressor(GraphModel):
             xs.append(x)
         x_cat = self.jk(xs)
         pooled = self.pool(x_cat, data.batch)
-        return self.head(pooled)
+        out = torch.cat([pooled, data.u], dim=1)
+        return self.head(out)
 
     def extract_embeddings(self, data: Data) -> torch.Tensor:
-        """Return graph-level embeddings before the regression head."""
         x = self.input_proj(data.x)
         xs = []
         for block in self.blocks:
             x = block(x, data.edge_index, data.edge_attr)
             xs.append(x)
         x_cat = self.jk(xs)
-        return self.pool(x_cat, data.batch)
-
-    def summary(self) -> dict:
-        info = super().summary()
-        info.update(
-            {
-                "layers": self.layers,
-                "heads": self.heads,
-            }
-        )
-        return info
+        pooled = self.pool(x_cat, data.batch)
+        return torch.cat([pooled, data.u], dim=1)

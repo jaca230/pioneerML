@@ -17,6 +17,10 @@ from pioneerml.zenml.pipelines.training import (
     pion_stop_optuna_pipeline,
     group_splitter_optuna_pipeline,
 )
+from pioneerml.zenml.pipelines.inference import (
+    upstream_inference_pipeline,
+    downstream_inference_pipeline,
+)
 
 __all__ = [
     "dummy_particle_grouping_pipeline",
@@ -25,4 +29,6 @@ __all__ = [
     "group_classification_optuna_pipeline",
     "pion_stop_optuna_pipeline",
     "group_splitter_optuna_pipeline",
+    "upstream_inference_pipeline",
+    "downstream_inference_pipeline",
 ]

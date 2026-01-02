@@ -1,9 +1,4 @@
-"""
-Affinity scorer for evaluating group consistency.
-
-Computes a scalar affinity score for a time-group graph using stacked
-transformer blocks with attentional pooling.
-"""
+"""Affinity scorer for evaluating group consistency."""
 
 from __future__ import annotations
 
@@ -12,32 +7,23 @@ import torch.nn as nn
 from torch_geometric.data import Data
 from torch_geometric.nn import AttentionalAggregation, JumpingKnowledge
 
-from pioneerml.models.base import GraphModel
 from pioneerml.models.blocks import FullGraphTransformerBlock
 
 
-class GroupAffinityModel(GraphModel):
+class GroupAffinityModel(nn.Module):
     """
     Graph-level affinity scorer.
-
-    Produces a single scalar score representing how likely a group of hits
-    belongs together.
     """
 
     def __init__(
         self,
-        in_channels: int = 5,
+        in_channels: int = 4,
         hidden_channels: int = 128,
         heads: int = 4,
         num_layers: int = 3,
         dropout: float = 0.1,
     ):
-        super().__init__(
-            in_channels=in_channels,
-            hidden=hidden_channels,
-            edge_dim=4,
-            dropout=dropout,
-        )
+        super().__init__()
         self.num_layers = num_layers
         self.heads = heads
 
@@ -67,13 +53,12 @@ class GroupAffinityModel(GraphModel):
         )
 
         self.head = nn.Sequential(
-            nn.Linear(jk_dim, hidden_channels),
+            nn.Linear(jk_dim + 1, hidden_channels),
             nn.ReLU(),
             nn.Linear(hidden_channels, 1),
         )
 
     def forward(self, data: Data) -> torch.Tensor:
-        """Forward pass returning a single affinity score."""
         x = self.input_proj(data.x)
         xs = []
         for block in self.layers:
@@ -81,14 +66,5 @@ class GroupAffinityModel(GraphModel):
             xs.append(x)
         x_cat = self.jk(xs)
         pooled = self.pool(x_cat, data.batch)
-        return self.head(pooled)
-
-    def summary(self) -> dict:
-        info = super().summary()
-        info.update(
-            {
-                "num_layers": self.num_layers,
-                "heads": self.heads,
-            }
-        )
-        return info
+        out = torch.cat([pooled, data.u], dim=1)
+        return self.head(out)

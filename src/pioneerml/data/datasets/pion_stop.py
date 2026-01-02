@@ -127,6 +127,24 @@ class PionStopGraphDataset(Dataset):
     def _coerce(raw: PionStopRecord | Dict[str, Any]) -> PionStopRecord:
         if isinstance(raw, PionStopRecord):
             return raw
+        if hasattr(raw, "coord"):
+            # GraphRecord or similar object with attributes
+            return PionStopRecord(
+                coord=getattr(raw, "coord"),
+                z=getattr(raw, "z"),
+                energy=getattr(raw, "energy"),
+                view=getattr(raw, "view"),
+                time=getattr(raw, "time", None),
+                pdg=getattr(raw, "pdg", None),
+                true_x=getattr(raw, "true_x", None),
+                true_y=getattr(raw, "true_y", None),
+                true_z=getattr(raw, "true_z", None),
+                true_time=getattr(raw, "true_time", None),
+                true_pion_stop=getattr(raw, "true_pion_stop", None),
+                event_id=getattr(raw, "event_id", None),
+                group_id=getattr(raw, "group_id", None),
+            )
+        # Fallback: dict-like
         return PionStopRecord(
             coord=raw["coord"],
             z=raw["z"],

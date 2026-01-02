@@ -282,14 +282,14 @@ def train_best_pion_stop_regressor(
     if "batch_size" in best_params:
         datamodule.batch_size = int(best_params["batch_size"])
 
+    heads_val = int(best_params.get("heads", 4))
+    hidden_raw = int(best_params.get("hidden", 150))
+    hidden_val = max(heads_val, (hidden_raw // heads_val) * heads_val)
+
     model = PionStopRegressor(
-        in_channels=5,
-        hidden=max(
-            int(best_params.get("heads", 5)),
-            (int(best_params.get("hidden", 150)) // int(best_params.get("heads", 5)))
-            * int(best_params.get("heads", 5)),
-        ),
-        heads=int(best_params.get("heads", 5)),
+        in_channels=4,
+        hidden=hidden_val,
+        heads=heads_val,
         layers=int(best_params.get("layers", 3)),
         dropout=float(best_params.get("dropout", 0.15)),
     )

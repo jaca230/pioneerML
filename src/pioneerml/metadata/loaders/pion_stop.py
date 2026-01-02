@@ -42,10 +42,9 @@ class PionStopRegressorLoader(ModelLoader):
         hidden = max(heads, (hidden // heads) * heads)
         
         return PionStopRegressor(
-            in_channels=5,
+            in_channels=4,
             hidden=hidden,
             heads=heads,
             layers=int(params["layers"]),
             dropout=float(params["dropout"]),
         )
-

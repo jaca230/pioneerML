@@ -26,6 +26,7 @@ from .registry import (
 # These imports must come after the registry imports
 from . import group_classifier  # noqa: E402, F401
 from . import group_splitter  # noqa: E402, F401
+from . import endpoint  # noqa: E402, F401
 from . import pion_stop  # noqa: E402, F401
 from . import positron_angle  # noqa: E402, F401
 
@@ -37,4 +38,3 @@ __all__ = [
     "register_loader",
     "register_model_loader",
 ]
-

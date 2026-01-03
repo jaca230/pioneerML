@@ -281,14 +281,14 @@ def train_best_positron_angle_regressor(
     val_size = len(datamodule.val_dataset) if datamodule.val_dataset else 0
     print(f"Dataset sizes - Train: {train_size}, Val: {val_size}", file=sys.stderr, flush=True)
 
+    heads_val = int(best_params.get("heads", 4))
+    hidden_raw = int(best_params.get("hidden", 128))
+    hidden_val = max(heads_val, (hidden_raw // heads_val) * heads_val)
+
     model = PositronAngleModel(
-        in_channels=5,
-        hidden=max(
-            int(best_params.get("heads", 4)),
-            (int(best_params.get("hidden", 128)) // int(best_params.get("heads", 4)))
-            * int(best_params.get("heads", 4)),
-        ),
-        heads=int(best_params.get("heads", 4)),
+        in_channels=4,
+        hidden=hidden_val,
+        heads=heads_val,
         layers=int(best_params.get("layers", 2)),
         dropout=float(best_params.get("dropout", 0.1)),
     )

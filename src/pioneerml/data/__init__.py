@@ -13,6 +13,7 @@ from pioneerml.data.datasets import (
     GraphRecord,
     PionStopRecord,
     GraphGroupDataset,
+    EndpointGraphDataset,
     PionStopGraphDataset,
     SplitterGraphDataset,
     PositronAngleDataset,
@@ -28,6 +29,7 @@ from pioneerml.data.loaders import (
     NUM_NODE_CLASSES,
 )
 from pioneerml.data.event_mixer import EventMixer, MixedEventDataset, EventContainer, save_mixed_events
+# Also exposed via data.processing for clarity.
 
 __all__ = [
     "GraphRecord",
@@ -36,6 +38,7 @@ __all__ = [
     "PionStopGraphDataset",
     "SplitterGraphDataset",
     "PositronAngleDataset",
+    "EndpointGraphDataset",
     "fully_connected_edge_index",
     "build_edge_attr",
     "build_event_graph",

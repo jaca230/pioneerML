@@ -57,17 +57,16 @@ class PositronAngleDataset(Dataset):
         data = Data(x=node_features, edge_index=edge_index, edge_attr=edge_attr)
         data.u = torch.tensor([[energy.sum()]], dtype=torch.float)
 
-        # Target angle vector
+        # Target angle vector (3 dims)
         if item.angle is not None:
-            angle = np.asarray(item.angle, dtype=np.float32).reshape(-1)
+            angle_vec = np.asarray(item.angle, dtype=np.float32).reshape(-1)
         elif item.true_angle_vector is not None:
-            angle = np.asarray(item.true_angle_vector, dtype=np.float32).reshape(-1)
+            angle_vec = np.asarray(item.true_angle_vector, dtype=np.float32).reshape(-1)
         else:
-            angle = np.zeros(2, dtype=np.float32)
-        if angle.size < 2:
-            # Pad missing angles with zeros
-            angle = np.pad(angle, (0, 2 - angle.size), mode="constant")
-        data.y = torch.tensor(angle[:2], dtype=torch.float)
+            angle_vec = np.zeros(3, dtype=np.float32)
+        if angle_vec.size < 3:
+            angle_vec = np.pad(angle_vec, (0, 3 - angle_vec.size), mode="constant")
+        data.y = torch.tensor(angle_vec[:3], dtype=torch.float).unsqueeze(0)  # [1,3] per graph
 
         if item.event_id is not None:
             data.event_id = torch.tensor(int(item.event_id), dtype=torch.long)
@@ -82,6 +81,18 @@ class PositronAngleDataset(Dataset):
     def _coerce(raw: Dict[str, Any] | PositronAngleRecord) -> PositronAngleRecord:
         if isinstance(raw, PositronAngleRecord):
             return raw
+        if hasattr(raw, "coord"):
+            return PositronAngleRecord(
+                coord=getattr(raw, "coord"),
+                z=getattr(raw, "z"),
+                energy=getattr(raw, "energy"),
+                view=getattr(raw, "view"),
+                angle=getattr(raw, "angle", None),
+                event_id=getattr(raw, "event_id", None),
+                group_id=getattr(raw, "group_id", None),
+                pion_stop=getattr(raw, "pion_stop", None) or getattr(raw, "true_pion_stop", None),
+                true_angle_vector=getattr(raw, "true_angle_vector", None),
+            )
         return PositronAngleRecord(
             coord=raw["coord"],
             z=raw["z"],
@@ -90,6 +101,6 @@ class PositronAngleDataset(Dataset):
             angle=raw.get("angle", [0.0, 0.0]),
             event_id=raw.get("event_id"),
             group_id=raw.get("group_id"),
-            pion_stop=raw.get("pion_stop"),
+            pion_stop=raw.get("pion_stop") or raw.get("true_pion_stop"),
             true_angle_vector=raw.get("true_angle_vector"),
         )

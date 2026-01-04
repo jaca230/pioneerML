@@ -13,6 +13,7 @@ import optuna
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
+import numpy as np
 from zenml import pipeline, step
 
 from pioneerml.data import load_hits_and_info
@@ -37,6 +38,7 @@ def _run_silently(fn):
 def build_endpoint_datamodule(
     hits_pattern: Optional[str] = None,
     info_pattern: Optional[str] = None,
+    group_probs_path: Optional[str] = None,
     max_files: Optional[int] = None,
     limit_groups: Optional[int] = None,
     min_hits: int = 2,
@@ -47,6 +49,7 @@ def build_endpoint_datamodule(
     test_split: float = 0.0,
     seed: int = 42,
     num_quantiles: int = 3,
+    prob_dimension: int = 0,
 ) -> EndpointDataModule:
     """Load data and build an EndpointDataModule in one step."""
     if hits_pattern is None or info_pattern is None:
@@ -69,6 +72,30 @@ def build_endpoint_datamodule(
         include_hit_labels=False,
         verbose=True,
     )
+    if group_probs_path:
+        try:
+            npz = np.load(group_probs_path)
+            gp = npz["group_probs"]
+            ev = npz["event_id"]
+            gi = npz["group_id"]
+            prob_dimension = int(gp.shape[1]) if gp.ndim == 2 else prob_dimension
+            lookup = {(int(e), int(g)): gp[idx] for idx, (e, g) in enumerate(zip(ev, gi))}
+            attached = 0
+            for rec in groups:
+                if rec.event_id is None or rec.group_id is None:
+                    continue
+                key = (int(rec.event_id), int(rec.group_id))
+                if key in lookup:
+                    rec.group_probs = lookup[key]
+                    attached += 1
+            print(
+                f"Attached group_probs from {group_probs_path} to {attached}/{len(groups)} groups",
+                file=sys.stderr,
+                flush=True,
+            )
+        except Exception as e:
+            print(f"Warning: failed to attach group_probs from {group_probs_path}: {e}", file=sys.stderr, flush=True)
+
     print(f"Loaded {len(groups)} groups. Building datamodule...", file=sys.stderr, flush=True)
     datamodule = EndpointDataModule(
         records=groups,
@@ -79,6 +106,7 @@ def build_endpoint_datamodule(
         test_split=test_split,
         seed=seed,
         num_quantiles=num_quantiles,
+        prob_dimension=prob_dimension,
     )
     datamodule.setup(stage="fit")
     train_size = len(datamodule.train_dataset) if datamodule.train_dataset else 0
@@ -96,10 +124,13 @@ def run_endpoint_hparam_search(
     limit_val_batches: int | float | None = 1.0,
     storage: str | None = None,
     study_name: str = "endpoint_regressor",
+    prob_dimension: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Run Optuna hyperparameter search for endpoint regression."""
     datamodule.setup(stage="fit")
     accelerator, devices = detect_available_accelerator()
+
+    pdim = prob_dimension if prob_dimension is not None else getattr(datamodule, "prob_dimension", 0)
 
     def objective(trial: optuna.Trial) -> float:
         batch_size = trial.suggest_categorical("batch_size", [32, 64, 128])
@@ -115,7 +146,7 @@ def run_endpoint_hparam_search(
 
         model = EndpointRegressor(
             in_channels=4,
-            prob_dimension=0,
+            prob_dimension=pdim,
             hidden=hidden,
             heads=heads,
             layers=layers,
@@ -162,6 +193,7 @@ def train_best_endpoint(
     early_stopping_patience: int = 6,
     early_stopping_monitor: str = "val_loss",
     early_stopping_mode: str = "min",
+    prob_dimension: Optional[int] = None,
 ) -> GraphLightningModule:
     """Train the final endpoint regressor using the best hyperparameters."""
     datamodule.setup(stage="fit")
@@ -171,10 +203,11 @@ def train_best_endpoint(
     heads_val = int(best_params.get("heads", 4))
     hidden_raw = int(best_params.get("hidden", 160))
     hidden_val = max(heads_val, (hidden_raw // heads_val) * heads_val)
+    pdim = prob_dimension if prob_dimension is not None else getattr(datamodule, "prob_dimension", 0)
 
     model = EndpointRegressor(
         in_channels=4,
-        prob_dimension=0,
+        prob_dimension=pdim,
         hidden=hidden_val,
         heads=heads_val,
         layers=int(best_params.get("layers", 3)),

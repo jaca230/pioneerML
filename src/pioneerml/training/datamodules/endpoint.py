@@ -22,8 +22,10 @@ class EndpointDataModule(GraphDataModule):
         test_split: float = 0.0,
         seed: int = 42,
         num_quantiles: int = 3,
+        prob_dimension: int = 0,
     ):
         dataset = EndpointGraphDataset(records, num_quantiles=num_quantiles)
+        self.prob_dimension = prob_dimension
         super().__init__(
             dataset,
             batch_size=batch_size,

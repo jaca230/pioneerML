@@ -14,6 +14,7 @@ import torch
 
 from .base import ModelLoader
 from ..types import TrainingMetadata
+import inspect
 
 try:
     from pioneerml.zenml.utils import find_project_root  # type: ignore
@@ -124,15 +125,23 @@ def load_model_from_checkpoint(
     # Get the appropriate loader for this model type
     loader = get_loader(model_type)
     
-    # Use the loader to instantiate the model
+    # Use the loader to instantiate the model (passing only supported kwargs)
     device_obj = torch.device(device) if isinstance(device, str) else device
-    model = loader.load_model(metadata, device=device_obj)
+    state_dict = torch.load(checkpoint_path, map_location=device_obj)
+    load_kwargs = {}
+    sig = inspect.signature(loader.load_model)
+    if "device" in sig.parameters:
+        load_kwargs["device"] = device_obj
+    if "checkpoint_path" in sig.parameters:
+        load_kwargs["checkpoint_path"] = checkpoint_path
+    if "state_dict" in sig.parameters:
+        load_kwargs["state_dict"] = state_dict
+    model = loader.load_model(metadata, **load_kwargs)
     
-    # Load state dict
+    # Load state dict weights
     state_dict = torch.load(checkpoint_path, map_location=device_obj)
     model.load_state_dict(state_dict)
     model = model.to(device_obj)
     model.eval()
     
     return model, metadata
-

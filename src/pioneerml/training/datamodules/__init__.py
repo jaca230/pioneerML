@@ -8,6 +8,7 @@ from pioneerml.training.datamodules.splitter import SplitterDataModule
 from pioneerml.training.datamodules.pion_stop import PionStopDataModule
 from pioneerml.training.datamodules.positron_angle import PositronAngleDataModule
 from pioneerml.training.datamodules.endpoint import EndpointDataModule
+from pioneerml.training.datamodules.event_builder import EventBuilderDataModule
 
 __all__ = [
     "GraphDataModule",
@@ -16,4 +17,5 @@ __all__ = [
     "PionStopDataModule",
     "PositronAngleDataModule",
     "EndpointDataModule",
+    "EventBuilderDataModule",
 ]

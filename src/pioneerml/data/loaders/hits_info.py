@@ -57,6 +57,7 @@ class HitsAndInfoLoader(BaseLoader):
         hits_pattern: str,
         info_pattern: str,
         *,
+        group_probs_paths: Optional[List[str]] = None,
         max_files: Optional[int] = None,
         limit_groups: Optional[int] = None,
         min_hits: int = 2,
@@ -68,21 +69,51 @@ class HitsAndInfoLoader(BaseLoader):
 
         if len(hits_paths) != len(info_paths):
             raise ValueError(f"Hits files ({len(hits_paths)}) and info files ({len(info_paths)}) count mismatch.")
+        if group_probs_paths is not None and len(group_probs_paths) != len(hits_paths):
+            raise ValueError(
+                f"group_probs files ({len(group_probs_paths)}) must match hits/info count ({len(hits_paths)})."
+            )
 
         records: List[GraphRecord] = []
-        for h_path, i_path in zip(hits_paths, info_paths):
+        for idx, (h_path, i_path) in enumerate(zip(hits_paths, info_paths)):
             if limit_groups is not None and len(records) >= limit_groups:
                 break
 
             hits_batch = np.load(h_path, allow_pickle=True)
             info_batch = np.load(i_path, allow_pickle=True)
 
+            probs_batch = None
+            if group_probs_paths is not None:
+                gp_path = group_probs_paths[idx]
+                gp_loaded = np.load(gp_path)
+                if isinstance(gp_loaded, np.lib.npyio.NpzFile):
+                    if "group_probs" in gp_loaded:
+                        probs_batch = gp_loaded["group_probs"]
+                        ev_ids = gp_loaded.get("event_id")
+                        grp_ids = gp_loaded.get("group_id")
+                    else:
+                        # fallback to first array in npz
+                        key0 = list(gp_loaded.keys())[0]
+                        probs_batch = gp_loaded[key0]
+                        ev_ids = None
+                        grp_ids = None
+                else:
+                    probs_batch = gp_loaded
+                    ev_ids = None
+                    grp_ids = None
+
+                # Build lookup by (event_id, group_id) if metadata present; else by index.
+                if ev_ids is not None and grp_ids is not None:
+                    gp_lookup = {(int(e), int(g)): probs_batch[k] for k, (e, g) in enumerate(zip(ev_ids, grp_ids))}
+                else:
+                    gp_lookup = None
+
             if len(hits_batch) != len(info_batch):
                 raise ValueError(
                     f"Batch length mismatch: {h_path.name} hits={len(hits_batch)} info={len(info_batch)}"
                 )
 
-            for group_hits, group_info in zip(hits_batch, info_batch):
+            for j, (group_hits, group_info) in enumerate(zip(hits_batch, info_batch)):
                 if limit_groups is not None and len(records) >= limit_groups:
                     break
 
@@ -126,6 +157,18 @@ class HitsAndInfoLoader(BaseLoader):
 
                 hit_pdgs = [_mask_to_class(int(mask)) for mask in pdg_masks]
 
+                group_probs = None
+                if probs_batch is not None:
+                    key = None
+                    if gp_lookup is not None and event_id is not None:
+                        key = (int(event_id), int(j))
+                        if key in gp_lookup:
+                            group_probs = gp_lookup[key].tolist()
+                    if group_probs is None and j < probs_batch.shape[0]:
+                        group_probs = probs_batch[j].tolist()
+
+                group_id_val = j if group_probs_paths is not None else len(records)
+
                 records.append(
                     GraphRecord(
                         coord=coord,
@@ -134,7 +177,7 @@ class HitsAndInfoLoader(BaseLoader):
                         view=view,
                         labels=labels,
                         event_id=event_id,
-                        group_id=len(records),
+                        group_id=group_id_val,
                         hit_labels=hit_labels,
                         hit_pdgs=hit_pdgs,
                         class_energies=class_energies,
@@ -143,6 +186,7 @@ class HitsAndInfoLoader(BaseLoader):
                         true_pion_stop=pion_stop if pion_stop is not None else None,
                         true_angle_vector=angle_vec,
                         true_arc_length=true_arc_length,
+                        group_probs=group_probs,
                     )
                 )
 

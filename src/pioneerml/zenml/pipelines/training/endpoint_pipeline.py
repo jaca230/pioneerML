@@ -38,7 +38,7 @@ def _run_silently(fn):
 def build_endpoint_datamodule(
     hits_pattern: Optional[str] = None,
     info_pattern: Optional[str] = None,
-    group_probs_path: Optional[str] = None,
+    group_probs_pattern: Optional[str] = None,
     max_files: Optional[int] = None,
     limit_groups: Optional[int] = None,
     min_hits: int = 2,
@@ -51,7 +51,14 @@ def build_endpoint_datamodule(
     num_quantiles: int = 3,
     prob_dimension: int = 0,
 ) -> EndpointDataModule:
-    """Load data and build an EndpointDataModule in one step."""
+    """
+    Load data and build an EndpointDataModule in one step.
+
+    Args:
+        hits_pattern: Glob for hits_batch_*.npy.
+        info_pattern: Glob for group_info_batch_*.npy.
+        group_probs_pattern: Glob for group_probs_batch_*.npz (per-batch, aligned to hits/info).
+    """
     if hits_pattern is None or info_pattern is None:
         raise ValueError("hits_pattern and info_pattern are required but were not provided")
 
@@ -63,38 +70,28 @@ def build_endpoint_datamodule(
         print(f"Using num_workers: {num_workers}", file=sys.stderr, flush=True)
 
     print(f"Starting to load data from: hits={hits_pattern}, info={info_pattern}", file=sys.stderr, flush=True)
+    group_probs_paths = None
+    if group_probs_pattern:
+        import glob
+        group_probs_paths = sorted(glob.glob(group_probs_pattern))
+        if not group_probs_paths:
+            print(f"Warning: no group_probs files found for pattern {group_probs_pattern}", file=sys.stderr, flush=True)
+
     groups = load_hits_and_info(
         hits_pattern=hits_pattern,
         info_pattern=info_pattern,
+        group_probs_paths=group_probs_paths,
         max_files=max_files,
         limit_groups=limit_groups,
         min_hits=min_hits,
         include_hit_labels=False,
         verbose=True,
     )
-    if group_probs_path:
-        try:
-            npz = np.load(group_probs_path)
-            gp = npz["group_probs"]
-            ev = npz["event_id"]
-            gi = npz["group_id"]
-            prob_dimension = int(gp.shape[1]) if gp.ndim == 2 else prob_dimension
-            lookup = {(int(e), int(g)): gp[idx] for idx, (e, g) in enumerate(zip(ev, gi))}
-            attached = 0
-            for rec in groups:
-                if rec.event_id is None or rec.group_id is None:
-                    continue
-                key = (int(rec.event_id), int(rec.group_id))
-                if key in lookup:
-                    rec.group_probs = lookup[key]
-                    attached += 1
-            print(
-                f"Attached group_probs from {group_probs_path} to {attached}/{len(groups)} groups",
-                file=sys.stderr,
-                flush=True,
-            )
-        except Exception as e:
-            print(f"Warning: failed to attach group_probs from {group_probs_path}: {e}", file=sys.stderr, flush=True)
+    # Infer prob dimension if present
+    if groups and getattr(groups[0], "group_probs", None) is not None:
+        first_gp = groups[0].group_probs
+        if first_gp is not None:
+            prob_dimension = len(first_gp)
 
     print(f"Loaded {len(groups)} groups. Building datamodule...", file=sys.stderr, flush=True)
     datamodule = EndpointDataModule(

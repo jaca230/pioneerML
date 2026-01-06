@@ -26,6 +26,7 @@ def load_hits_and_info(
     hits_pattern: str,
     info_pattern: str,
     *,
+    group_probs_paths: list[str] | None = None,
     max_files: int | None = None,
     limit_groups: int | None = None,
     min_hits: int = 2,
@@ -37,6 +38,7 @@ def load_hits_and_info(
     return loader.load(
         hits_pattern,
         info_pattern,
+        group_probs_paths=group_probs_paths,
         max_files=max_files,
         limit_groups=limit_groups,
         min_hits=min_hits,

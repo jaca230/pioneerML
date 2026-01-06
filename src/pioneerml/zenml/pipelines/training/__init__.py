@@ -20,6 +20,9 @@ from pioneerml.zenml.pipelines.training.positron_angle_pipeline import (
 from pioneerml.zenml.pipelines.training.endpoint_pipeline import (
     endpoint_optuna_pipeline,
 )
+from pioneerml.zenml.pipelines.training.event_builder_pipeline import (
+    event_builder_optuna_pipeline,
+)
 
 __all__ = [
     "group_classification_optuna_pipeline",
@@ -27,4 +30,5 @@ __all__ = [
     "group_splitter_optuna_pipeline",
     "positron_angle_optuna_pipeline",
     "endpoint_optuna_pipeline",
+    "event_builder_optuna_pipeline",
 ]

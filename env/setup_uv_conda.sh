@@ -9,6 +9,7 @@ set -euo pipefail
 
 ENV_NAME="pioneerml"
 REQ_FILE="requirements.txt"
+PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
 
 if ! command -v conda >/dev/null 2>&1; then
   echo "conda is not available on PATH. Please install Miniconda/Anaconda first." >&2
@@ -18,8 +19,8 @@ fi
 if conda env list | grep -q "^${ENV_NAME}[[:space:]]"; then
   echo "Updating existing conda env: ${ENV_NAME}"
 else
-  echo "Creating conda env: ${ENV_NAME} (python=3.11)"
-  conda create -y -n "${ENV_NAME}" python=3.11
+  echo "Creating conda env: ${ENV_NAME} (python=${PYTHON_VERSION})"
+  conda create -y -n "${ENV_NAME}" "python=${PYTHON_VERSION}"
 fi
 
 echo "Activating env..."

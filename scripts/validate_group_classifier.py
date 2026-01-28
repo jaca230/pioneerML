@@ -17,7 +17,6 @@ import torch
 from torch_geometric.loader import DataLoader
 
 from pioneerml.data import CLASS_NAMES, NUM_GROUP_CLASSES
-from pioneerml.data.loaders import load_preprocessed_time_groups
 from pioneerml.evaluation.plots import (
     plot_confidence_analysis,
     plot_embedding_space,
@@ -29,6 +28,8 @@ from pioneerml.evaluation.plots import (
 from pioneerml.models.classifiers.group_classifier import GroupClassifier
 from pioneerml.training.datamodules import GroupClassificationDataModule
 from pioneerml.zenml import utils as zenml_utils
+from pioneerml.zenml.pipelines.training.group_classification import GroupClassificationProcessor
+from pioneerml.zenml.pipelines.training.group_classification.loader import GroupClassificationLoader
 
 
 def _select_checkpoint(checkpoints_dir: Path, explicit: Optional[Path]) -> tuple[Path, Optional[dict]]:
@@ -70,21 +71,18 @@ def _load_data(
     project_root: Path,
     num_classes: int,
     *,
+    parquet_pattern: str,
     max_files: Optional[int],
     limit_groups: Optional[int],
+    max_hits: int,
     batch_size: int,
     num_workers: int,
     val_split: float,
 ) -> tuple[GroupClassificationDataModule, Sequence[str]]:
-    file_pattern = str(project_root / "data" / "mainTimeGroups_*.npy")
-    groups = load_preprocessed_time_groups(
-        file_pattern,
-        max_files=max_files,
-        limit_groups=limit_groups,
-        min_hits=2,
-        min_hits_per_label=2,
-        verbose=True,
-    )
+    processor = GroupClassificationProcessor(max_hits=max_hits)
+    loader = GroupClassificationLoader(columns=processor.columns)
+    df = loader.load(parquet_pattern, max_files=max_files, limit_groups=limit_groups)
+    groups = processor.process(df)
 
     dm = GroupClassificationDataModule(
         records=groups,
@@ -118,8 +116,10 @@ def run(args: argparse.Namespace) -> None:
     datamodule, default_class_names = _load_data(
         project_root,
         num_classes=model.num_classes,
+        parquet_pattern=args.parquet_pattern or str(Path(project_root) / "data" / "ml_output_*.parquet"),
         max_files=args.max_files,
         limit_groups=args.limit_groups,
+        max_hits=args.max_hits,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         val_split=args.val_split,
@@ -232,8 +232,15 @@ def run(args: argparse.Namespace) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate group classifier checkpoints.")
     parser.add_argument("--checkpoint", type=Path, default=None, help="Path to a .pt checkpoint to evaluate.")
+    parser.add_argument(
+        "--parquet-pattern",
+        type=str,
+        default=None,
+        help="Glob for ml_output parquet shards (default: data/ml_output_*.parquet).",
+    )
     parser.add_argument("--max-files", type=int, default=None, help="Max input files to load for validation.")
     parser.add_argument("--limit-groups", type=int, default=None, help="Limit total groups for faster runs.")
+    parser.add_argument("--max-hits", type=int, default=256, help="Pad/truncate hits to this length.")
     parser.add_argument("--batch-size", type=int, default=128, help="Batch size for validation loader.")
     parser.add_argument("--num-workers", type=int, default=0, help="Number of DataLoader workers.")
     parser.add_argument("--val-split", type=float, default=0.0, help="Validation split ratio (0 uses full set).")

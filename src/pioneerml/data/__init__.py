@@ -21,15 +21,22 @@ from pioneerml.data.datasets import (
     build_edge_attr,
     build_event_graph,
 )
-from pioneerml.data.loaders import (
-    load_hits_and_info,
+from pioneerml.data.loaders import load_hits_and_info
+from pioneerml.data.processing import assign_time_group_labels, add_time_group_labels
+from pioneerml.data.event_mixer import EventMixer, MixedEventDataset, EventContainer, save_mixed_events
+# Also exposed via data.processing for clarity.
+from pioneerml.data.loaders.constants import (
     CLASS_NAMES,
     NUM_GROUP_CLASSES,
     NODE_LABEL_TO_NAME,
     NUM_NODE_CLASSES,
+    PION_MASK,
+    MUON_MASK,
+    POSITRON_MASK,
+    ELECTRON_MASK,
+    OTHER_MASK,
+    BIT_TO_CLASS,
 )
-from pioneerml.data.event_mixer import EventMixer, MixedEventDataset, EventContainer, save_mixed_events
-# Also exposed via data.processing for clarity.
 
 __all__ = [
     "GraphRecord",
@@ -43,10 +50,18 @@ __all__ = [
     "build_edge_attr",
     "build_event_graph",
     "load_hits_and_info",
+    "assign_time_group_labels",
+    "add_time_group_labels",
     "CLASS_NAMES",
     "NUM_GROUP_CLASSES",
     "NODE_LABEL_TO_NAME",
     "NUM_NODE_CLASSES",
+    "PION_MASK",
+    "MUON_MASK",
+    "POSITRON_MASK",
+    "ELECTRON_MASK",
+    "OTHER_MASK",
+    "BIT_TO_CLASS",
     "EventMixer",
     "MixedEventDataset",
     "EventContainer",

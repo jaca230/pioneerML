@@ -85,9 +85,10 @@ class TestGraphGroupDataset:
 
         # Check dimensions
         num_hits = len(sample_graph_record["coord"])
-        assert data.x.shape == (num_hits, 5)  # 5D node features
+        assert data.x.shape == (num_hits, 4)  # stereo coord, z, energy, view
         assert data.edge_attr.shape[1] == 4  # 4D edge features
         assert data.y.shape == (3,)  # 3 classes
+        assert data.hit_mask.sum() == num_hits
 
     def test_labels(self, sample_graph_record):
         """Test multi-label encoding."""
@@ -105,6 +106,8 @@ class TestGraphGroupDataset:
             z=[0.0, 1.0, 2.0],
             energy=[1.5, 2.0, 1.0],
             view=[0.0, 1.0, 0.0],
+            hit_mask=[True, True, False],
+            time_group_ids=[0, 0, -1],
             labels=[0],
             event_id=123,
             group_id=5,
@@ -115,6 +118,9 @@ class TestGraphGroupDataset:
 
         assert data.event_id == 123
         assert data.group_id == 5
+        assert data.num_valid_hits.item() == 2
+        assert data.edge_index.size(1) == 2 * 1  # 2 nodes fully connected (directed)
+        assert torch.equal(data.time_group_ids, torch.tensor([0, 0, -1]))
 
 
 class TestPionStopGraphDataset:
@@ -171,7 +177,7 @@ class TestSplitterGraphDataset:
         dataset = SplitterGraphDataset([sample_graph_record], use_group_probs=False)
         data = dataset[0]
 
-        assert data.x.shape == (num_hits, 5)  # Base 5D features
+        assert data.x.shape == (num_hits, 4)  # Base stereo features
         assert data.y.shape == (num_hits, 3)  # Per-hit 3-class labels
 
     def test_dataset_with_group_probs(self, sample_graph_record):
@@ -183,7 +189,7 @@ class TestSplitterGraphDataset:
         dataset = SplitterGraphDataset([sample_graph_record], use_group_probs=True)
         data = dataset[0]
 
-        assert data.x.shape == (num_hits, 8)  # 5 base + 3 probs
+        assert data.x.shape == (num_hits, 4)  # features remain separate from probs
 
     def test_missing_hit_labels_error(self, sample_graph_record):
         """Test error when hit_labels are missing."""

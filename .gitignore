@@ -115,6 +115,9 @@ artifacts/
 .github/
 .claude/
 
+# Playground
+/.playground/
+
 
 #data
 outputs/
@@ -131,3 +134,6 @@ htmlcov/
 #deprecated
 deprecated/
 
+#custom
+.playground/
+workspace/

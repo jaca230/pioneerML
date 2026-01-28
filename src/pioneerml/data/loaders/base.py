@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Optional
 from abc import ABC, abstractmethod
 
-_CHUNK_INDEX_RE = re.compile(r"_(\d+)\.npy$")
+# Support both legacy .npy shards and new parquet shards
+_CHUNK_INDEX_RE = re.compile(r"_(\d+)\.(?:npy|parquet)$")
 
 
 def extract_file_index(path: Path) -> Optional[int]:
@@ -93,4 +94,3 @@ class BaseLoader(ABC):
             List of record dictionaries
         """
         pass
-

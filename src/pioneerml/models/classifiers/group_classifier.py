@@ -62,6 +62,10 @@ class GroupClassifierStereo(nn.Module):
     def forward(self, data: Data):
         x = self.input_embed(data.x)
 
+        hit_mask = getattr(data, "hit_mask", None)
+        if hit_mask is None:
+            hit_mask = torch.ones(x.size(0), dtype=torch.bool, device=x.device)
+
         xs = []
         for block in self.blocks:
             x = block(x, data.edge_index, data.edge_attr)
@@ -69,8 +73,8 @@ class GroupClassifierStereo(nn.Module):
         x_cat = self.jk(xs)
 
         raw_view = data.x[:, 3].long()
-        mask_x = raw_view == VIEW_X_VAL
-        mask_y = raw_view == VIEW_Y_VAL
+        mask_x = (raw_view == VIEW_X_VAL) & hit_mask
+        mask_y = (raw_view == VIEW_Y_VAL) & hit_mask
 
         def pool_and_count(mask, pool_layer):
             if mask.any():
@@ -97,6 +101,10 @@ class GroupClassifierStereo(nn.Module):
         """
         x = self.input_embed(data.x)
 
+        hit_mask = getattr(data, "hit_mask", None)
+        if hit_mask is None:
+            hit_mask = torch.ones(x.size(0), dtype=torch.bool, device=x.device)
+
         xs = []
         for block in self.blocks:
             x = block(x, data.edge_index, data.edge_attr)
@@ -104,8 +112,8 @@ class GroupClassifierStereo(nn.Module):
         x_cat = self.jk(xs)
 
         raw_view = data.x[:, 3].long()
-        mask_x = raw_view == VIEW_X_VAL
-        mask_y = raw_view == VIEW_Y_VAL
+        mask_x = (raw_view == VIEW_X_VAL) & hit_mask
+        mask_y = (raw_view == VIEW_Y_VAL) & hit_mask
 
         def pool_and_count(mask, pool_layer):
             if mask.any():

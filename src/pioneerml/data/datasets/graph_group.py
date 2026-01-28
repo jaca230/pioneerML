@@ -19,6 +19,8 @@ class GraphRecord:
     z: Iterable[float]
     energy: Iterable[float]
     view: Iterable[float]
+    hit_mask: Optional[Sequence[bool]] = None
+    time_group_ids: Optional[Sequence[int]] = None
     labels: Optional[Sequence[int]] = None
     event_id: Optional[int] = None
     group_id: Optional[int] = None
@@ -73,13 +75,32 @@ class GraphGroupDataset(Dataset):
         num_hits = coord.shape[0]
         node_features = torch.tensor(np.stack([coord, z_pos, energy, view], axis=1), dtype=torch.float)
 
-        edge_index = fully_connected_edge_index(num_hits, device=node_features.device)
-        edge_attr = build_edge_attr(node_features, edge_index)
+        if item.hit_mask is not None:
+            hit_mask = torch.tensor(item.hit_mask, dtype=torch.bool)
+            if hit_mask.shape[0] != num_hits:
+                raise ValueError("hit_mask length must match number of hits.")
+        else:
+            hit_mask = torch.ones(num_hits, dtype=torch.bool)
+        num_valid = int(hit_mask.sum().item())
+
+        if item.time_group_ids is not None:
+            tg = torch.tensor(item.time_group_ids, dtype=torch.long)
+            if tg.shape[0] != num_hits:
+                raise ValueError("time_group_ids length must match number of hits.")
+        else:
+            tg = None
+
+        edge_index = fully_connected_edge_index(num_valid, device=node_features.device)
+        edge_attr = build_edge_attr(node_features[:num_valid], edge_index)
 
         data = Data(x=node_features, edge_index=edge_index, edge_attr=edge_attr)
+        data.hit_mask = hit_mask
+        data.num_valid_hits = torch.tensor([num_valid], dtype=torch.long)
+        if tg is not None:
+            data.time_group_ids = tg
 
         # Add global group energy feature (shape [1, 1] for proper batching)
-        data.u = torch.tensor([[energy.sum()]], dtype=torch.float)
+        data.u = torch.tensor([[node_features[:num_valid, 2].sum()]], dtype=torch.float)
 
         if item.labels is not None and self.num_classes:
             label_tensor = torch.zeros(self.num_classes, dtype=torch.float)
@@ -146,6 +167,8 @@ class GraphGroupDataset(Dataset):
             z=raw["z"],
             energy=raw["energy"],
             view=raw["view"],
+            hit_mask=raw.get("hit_mask"),
+            time_group_ids=raw.get("time_group_ids"),
             labels=raw.get("labels"),
             event_id=raw.get("event_id"),
             group_id=raw.get("group_id"),

@@ -1,0 +1,15 @@
+.git
+.gitmodules
+.pytest_cache
+.coverage
+.optuna
+.playground
+.claude
+__pycache__
+*.pyc
+htmlcov
+data
+artifacts
+trained_models
+external/pioneerml_dataloaders/build
+external/pioneerml_dataloaders/.playground

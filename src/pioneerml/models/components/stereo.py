@@ -44,6 +44,8 @@ class ViewAwareEncoder(nn.Module):
     def __init__(self, prob_dim, hidden_dim):
         super().__init__()
         self.prob_dim = prob_dim
+        self.view_x_val = int(VIEW_X_VAL)
+        self.view_y_val = int(VIEW_Y_VAL)
         self.feature_proj = nn.Linear(3 + prob_dim, hidden_dim)
         self.view_embedding = nn.Embedding(2, hidden_dim)
         nn.init.normal_(self.view_embedding.weight, std=0.02)
@@ -53,7 +55,7 @@ class ViewAwareEncoder(nn.Module):
         raw_view = x[:, 3].long()
 
         embedding_idx = torch.zeros_like(raw_view)
-        embedding_idx[raw_view == VIEW_Y_VAL] = 1
+        embedding_idx[raw_view == self.view_y_val] = 1
 
         if probs is None:
             probs = torch.zeros(x.size(0), self.prob_dim, device=x.device)

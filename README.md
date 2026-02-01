@@ -9,7 +9,7 @@ git clone git@github.com:jaca230/pioneerML.git
 cd pioneerML
 
 # easiest: conda + uv helper
-./env/setup_uv_conda.sh
+./scripts/env/setup_uv_conda.sh
 conda activate pioneerml
 
 # fallback (not recommended): manual venv

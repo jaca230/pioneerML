@@ -57,12 +57,16 @@ class GraphModel(nn.Module, ABC):
     @property
     def num_parameters(self) -> int:
         """Get total number of trainable parameters."""
-        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+        if torch.jit.is_scripting():
+            return 0
+        return sum(p.numel() for p in self.parameters())
 
+    @torch.jit.ignore
     def get_device(self) -> torch.device:
         """Get device of model parameters."""
         return next(self.parameters()).device
 
+    @torch.jit.ignore
     def summary(self) -> dict:
         """
         Get model summary information.

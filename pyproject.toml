@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pioneerml"
-version = "0.1.0"
+version = "0.3.0"
 description = "ML pipeline framework for PIONEER experiment AI reconstruction"
 authors = [
     {name = "Jack", email = "jaca230@users.noreply.github.com"}

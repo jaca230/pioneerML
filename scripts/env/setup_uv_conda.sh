@@ -5,7 +5,7 @@ set -euo pipefail
 # and uses uv to install project dependencies from requirements.txt.
 #
 # Usage:
-#   ./env/setup_uv_conda.sh
+#   ./scripts/env/setup_uv_conda.sh
 
 ENV_NAME="pioneerml"
 REQ_FILE="requirements.txt"
@@ -29,6 +29,11 @@ conda activate "${ENV_NAME}"
 
 echo "Installing uv inside env..."
 python -m pip install -U uv
+
+echo "Installing torch nightly (CUDA 12.8) using uv..."
+uv pip install --prerelease=allow \
+  --index-url "https://download.pytorch.org/whl/nightly/cu128" \
+  "torch==2.11.0.dev20260131+cu128"
 
 echo "Installing dependencies from ${REQ_FILE} using uv..."
 uv pip install -r "${REQ_FILE}"

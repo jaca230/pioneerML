@@ -2,21 +2,22 @@
 set -euo pipefail
 
 IMAGE_NAME="pioneerml"
-VERSION="${PIONEERML_VERSION:-0.1.0}"
+VERSION=""
+NO_CACHE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -t|--tag)
-      IMAGE_NAME="$2"
-      shift 2
-      ;;
     -v|--version)
       VERSION="$2"
       shift 2
       ;;
     -h|--help)
-      echo "Usage: build.sh [-t|--tag name] [-v|--version version]"
+      echo "Usage: build.sh [-v|--version version] [--no-cache]"
       exit 0
+      ;;
+    --no-cache)
+      NO_CACHE="--no-cache"
+      shift
       ;;
     *)
       echo "[build.sh] Unknown option: $1"
@@ -26,6 +27,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+if [[ -z "${VERSION}" ]]; then
+  VERSION="$(awk -F'\"' '/^version[[:space:]]*=/ {print $2; exit}' pyproject.toml)"
+  if [[ -z "${VERSION}" ]]; then
+    VERSION="0.0.0"
+  fi
+fi
 
 echo "[build.sh] Building ${IMAGE_NAME} (PIONEERML_VERSION=${VERSION}) from ${ROOT_DIR}"
-docker build -t "${IMAGE_NAME}" --build-arg "PIONEERML_VERSION=${VERSION}" "${ROOT_DIR}"
+docker build ${NO_CACHE} -t "${IMAGE_NAME}" --build-arg "PIONEERML_VERSION=${VERSION}" "${ROOT_DIR}"

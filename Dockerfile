@@ -1,5 +1,5 @@
 # CUDA runtime image enables GPU access when the container is run with --gpus.
-FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+FROM nvidia/cuda:12.8.0-cudnn-devel-ubuntu22.04
 
 ARG PIONEERML_VERSION=dev
 ENV PIONEERML_VERSION=${PIONEERML_VERSION}
@@ -23,6 +23,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     cmake \
     git \
     pkg-config \
+    unzip \
+    libcurl4-openssl-dev \
     libarrow-dev \
     libparquet-dev \
     libprotobuf-dev \
@@ -47,6 +49,16 @@ RUN mkdir -p /usr/local/lib/cmake/lz4 /usr/local/lib/cmake/re2 /usr/local/lib/cm
     && printf "add_library(Thrift::thrift SHARED IMPORTED)\nset_target_properties(Thrift::thrift PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libthrift.so)\n" \
        > /usr/local/lib/cmake/thrift/ThriftConfig.cmake
 
+# Help CMake find NVTX3 and NVRTC for Torch builds (no hardcoded host paths).
+RUN if [ -f /usr/local/cuda/lib64/libnvrtc.so.12 ]; then \
+      ln -sf /usr/local/cuda/lib64/libnvrtc.so.12 /usr/local/cuda/lib64/libnvrtc.so; \
+    fi \
+    && if [ -d /usr/local/cuda/include/nvtx3 ]; then \
+      mkdir -p /usr/local/lib/cmake/nvtx3; \
+      printf "add_library(nvtx3::nvtx3 INTERFACE IMPORTED)\nset_target_properties(nvtx3::nvtx3 PROPERTIES INTERFACE_INCLUDE_DIRECTORIES /usr/local/cuda/include)\n" \
+        > /usr/local/lib/cmake/nvtx3/nvtx3Config.cmake; \
+    fi
+
 ENV CONDA_DIR=/opt/conda
 RUN curl -fsSL https://repo.anaconda.com/miniconda/Miniconda3-py311_24.3.0-0-Linux-x86_64.sh -o /tmp/miniconda.sh \
     && bash /tmp/miniconda.sh -b -p "${CONDA_DIR}" \
@@ -54,10 +66,10 @@ RUN curl -fsSL https://repo.anaconda.com/miniconda/Miniconda3-py311_24.3.0-0-Lin
 
 ENV PATH="${CONDA_DIR}/bin:${PATH}"
 SHELL ["bash", "-lc"]
+ENV CUDA_HOME=/usr/local/cuda
 
 WORKDIR /workspace
 
-COPY env env
 COPY requirements.txt requirements.txt
 COPY pyproject.toml pyproject.toml
 COPY README.md README.md
@@ -67,12 +79,13 @@ COPY scripts scripts
 COPY notebooks notebooks
 COPY tests tests
 
-# Ensure CUDA-enabled PyTorch is installed via the extra index.
-ENV PIP_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cu121"
-ENV UV_PIP_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cu121"
+ENV PIP_INDEX_URL="https://download.pytorch.org/whl/nightly/cu128"
+ENV PIP_EXTRA_INDEX_URL="https://pypi.org/simple"
+ENV UV_PIP_INDEX_URL="https://download.pytorch.org/whl/nightly/cu128"
+ENV UV_PIP_EXTRA_INDEX_URL="https://pypi.org/simple"
 ENV PYTHON_VERSION=3.10
 
-RUN ./env/setup_uv_conda.sh
+RUN ./scripts/env/setup_uv_conda.sh
 
 RUN conda run -n pioneerml bash -lc "cd external/pioneerml_dataloaders && ./scripts/build.sh"
 

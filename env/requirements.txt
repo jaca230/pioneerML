@@ -1,6 +1,0 @@
-# DEPRECATED: This file has been moved to the repository root.
-# Please use: pip install -r requirements.txt (from repo root)
-#
-# All dependencies (core + dev) are now in a single requirements.txt file.
-
--r ../requirements.txt

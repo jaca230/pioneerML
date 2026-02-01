@@ -133,6 +133,13 @@ htmlcov/
 
 #deprecated
 deprecated/
+deprecated/
+deprecated/pioneerml_data/**
+deprecated/pioneerml_metadata/**
+deprecated/pioneerml_training_datamodules/**
+deprecated/pioneerml_zenml_pipelines_training/**
+deprecated/pioneerml_zenml_pipelines_tutorials/**
+deprecated/pioneerml_zenml_materializers/**
 
 #custom
 .playground/

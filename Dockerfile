@@ -1,4 +1,5 @@
-FROM ubuntu:22.04
+# CUDA runtime image enables GPU access when the container is run with --gpus.
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
 
 ARG PIONEERML_VERSION=dev
 ENV PIONEERML_VERSION=${PIONEERML_VERSION}
@@ -32,6 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsnappy-dev \
     libssl-dev \
     libspdlog-dev \
+    libtbb-dev \
     nlohmann-json3-dev \
     zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -73,6 +75,9 @@ ENV PYTHON_VERSION=3.10
 RUN ./env/setup_uv_conda.sh
 
 RUN conda run -n pioneerml bash -lc "cd external/pioneerml_dataloaders && ./scripts/build.sh"
+
+# Initialize ZenML repository for the workspace.
+RUN conda run -n pioneerml bash -lc "zenml init"
 
 ENV CONDA_DEFAULT_ENV=pioneerml
 ENV PATH="/opt/conda/envs/pioneerml/bin:${PATH}"

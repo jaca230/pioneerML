@@ -5,14 +5,32 @@ Lightweight PyTorch Lightning utilities for graph models.
 from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional
+import warnings
+
+warnings.filterwarnings(
+    "ignore",
+    message="isinstance\\(treespec, LeafSpec\\) is deprecated.*",
+)
+warnings.filterwarnings(
+    "ignore",
+    message="`isinstance\\(treespec, LeafSpec\\)` is deprecated.*",
+    category=FutureWarning,
+)
 
 import pytorch_lightning as pl
+try:  # pragma: no cover - optional import path
+    from lightning_fabric.utilities.rank_zero import LightningDeprecationWarning
+except Exception:  # pragma: no cover
+    LightningDeprecationWarning = None
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch_geometric.data import Batch
 
 from pioneerml.models.base import GraphModel
+
+if LightningDeprecationWarning is not None:
+    warnings.filterwarnings("ignore", category=LightningDeprecationWarning)
 
 
 class GraphLightningModule(pl.LightningModule):
@@ -118,6 +136,8 @@ class GraphLightningModule(pl.LightningModule):
 
     @staticmethod
     def _get_batch_size(batch: Batch) -> int:
+        if hasattr(batch, "num_groups"):
+            return int(batch.num_groups)
         if hasattr(batch, "num_graphs"):
             return int(batch.num_graphs)
         if hasattr(batch, "batch"):

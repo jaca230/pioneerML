@@ -7,7 +7,9 @@ a consistent interface.
 
 from __future__ import annotations
 
-from abc import ABC
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Any
 import torch
 import torch.nn as nn
 from torch_geometric.data import Data
@@ -77,3 +79,14 @@ class GraphModel(nn.Module, ABC):
             "edge_dim": self.edge_dim,
             "dropout": self.dropout,
         }
+
+    @abstractmethod
+    def export_torchscript(
+        self,
+        path: str | Path | None,
+        example: Any,
+        *,
+        strict: bool = False,
+    ) -> torch.jit.ScriptModule:
+        """Export a TorchScript version of the model."""
+        raise NotImplementedError

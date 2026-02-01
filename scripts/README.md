@@ -1,6 +1,10 @@
 # Scripts
 
-This directory contains example scripts for training and evaluation.
+This directory contains helper scripts grouped by purpose.
+
+- `docker/` - Build/run Docker images
+- `debug/` - One-off environment/debug helpers
+- `jupyter/` - JupyterLab helpers
 
 ## Current Status
 
@@ -9,6 +13,22 @@ The training scripts are placeholders. For now, please use the Jupyter notebooks
 - `classify_groups.ipynb` - Train the group classifier
 - `group_splitter.ipynb` - Train the hit splitter
 - `pion_stop.ipynb` - Train pion stop regression
+
+## Jupyter
+
+Start JupyterLab in the background (inside the container):
+
+```bash
+./scripts/jupyter/start_lab.sh 8888
+```
+
+The script prints the tokenized URL from the log output.
+
+Start classic Notebook instead of Lab:
+
+```bash
+./scripts/jupyter/start_notebook.sh 8888
+```
 
 ## Planned Scripts
 

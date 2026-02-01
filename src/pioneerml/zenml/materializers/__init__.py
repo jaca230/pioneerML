@@ -11,11 +11,11 @@ from pathlib import Path
 
 from zenml.utils import source_utils
 
-from pioneerml.zenml.materializers.graph_data_module_materializer import (
-    GraphDataModuleMaterializer,
-)
 from pioneerml.zenml.materializers.pyg_data_list_materializer import (
     PyGDataListMaterializer,
+)
+from pioneerml.zenml.materializers.group_classifier_batch_materializer import (
+    GroupClassifierBatchMaterializer,
 )
 from pioneerml.zenml.materializers.torch_tensor_materializer import (
     TorchTensorMaterializer,
@@ -24,7 +24,7 @@ from pioneerml.zenml.materializers.torch_tensor_materializer import (
 source_utils.set_custom_source_root(Path(__file__).resolve().parents[3])
 
 __all__ = [
-    "GraphDataModuleMaterializer",
+    "GroupClassifierBatchMaterializer",
     "PyGDataListMaterializer",
     "TorchTensorMaterializer",
 ]

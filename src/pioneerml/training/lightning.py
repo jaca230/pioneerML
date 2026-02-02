@@ -76,7 +76,7 @@ class GraphLightningModule(pl.LightningModule):
             self.loss_fn = nn.MSELoss()
 
     def forward(self, batch: Batch) -> torch.Tensor:
-        return self.model(batch)
+        return self._model_forward(batch)
 
     def training_step(self, batch: Batch, batch_idx: int) -> torch.Tensor:
         preds, target = self._shared_step(batch)
@@ -124,7 +124,7 @@ class GraphLightningModule(pl.LightningModule):
     def _shared_step(self, batch: Batch) -> tuple[torch.Tensor, torch.Tensor]:
         if not hasattr(batch, "y"):
             raise AttributeError("Batch is missing target attribute 'y' required for training.")
-        raw_preds = self(batch)
+        raw_preds = self._model_forward(batch)
         # If the model returns multiple outputs, use the first for loss/metrics
         preds = raw_preds[0] if isinstance(raw_preds, (tuple, list)) else raw_preds
         target = batch.y
@@ -155,3 +155,31 @@ class GraphLightningModule(pl.LightningModule):
             metrics[f"{prefix}_mae"] = torch.abs(preds - target).mean().item()
 
         return metrics
+
+    def _model_forward(self, batch: Batch) -> torch.Tensor:
+        try:
+            return self.model(batch)
+        except TypeError:
+            pass
+        if not hasattr(batch, "x") or not hasattr(batch, "edge_index") or not hasattr(batch, "edge_attr"):
+            raise TypeError("Batch is missing required graph tensors for tensor-only model forward.")
+        x = batch.x
+        edge_index = batch.edge_index
+        edge_attr = batch.edge_attr
+        batch_idx = getattr(batch, "batch", None)
+        if batch_idx is None:
+            batch_idx = torch.zeros(x.size(0), dtype=torch.long, device=x.device)
+        group_ptr = getattr(batch, "group_ptr", None)
+        if group_ptr is None:
+            raise AttributeError("Batch is missing group_ptr for group-level classification.")
+        time_group_ids = getattr(batch, "time_group_ids", None)
+        if time_group_ids is None:
+            raise AttributeError("Batch is missing time_group_ids for group-level classification.")
+        return self.model(
+            x,
+            edge_index,
+            edge_attr,
+            batch_idx,
+            group_ptr,
+            time_group_ids,
+        )

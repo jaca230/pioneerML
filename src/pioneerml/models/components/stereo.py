@@ -50,7 +50,7 @@ class ViewAwareEncoder(nn.Module):
         self.view_embedding = nn.Embedding(2, hidden_dim)
         nn.init.normal_(self.view_embedding.weight, std=0.02)
 
-    def forward(self, x, probs=None):
+    def forward(self, x: torch.Tensor, probs: torch.Tensor | None = None) -> torch.Tensor:
         phys_feats = x[:, :3]
         raw_view = x[:, 3].long()
 

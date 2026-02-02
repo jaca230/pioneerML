@@ -93,10 +93,13 @@ def run_dummy_hparam_search(
         datamodule.batch_size = batch_size
 
         model = GroupClassifier(
-            num_classes=datamodule.train_dataset[0].y.numel() if datamodule.train_dataset else 6,
+            in_dim=4,
+            edge_dim=4,
             hidden=hidden,
+            heads=4,
             num_blocks=num_blocks,
             dropout=dropout,
+            num_classes=datamodule.train_dataset[0].y.numel() if datamodule.train_dataset else 6,
         )
         lightning_module = GraphLightningModule(
             model,
@@ -161,10 +164,13 @@ def train_best_dummy_model(
         datamodule.batch_size = int(best_params["batch_size"])
 
     model = GroupClassifier(
-        num_classes=datamodule.train_dataset[0].y.numel() if datamodule.train_dataset else 6,
+        in_dim=4,
+        edge_dim=4,
         hidden=int(best_params.get("hidden", 192)),
+        heads=4,
         num_blocks=int(best_params.get("num_blocks", 3)),
         dropout=float(best_params.get("dropout", 0.1)),
+        num_classes=datamodule.train_dataset[0].y.numel() if datamodule.train_dataset else 6,
     )
     lightning_module = GraphLightningModule(
         model,

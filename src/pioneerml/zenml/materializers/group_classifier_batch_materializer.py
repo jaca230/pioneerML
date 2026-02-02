@@ -8,7 +8,7 @@ from zenml.materializers.base_materializer import BaseMaterializer
 
 
 try:
-    from pioneerml.zenml.pipelines.training.group_classification.loader import (
+    from pioneerml.zenml.pipelines.training.group_classification.batch import (
         GroupClassifierBatch,
     )
 except Exception:  # pragma: no cover - optional import at runtime
@@ -23,7 +23,7 @@ class GroupClassifierBatchMaterializer(BaseMaterializer):
     ASSOCIATED_ARTIFACT_TYPE = ArtifactType.DATA
 
     def load(self, data_type: type):
-        from pioneerml.zenml.pipelines.training.group_classification.loader import (
+        from pioneerml.zenml.pipelines.training.group_classification.batch import (
             GroupClassifierBatch,
         )
 

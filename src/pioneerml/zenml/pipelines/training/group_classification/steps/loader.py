@@ -1,6 +1,3 @@
-from __future__ import annotations
-
-from dataclasses import dataclass
 import json
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
@@ -9,15 +6,11 @@ import numpy as np
 import pyarrow as pa
 import torch
 from torch_geometric.data import Data
+from zenml import step
 
 import pioneerml_dataloaders_python as pml
-
-
-@dataclass
-class GroupClassifierBatch:
-    data: Data
-    targets: torch.Tensor
-    target_energy: torch.Tensor
+from pioneerml.zenml.materializers import GroupClassifierBatchMaterializer
+from pioneerml.zenml.pipelines.training.group_classification.batch import GroupClassifierBatch
 
 
 def _capsule_to_array(arr):
@@ -117,3 +110,13 @@ def load_group_classifier_batch(
 
     data.y = y
     return GroupClassifierBatch(data=data, targets=y, target_energy=y_energy)
+
+
+@step(enable_cache=False, output_materializers=GroupClassifierBatchMaterializer)
+def load_group_classifier_data(
+    parquet_paths: list[str],
+    *,
+    step_config: dict | None = None,
+) -> GroupClassifierBatch:
+    config_json = None if step_config is None else step_config.get("config_json")
+    return load_group_classifier_batch(parquet_paths, config_json=config_json)

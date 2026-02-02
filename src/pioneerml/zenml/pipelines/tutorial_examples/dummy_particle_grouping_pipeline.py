@@ -94,10 +94,19 @@ def build_dummy_module(
     hidden: int = 192,
     num_blocks: int = 3,
     dropout: float = 0.1,
+    heads: int = 4,
     lr: float = 1e-3,
     weight_decay: float = 1e-3,
 ) -> GraphLightningModule:
-    model = GroupClassifier(hidden=hidden, num_blocks=num_blocks, num_classes=num_classes, dropout=dropout)
+    model = GroupClassifier(
+        in_dim=4,
+        edge_dim=4,
+        hidden=hidden,
+        heads=heads,
+        num_blocks=num_blocks,
+        dropout=dropout,
+        num_classes=num_classes,
+    )
     return GraphLightningModule(model=model, task="classification", lr=lr, weight_decay=weight_decay)
 
 

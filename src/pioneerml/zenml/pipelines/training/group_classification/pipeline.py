@@ -1,118 +1,46 @@
-import torch
-import torch.nn as nn
-import warnings
-from zenml import pipeline, step
+from zenml import pipeline
 
-from pioneerml.models.classifiers import GroupClassifier
-from pioneerml.training.lightning import GraphLightningModule
-from pioneerml.zenml.utils import detect_available_accelerator
-from pioneerml.zenml.materializers import GroupClassifierBatchMaterializer
-from .loader import GroupClassifierBatch, load_group_classifier_batch
-
-
-@step(enable_cache=False, output_materializers=GroupClassifierBatchMaterializer)
-def load_group_classifier_data(
-    parquet_paths: list[str],
-    *,
-    config_json: dict | None = None,
-) -> GroupClassifierBatch:
-    return load_group_classifier_batch(parquet_paths, config_json=config_json)
+from .steps import (
+    evaluate_group_classifier,
+    export_group_classifier,
+    load_group_classifier_data,
+    train_group_classifier,
+    tune_group_classifier,
+)
 
 
-@step
-def train_group_classifier(
-    batch: GroupClassifierBatch,
-    *,
-    max_epochs: int = 10,
-    lr: float = 1e-3,
-    weight_decay: float = 1e-4,
-) -> GraphLightningModule:
-    warnings.filterwarnings(
-        "ignore",
-        message="The 'train_dataloader' does not have many workers.*",
-        category=UserWarning,
-    )
-    warnings.filterwarnings(
-        "ignore",
-        message="isinstance\\(treespec, LeafSpec\\) is deprecated.*",
-        category=DeprecationWarning,
-    )
-    warnings.filterwarnings(
-        "ignore",
-        message="isinstance\\(treespec, LeafSpec\\) is deprecated.*",
-        category=UserWarning,
-    )
-    warnings.filterwarnings(
-        "ignore",
-        message="isinstance\\(treespec, LeafSpec\\) is deprecated.*",
-        category=Warning,
-        module="pytorch_lightning\\.utilities\\._pytree",
-    )
-    warnings.filterwarnings(
-        "ignore",
-        message="The 'val_dataloader' does not have many workers.*",
-        category=UserWarning,
-    )
-    try:
-        from zenml import get_step_context
-
-        ctx = get_step_context()
-        params = getattr(getattr(ctx, "pipeline_run", None), "config", None)
-        if params is not None:
-            overrides = params.parameters or {}
-            if "max_epochs" in overrides:
-                max_epochs = int(overrides["max_epochs"])
-            if "lr" in overrides:
-                lr = float(overrides["lr"])
-            if "weight_decay" in overrides:
-                weight_decay = float(overrides["weight_decay"])
-    except Exception:
-        pass
-    model = GroupClassifier(num_classes=batch.targets.shape[-1])
-    module = GraphLightningModule(
-        model,
-        task="classification",
-        loss_fn=nn.BCEWithLogitsLoss(),
-        lr=lr,
-        weight_decay=weight_decay,
-    )
-
-    accelerator, devices = detect_available_accelerator()
-    trainer = torch.utils.data.DataLoader(
-        [batch.data],
-        batch_size=1,
-        shuffle=False,
-        collate_fn=lambda items: items[0],
-    )
-    lightning_trainer = None
-    # Lazy import to avoid Lightning dependency at import time.
-    import pytorch_lightning as pl
-
-    lightning_trainer = pl.Trainer(
-        accelerator=accelerator,
-        devices=devices,
-        max_epochs=max_epochs,
-        enable_checkpointing=False,
-        logger=False,
-    )
-    lightning_trainer.fit(module, train_dataloaders=trainer, val_dataloaders=trainer)
-    return module
+def _get_step_config(config: dict | None, key: str) -> dict | None:
+    if not config:
+        return None
+    raw = config.get(key)
+    if raw is None:
+        return None
+    if isinstance(raw, dict):
+        return raw
+    raise TypeError(f"Expected dict for '{key}' config, got {type(raw).__name__}.")
 
 
 @pipeline
 def group_classification_pipeline(
     parquet_paths: list[str],
     *,
-    config_json: dict | None = None,
-    max_epochs: int = 10,
-    lr: float = 1e-3,
-    weight_decay: float = 1e-4,
+    pipeline_config: dict | None = None,
 ):
-    batch = load_group_classifier_data(parquet_paths, config_json=config_json)
-    module = train_group_classifier(
+    loader_cfg = _get_step_config(pipeline_config, "loader")
+    hpo_cfg = _get_step_config(pipeline_config, "hpo")
+    train_cfg = _get_step_config(pipeline_config, "train")
+    eval_cfg = _get_step_config(pipeline_config, "evaluate")
+
+    batch = load_group_classifier_data(parquet_paths, step_config=loader_cfg)
+    hpo_params = tune_group_classifier(batch, step_config=hpo_cfg)
+    module = train_group_classifier(batch, step_config=train_cfg, hpo_params=hpo_params)
+    metrics = evaluate_group_classifier(module, batch, step_config=eval_cfg)
+    export = export_group_classifier(
+        module,
         batch,
-        max_epochs=max_epochs,
-        lr=lr,
-        weight_decay=weight_decay,
+        step_config=_get_step_config(pipeline_config, "export"),
+        hpo_params=hpo_params,
+        metrics=metrics,
     )
-    return module, batch
+
+    return module, batch, metrics, export

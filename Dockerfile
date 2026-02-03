@@ -88,6 +88,7 @@ ENV PYTHON_VERSION=3.10
 RUN ./scripts/env/setup_uv_conda.sh
 
 RUN conda run -n pioneerml bash -lc "cd external/pioneerml_dataloaders && ./scripts/build.sh"
+RUN conda run -n pioneerml bash -lc "pip install -e external/pioneerml_dataloaders/build/bindings"
 
 # Initialize ZenML repository for the workspace.
 RUN conda run -n pioneerml bash -lc "zenml init"

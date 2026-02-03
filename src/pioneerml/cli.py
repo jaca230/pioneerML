@@ -17,7 +17,7 @@ import sys
 import numpy as np
 import torch
 
-from pioneerml.evaluation import MetricCollection, PLOT_REGISTRY, default_metrics_for_task
+from pioneerml.common.evaluation import MetricCollection, PLOT_REGISTRY, default_metrics_for_task
 
 
 def main():

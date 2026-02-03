@@ -17,6 +17,9 @@ from pioneerml.common.zenml.materializers.pyg_data_list_materializer import (
 from pioneerml.common.zenml.materializers.group_classifier_dataset_materializer import (
     GroupClassifierDatasetMaterializer,
 )
+from pioneerml.common.zenml.materializers.group_classifier_event_dataset_materializer import (
+    GroupClassifierEventDatasetMaterializer,
+)
 from pioneerml.common.zenml.materializers.torch_tensor_materializer import (
     TorchTensorMaterializer,
 )
@@ -25,6 +28,7 @@ source_utils.set_custom_source_root(Path(__file__).resolve().parents[4])
 
 __all__ = [
     "GroupClassifierDatasetMaterializer",
+    "GroupClassifierEventDatasetMaterializer",
     "PyGDataListMaterializer",
     "TorchTensorMaterializer",
 ]

@@ -1,18 +1,18 @@
+import inspect
 import json
 from datetime import datetime
 from pathlib import Path
-import inspect
 
 from zenml import step
 
-from pioneerml.pipelines.training.group_classification.dataset import GroupClassifierDataset
-from pioneerml.pipelines.training.group_classification.steps.config import resolve_step_config
+from pioneerml.pipelines.training.group_classification_event.dataset import GroupClassifierEventDataset
+from pioneerml.pipelines.training.group_classification_event.steps.config import resolve_step_config
 
 
 @step
-def export_group_classifier(
+def export_group_classifier_event(
     module,
-    dataset: GroupClassifierDataset,
+    dataset: GroupClassifierEventDataset,
     pipeline_config: dict | None = None,
     hpo_params: dict | None = None,
     metrics: dict | None = None,
@@ -21,9 +21,9 @@ def export_group_classifier(
     cfg = step_config or {}
     if cfg.get("enabled") is False:
         return {"torchscript_path": None, "metadata_path": None, "skipped": True}
-    export_dir = Path(cfg.get("export_dir", "trained_models/groupclassifier"))
+    export_dir = Path(cfg.get("export_dir", "trained_models/groupclassifier_event"))
     export_dir.mkdir(parents=True, exist_ok=True)
-    prefix = cfg.get("filename_prefix", "groupclassifier")
+    prefix = cfg.get("filename_prefix", "groupclassifier_event")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     torchscript_path = export_dir / f"{prefix}_{timestamp}_torchscript.pt"
@@ -38,8 +38,15 @@ def export_group_classifier(
         example = cfg.get("example")
         if example is None and "example" in sig.parameters:
             data = dataset.data
-            if hasattr(data, "batch") and hasattr(data, "u"):
-                example = (data.x, data.edge_index, data.edge_attr, data.batch, data.u)
+            if hasattr(data, "batch"):
+                example = (
+                    data.x,
+                    data.edge_index,
+                    data.edge_attr,
+                    data.batch,
+                    data.group_ptr,
+                    data.time_group_ids,
+                )
         if "example" in sig.parameters:
             if "prefer_cuda" in sig.parameters:
                 export_fn(torchscript_path, example, prefer_cuda=prefer_cuda)

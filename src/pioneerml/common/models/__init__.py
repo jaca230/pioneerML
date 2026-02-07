@@ -12,6 +12,7 @@ from pioneerml.common.models.classifiers import (
     GroupClassifier,
     GroupClassifierStereo,
     GroupSplitter,
+    GroupSplitterEvent,
     GroupAffinityModel,
 )
 from pioneerml.common.models.regressors import (
@@ -20,13 +21,14 @@ from pioneerml.common.models.regressors import (
     OrthogonalEndpointRegressor,
     PositronAngleModel,
 )
-from pioneerml.common.models.event_builder import EventBuilder
+from pioneerml.common.models.components.event_builder import EventBuilder
 
 __all__ = [
     "FullGraphTransformerBlock",
     "GroupClassifier",
     "GroupClassifierStereo",
     "GroupSplitter",
+    "GroupSplitterEvent",
     "GroupAffinityModel",
     "PionStopRegressor",
     "EndpointRegressor",

@@ -8,7 +8,8 @@ from torch_geometric.data import Data
 from torch_geometric.nn import AttentionalAggregation, JumpingKnowledge
 
 from pioneerml.common.models.blocks import FullGraphTransformerBlock
-from pioneerml.common.models.stereo import ViewAwareEncoder, QuantileOutputHead, VIEW_X_VAL, VIEW_Y_VAL
+from pioneerml.common.models.components.quantile_output_head import QuantileOutputHead
+from pioneerml.common.models.components.view_aware_encoder import ViewAwareEncoder
 
 
 class OrthogonalEndpointRegressor(nn.Module):
@@ -27,6 +28,8 @@ class OrthogonalEndpointRegressor(nn.Module):
         super().__init__()
 
         self.hit_encoder = ViewAwareEncoder(prob_dim=prob_dimension, hidden_dim=hidden)
+        self.view_x_val = int(self.hit_encoder.view_x_val)
+        self.view_y_val = int(self.hit_encoder.view_y_val)
 
         self.blocks = nn.ModuleList(
             [
@@ -59,8 +62,8 @@ class OrthogonalEndpointRegressor(nn.Module):
         x_cat = self.jk(xs)
 
         raw_view = data.x[:, 3].long()
-        mask_x = raw_view == VIEW_X_VAL
-        mask_y = raw_view == VIEW_Y_VAL
+        mask_x = raw_view == self.view_x_val
+        mask_y = raw_view == self.view_y_val
 
         def pool_and_count(mask, pool_layer):
             if mask.any():

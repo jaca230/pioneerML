@@ -12,7 +12,7 @@ from torch_geometric.nn import AttentionalAggregation
 
 from pioneerml.common.models.base import GraphModel
 from pioneerml.common.models.blocks import FullGraphTransformerBlock
-from pioneerml.common.models.stereo import ViewAwareEncoder, VIEW_X_VAL, VIEW_Y_VAL
+from pioneerml.common.models.components.view_aware_encoder import ViewAwareEncoder
 
 
 class GroupClassifierEvent(GraphModel):
@@ -29,8 +29,8 @@ class GroupClassifierEvent(GraphModel):
         super().__init__(in_channels=in_dim, hidden=hidden, edge_dim=edge_dim, dropout=dropout)
 
         self.input_embed = ViewAwareEncoder(prob_dim=0, hidden_dim=hidden)
-        self.view_x_val = int(VIEW_X_VAL)
-        self.view_y_val = int(VIEW_Y_VAL)
+        self.view_x_val = int(self.input_embed.view_x_val)
+        self.view_y_val = int(self.input_embed.view_y_val)
 
         self.blocks = nn.ModuleList(
             [

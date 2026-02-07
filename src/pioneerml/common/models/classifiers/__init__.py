@@ -8,6 +8,7 @@ from pioneerml.common.models.classifiers.group_affinity import GroupAffinityMode
 from pioneerml.common.models.classifiers.group_classifier import GroupClassifier, GroupClassifierStereo
 from pioneerml.common.models.classifiers.group_classifier_event import GroupClassifierEvent, GroupClassifierEventStereo
 from pioneerml.common.models.classifiers.group_splitter import GroupSplitter
+from pioneerml.common.models.classifiers.group_splitter_event import GroupSplitterEvent
 
 __all__ = [
     "GroupClassifier",
@@ -15,5 +16,6 @@ __all__ = [
     "GroupClassifierEvent",
     "GroupClassifierEventStereo",
     "GroupSplitter",
+    "GroupSplitterEvent",
     "GroupAffinityModel",
 ]

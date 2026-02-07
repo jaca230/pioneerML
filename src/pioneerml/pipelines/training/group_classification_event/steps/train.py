@@ -1,7 +1,3 @@
-import warnings
-from typing import Mapping
-
-import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -9,93 +5,63 @@ from torch_geometric.data import Batch, Data
 from zenml import step
 
 from pioneerml.common.models.classifiers import GroupClassifierEvent
+from pioneerml.common.pipeline_utils.misc import LightningWarningFilter
+from pioneerml.common.pipeline_utils.train import ModelTrainer
 from pioneerml.common.training.lightning import GraphLightningModule
-from pioneerml.common.zenml.utils import detect_available_accelerator
-
 from pioneerml.pipelines.training.group_classification_event.dataset import GroupClassifierEventDataset
 from pioneerml.pipelines.training.group_classification_event.steps.config import resolve_step_config
 
 
+_WARNING_FILTER = LightningWarningFilter()
+_MODEL_TRAINER = ModelTrainer()
+
+
 def _apply_lightning_warnings_filter() -> None:
-    warnings.filterwarnings(
-        "ignore",
-        message="The 'train_dataloader' does not have many workers.*",
-        category=UserWarning,
-    )
-    warnings.filterwarnings(
-        "ignore",
-        message="isinstance\\(treespec, LeafSpec\\) is deprecated.*",
-        category=DeprecationWarning,
-    )
-    warnings.filterwarnings(
-        "ignore",
-        message="isinstance\\(treespec, LeafSpec\\) is deprecated.*",
-        category=UserWarning,
-    )
-    warnings.filterwarnings(
-        "ignore",
-        message="isinstance\\(treespec, LeafSpec\\) is deprecated.*",
-        category=Warning,
-        module="pytorch_lightning\\.utilities\\._pytree",
-    )
-    warnings.filterwarnings(
-        "ignore",
-        message="The 'val_dataloader' does not have many workers.*",
-        category=UserWarning,
-    )
+    _WARNING_FILTER.apply_default()
 
 
-def _merge_config(
-    base: dict,
-    override: Mapping | None,
-) -> dict:
-    if override is None:
-        return base
+def _merge_config(base: dict, override) -> dict:
     merged = dict(base)
-    merged.update({k: v for k, v in override.items() if v is not None})
+    if override is not None:
+        merged.update({k: v for k, v in override.items() if v is not None})
     return merged
 
 
-def _split_dataset_to_graphs(dataset: GroupClassifierEventDataset) -> list[Data]:
+def _split_dataset_to_graphs(dataset: GroupClassifierEventDataset):
     data = dataset.data
     if not hasattr(data, "node_ptr") or not hasattr(data, "edge_ptr") or not hasattr(data, "group_ptr"):
         raise AttributeError("Dataset data is missing node_ptr/edge_ptr/group_ptr required for batching.")
+
     node_ptr = data.node_ptr
     edge_ptr = data.edge_ptr
     group_ptr = data.group_ptr
     y = dataset.targets
-    graphs: list[Data] = []
     num_graphs = int(getattr(data, "num_graphs", int(node_ptr.numel() - 1)))
-    for g in range(num_graphs):
-        node_start = int(node_ptr[g].item())
-        node_end = int(node_ptr[g + 1].item())
-        edge_start = int(edge_ptr[g].item())
-        edge_end = int(edge_ptr[g + 1].item())
-        group_start = int(group_ptr[g].item())
-        group_end = int(group_ptr[g + 1].item())
+
+    graphs: list[Data] = []
+    for graph_idx in range(num_graphs):
+        node_start = int(node_ptr[graph_idx].item())
+        node_end = int(node_ptr[graph_idx + 1].item())
+        edge_start = int(edge_ptr[graph_idx].item())
+        edge_end = int(edge_ptr[graph_idx + 1].item())
+        group_start = int(group_ptr[graph_idx].item())
+        group_end = int(group_ptr[graph_idx + 1].item())
         if node_end <= node_start or group_end <= group_start:
             continue
 
         x = data.x[node_start:node_end]
-        edge_index_slice = data.edge_index[:, edge_start:edge_end]
+        edge_index = data.edge_index[:, edge_start:edge_end]
+        if edge_index.numel() > 0:
+            edge_index = edge_index - node_start
         edge_attr = data.edge_attr[edge_start:edge_end]
-        time_group_ids_slice = data.time_group_ids[node_start:node_end]
-
-        edge_index = edge_index_slice
-        if edge_index_slice.numel() > 0:
-            edge_index = edge_index_slice - node_start
-
-        time_group_ids = time_group_ids_slice
-        if time_group_ids_slice.numel() > 0:
-            min_gid = int(time_group_ids_slice.min().item())
-            max_gid = int(time_group_ids_slice.max().item())
+        time_group_ids = data.time_group_ids[node_start:node_end]
+        if time_group_ids.numel() > 0:
+            min_gid = int(time_group_ids.min().item())
+            max_gid = int(time_group_ids.max().item())
             if min_gid >= group_start and max_gid < group_end:
-                time_group_ids = time_group_ids_slice - group_start
-            elif min_gid >= 0 and max_gid < (group_end - group_start):
-                time_group_ids = time_group_ids_slice
-            else:
-                time_group_ids = time_group_ids_slice - group_start
-        y_slice = y[group_start:group_end]
+                time_group_ids = time_group_ids - group_start
+            elif not (min_gid >= 0 and max_gid < (group_end - group_start)):
+                time_group_ids = time_group_ids - group_start
 
         graph = Data(
             x=x,
@@ -103,16 +69,17 @@ def _split_dataset_to_graphs(dataset: GroupClassifierEventDataset) -> list[Data]
             edge_attr=edge_attr,
             time_group_ids=time_group_ids,
         )
-        graph.y = y_slice
+        graph.y = y[group_start:group_end]
         graph.num_groups = int(group_end - group_start)
         graph.num_graphs = 1
         graphs.append(graph)
+
     return graphs
 
 
-def _collate_graphs(items: list[Data]) -> Batch:
+def _collate_graphs(items):
     batch = Batch.from_data_list(items)
-    group_counts = [int(getattr(d, "num_groups", 0)) for d in items]
+    group_counts = [int(getattr(item, "num_groups", 0)) for item in items]
     total = 0
     ptr = [0]
     for count in group_counts:
@@ -187,36 +154,15 @@ def train_group_classifier_event(
         scheduler_gamma=float(cfg["scheduler_gamma"]),
     )
 
-    accelerator, devices = detect_available_accelerator()
-
     graphs = _split_dataset_to_graphs(dataset)
-    if not graphs:
-        raise RuntimeError("No non-empty graphs found in dataset for training.")
-
-    train_loader = DataLoader(
-        graphs,
+    return _MODEL_TRAINER.fit(
+        module=module,
+        graphs=graphs,
+        max_epochs=int(cfg["max_epochs"]),
         batch_size=int(cfg.get("batch_size", 1)),
         shuffle=bool(cfg.get("shuffle", True)),
+        grad_clip=float(cfg["grad_clip"]) if cfg.get("grad_clip") is not None else None,
+        trainer_kwargs=dict(cfg.get("trainer_kwargs") or {}),
+        loader_cls=DataLoader,
         collate_fn=_collate_graphs,
     )
-    val_loader = DataLoader(
-        graphs,
-        batch_size=int(cfg.get("batch_size", 1)),
-        shuffle=False,
-        collate_fn=_collate_graphs,
-    )
-
-    trainer_kwargs = dict(cfg.get("trainer_kwargs") or {})
-    if cfg.get("grad_clip") is not None:
-        trainer_kwargs.setdefault("gradient_clip_val", float(cfg["grad_clip"]))
-
-    lightning_trainer = pl.Trainer(
-        accelerator=accelerator,
-        devices=devices,
-        max_epochs=int(cfg["max_epochs"]),
-        enable_checkpointing=False,
-        logger=False,
-        **trainer_kwargs,
-    )
-    lightning_trainer.fit(module, train_dataloaders=train_loader, val_dataloaders=val_loader)
-    return module

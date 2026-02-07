@@ -32,7 +32,6 @@ class GroupClassifierDatasetMaterializer(BaseMaterializer):
         return GroupClassifierDataset(
             data=payload["data"],
             targets=payload["targets"],
-            target_energy=payload["target_energy"],
         )
 
     def save(self, dataset) -> None:
@@ -47,7 +46,6 @@ class GroupClassifierDatasetMaterializer(BaseMaterializer):
             {
                 "data": data,
                 "targets": dataset.targets.detach().cpu(),
-                "target_energy": dataset.target_energy.detach().cpu(),
             },
             path / "batch.pt",
         )

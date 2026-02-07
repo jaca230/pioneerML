@@ -1,25 +1,20 @@
 from typing import Mapping
 
-import pytorch_lightning as pl
-import torch
+import optuna
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from zenml import step
 
 from pioneerml.common.models.classifiers import GroupClassifier
 from pioneerml.common.optuna.manager import OptunaStudyManager
+from pioneerml.common.pipeline_utils.train import ModelTrainer
 from pioneerml.common.training.lightning import GraphLightningModule
-from pioneerml.common.zenml.utils import detect_available_accelerator
-
 from pioneerml.pipelines.training.group_classification.dataset import GroupClassifierDataset
 from pioneerml.pipelines.training.group_classification.steps.config import resolve_step_config
-from .train import _apply_lightning_warnings_filter, _merge_config, _split_dataset_to_graphs, _collate_graphs
+from .train import _apply_lightning_warnings_filter, _collate_graphs, _merge_config, _split_dataset_to_graphs
 
 
-try:
-    import optuna  # type: ignore
-except Exception:  # pragma: no cover - optuna optional
-    optuna = None
+_MODEL_TRAINER = ModelTrainer()
 
 
 def _suggest_range(cfg: Mapping, key: str, *, default_low: float, default_high: float):
@@ -34,6 +29,41 @@ def _suggest_range(cfg: Mapping, key: str, *, default_low: float, default_high: 
     return float(default_low), float(default_high), True
 
 
+def _select_objective_value(module) -> float:
+    if module.val_epoch_loss_history:
+        return float(module.val_epoch_loss_history[-1])
+    if module.val_loss_history:
+        return float(module.val_loss_history[-1])
+    if module.train_epoch_loss_history:
+        return float(module.train_epoch_loss_history[-1])
+    if module.train_loss_history:
+        return float(module.train_loss_history[-1])
+    return float("inf")
+
+
+def _optimize(
+    *,
+    objective,
+    n_trials: int,
+    study_name: str,
+    direction: str,
+    storage,
+    fallback_dir,
+    allow_schema_fallback: bool,
+    sampler,
+):
+    manager = OptunaStudyManager(
+        study_name=str(study_name),
+        direction=str(direction),
+        storage=storage,
+        fallback_dir=fallback_dir,
+        allow_schema_fallback=bool(allow_schema_fallback),
+    )
+    study, storage_used = manager.create_or_load(sampler=sampler)
+    study.optimize(objective, n_trials=int(n_trials))
+    return study, storage_used
+
+
 @step
 def tune_group_classifier(
     dataset: GroupClassifierDataset,
@@ -42,9 +72,6 @@ def tune_group_classifier(
     step_config = resolve_step_config(pipeline_config, "hpo")
     if step_config is None or (isinstance(step_config, dict) and step_config.get("enabled") is False):
         return {}
-
-    if optuna is None:  # pragma: no cover - optuna optional
-        raise RuntimeError("Optuna is required for HPO but is not installed.")
 
     _apply_lightning_warnings_filter()
 
@@ -77,18 +104,18 @@ def tune_group_classifier(
 
     lr_low, lr_high, lr_log = _suggest_range(cfg, "lr", default_low=1e-4, default_high=1e-2)
     wd_low, wd_high, wd_log = _suggest_range(cfg, "weight_decay", default_low=1e-6, default_high=1e-3)
+
     base_model_cfg = dict(cfg.get("model") or {})
     if "in_dim" not in base_model_cfg:
         base_model_cfg["in_dim"] = int(dataset.data.x.shape[-1])
     if "edge_dim" not in base_model_cfg:
         base_model_cfg["edge_dim"] = int(dataset.data.edge_attr.shape[-1])
 
-    accelerator, devices = detect_available_accelerator()
     graphs = _split_dataset_to_graphs(dataset)
     if not graphs:
         raise RuntimeError("No non-empty graphs found in dataset for HPO.")
 
-    def objective(trial: "optuna.Trial") -> float:
+    def objective(trial: optuna.Trial) -> float:
         lr = trial.suggest_float("lr", lr_low, lr_high, log=lr_log)
         weight_decay = trial.suggest_float("weight_decay", wd_low, wd_high, log=wd_log)
         batch_size_cfg = cfg.get("batch_size", [1])
@@ -96,6 +123,7 @@ def tune_group_classifier(
             batch_size = int(trial.suggest_categorical("batch_size", list(batch_size_cfg)))
         else:
             batch_size = int(batch_size_cfg)
+
         hidden_low, hidden_high, _ = _suggest_range(base_model_cfg, "hidden", default_low=64, default_high=256)
         heads_low, heads_high, _ = _suggest_range(base_model_cfg, "heads", default_low=2, default_high=8)
         blocks_low, blocks_high, _ = _suggest_range(base_model_cfg, "num_blocks", default_low=1, default_high=4)
@@ -133,54 +161,33 @@ def tune_group_classifier(
             scheduler_gamma=float(cfg["scheduler_gamma"]),
         )
 
-        trainer_kwargs = dict(cfg.get("trainer_kwargs") or {})
-        if cfg.get("grad_clip") is not None:
-            trainer_kwargs.setdefault("gradient_clip_val", float(cfg["grad_clip"]))
-        lightning_trainer = pl.Trainer(
-            accelerator=accelerator,
-            devices=devices,
+        _MODEL_TRAINER.fit(
+            module=module,
+            graphs=graphs,
             max_epochs=int(cfg["max_epochs"]),
-            enable_checkpointing=False,
-            logger=False,
-            **trainer_kwargs,
-        )
-        trial_train_loader = DataLoader(
-            graphs,
             batch_size=batch_size,
             shuffle=bool(cfg.get("shuffle", True)),
+            grad_clip=float(cfg["grad_clip"]) if cfg.get("grad_clip") is not None else None,
+            trainer_kwargs=dict(cfg.get("trainer_kwargs") or {}),
+            loader_cls=DataLoader,
             collate_fn=_collate_graphs,
         )
-        trial_val_loader = DataLoader(
-            graphs,
-            batch_size=batch_size,
-            shuffle=False,
-            collate_fn=_collate_graphs,
-        )
-        lightning_trainer.fit(module, train_dataloaders=trial_train_loader, val_dataloaders=trial_val_loader)
-
-        if module.val_epoch_loss_history:
-            return float(module.val_epoch_loss_history[-1])
-        if module.val_loss_history:
-            return float(module.val_loss_history[-1])
-        if module.train_epoch_loss_history:
-            return float(module.train_epoch_loss_history[-1])
-        if module.train_loss_history:
-            return float(module.train_loss_history[-1])
-        return float("inf")
+        return _select_objective_value(module)
 
     sampler = None
     if cfg.get("seed") is not None:
         sampler = optuna.samplers.TPESampler(seed=int(cfg["seed"]))
 
-    manager = OptunaStudyManager(
+    study, storage_used = _optimize(
+        objective=objective,
+        n_trials=int(cfg["n_trials"]),
         study_name=str(cfg.get("study_name", "group_classifier_hpo")),
         direction=str(cfg["direction"]),
         storage=cfg.get("storage"),
         fallback_dir=cfg.get("fallback_dir"),
         allow_schema_fallback=bool(cfg.get("allow_schema_fallback", True)),
+        sampler=sampler,
     )
-    study, storage_used = manager.create_or_load(sampler=sampler)
-    study.optimize(objective, n_trials=int(cfg["n_trials"]))
 
     return {
         "lr": float(study.best_params["lr"]),

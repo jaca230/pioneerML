@@ -1,11 +1,5 @@
-from dataclasses import dataclass
-
-import torch
-from torch_geometric.data import Data
+from pioneerml.common.pipeline_utils.loader import GraphTrainingDataset
 
 
-@dataclass
-class GroupClassifierEventDataset:
-    data: Data
-    targets: torch.Tensor
-    target_energy: torch.Tensor
+class GroupClassifierEventDataset(GraphTrainingDataset):
+    """Dataset wrapper for the group classification-event pipeline."""

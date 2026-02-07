@@ -1,97 +1,48 @@
-import json
-from pathlib import Path
-from typing import Iterable, Mapping, Sequence
-
-import numpy as np
-import pyarrow as pa
 import torch
 from torch_geometric.data import Data
 from zenml import step
 
 import pioneerml_dataloaders_python as pml
+from pioneerml.common.pipeline_utils.loader import GraphDatasetBuilder
 from pioneerml.common.zenml.materializers import GroupClassifierEventDatasetMaterializer
 from pioneerml.pipelines.training.group_classification_event.dataset import GroupClassifierEventDataset
 from pioneerml.pipelines.training.group_classification_event.steps.config import resolve_step_config
 
 
-def _capsule_to_array(arr):
-    if isinstance(arr, tuple) and len(arr) == 2:
-        schema_capsule, array_capsule = arr
-        return pa.Array._import_from_c_capsule(schema_capsule, array_capsule)
-    return arr
-
-
-def _arrow_to_numpy(arr: pa.Array | pa.ChunkedArray | tuple) -> np.ndarray:
-    arr = _capsule_to_array(arr)
-    if isinstance(arr, pa.ChunkedArray):
-        arr = arr.combine_chunks()
-        arr = arr.chunk(0)
-    return arr.to_numpy(zero_copy_only=True)
-
-
-def _ensure_writable(np_arr: np.ndarray) -> np.ndarray:
-    if np_arr.flags.writeable:
-        return np_arr
-    try:
-        np_arr.setflags(write=True)
-        return np_arr
-    except ValueError:
-        return np_arr.copy()
-
-
-def _arrow_to_torch(
-    arr: pa.Array | pa.ChunkedArray,
-    *,
-    shape: Sequence[int],
-    dtype: torch.dtype,
-) -> torch.Tensor:
-    np_arr = _ensure_writable(_arrow_to_numpy(arr))
-    return torch.from_numpy(np_arr).view(*shape).to(dtype)
-
-
-def _node_ptr_to_batch(node_ptr: torch.Tensor) -> torch.Tensor:
-    counts = (node_ptr[1:] - node_ptr[:-1]).to(torch.long)
-    return torch.repeat_interleave(torch.arange(counts.numel(), device=counts.device), counts)
-
-
-def _resolve_paths(paths: Iterable[str | Path]) -> list[str]:
-    return [str(Path(p).expanduser().resolve()) for p in paths]
+_DATASET_BUILDER = GraphDatasetBuilder()
 
 
 def load_group_classifier_event_dataset_local(
-    parquet_paths: Sequence[str | Path],
-    config_json: Mapping | None = None,
+    parquet_paths,
+    config_json=None,
     normalize: bool = False,
     normalize_eps: float = 1e-6,
 ) -> GroupClassifierEventDataset:
     adapter = pml.adapters.input.graph.GroupClassifierEventInputAdapter()
-    if config_json is not None:
-        if hasattr(adapter, "load_config_json"):
-            adapter.load_config_json(json.dumps(config_json))
-        else:
-            adapter.load_config(config_json)
-
-    paths = _resolve_paths(parquet_paths)
-    bundle = adapter.load_training(paths)
+    bundle = _DATASET_BUILDER.load_training_bundle(
+        adapter,
+        parquet_paths,
+        config_json=config_json,
+    )
     inputs = bundle.inputs
     targets = bundle.targets
 
     num_graphs = int(inputs.num_graphs)
     num_groups = int(inputs.num_groups)
-    node_ptr = _arrow_to_torch(inputs.node_ptr, shape=(num_graphs + 1,), dtype=torch.int64)
-    edge_ptr = _arrow_to_torch(inputs.edge_ptr, shape=(num_graphs + 1,), dtype=torch.int64)
-    group_ptr = _arrow_to_torch(inputs.group_ptr, shape=(num_graphs + 1,), dtype=torch.int64)
-    num_nodes = int(node_ptr[-1].item())
-    num_edges = int(edge_ptr[-1].item())
+    node_ptr = _DATASET_BUILDER.arrow_to_torch(inputs.node_ptr, shape=(num_graphs + 1,), dtype=torch.int64)
+    edge_ptr = _DATASET_BUILDER.arrow_to_torch(inputs.edge_ptr, shape=(num_graphs + 1,), dtype=torch.int64)
+    group_ptr = _DATASET_BUILDER.arrow_to_torch(inputs.group_ptr, shape=(num_graphs + 1,), dtype=torch.int64)
+    num_nodes = int(node_ptr[-1].item()) if num_graphs > 0 else 0
+    num_edges = int(edge_ptr[-1].item()) if num_graphs > 0 else 0
 
-    x = _arrow_to_torch(inputs.node_features, shape=(num_nodes, 4), dtype=torch.float32)
-    edge_index_pairs = _arrow_to_torch(inputs.edge_index, shape=(num_edges, 2), dtype=torch.int64)
+    x = _DATASET_BUILDER.arrow_to_torch(inputs.node_features, shape=(num_nodes, 4), dtype=torch.float32)
+    edge_index_pairs = _DATASET_BUILDER.arrow_to_torch(inputs.edge_index, shape=(num_edges, 2), dtype=torch.int64)
     edge_index = edge_index_pairs.t().contiguous()
-    edge_attr = _arrow_to_torch(inputs.edge_attr, shape=(num_edges, 4), dtype=torch.float32)
-    time_group_ids = _arrow_to_torch(inputs.time_group_ids, shape=(num_nodes,), dtype=torch.int64)
-    u = _arrow_to_torch(inputs.u, shape=(num_graphs, 1), dtype=torch.float32)
+    edge_attr = _DATASET_BUILDER.arrow_to_torch(inputs.edge_attr, shape=(num_edges, 4), dtype=torch.float32)
+    time_group_ids = _DATASET_BUILDER.arrow_to_torch(inputs.time_group_ids, shape=(num_nodes,), dtype=torch.int64)
+    u = _DATASET_BUILDER.arrow_to_torch(inputs.u, shape=(num_graphs, 1), dtype=torch.float32)
 
-    batch = _node_ptr_to_batch(node_ptr)
+    batch = _DATASET_BUILDER.node_ptr_to_batch(node_ptr)
 
     if normalize:
         x_feat = x[:, :3]
@@ -118,15 +69,9 @@ def load_group_classifier_event_dataset_local(
     data.edge_ptr = edge_ptr
     data.graph_u = u
 
-    y = _arrow_to_torch(targets.y, shape=(num_groups, 3), dtype=torch.float32)
-    y_energy = _arrow_to_torch(targets.y_energy, shape=(num_groups, 3), dtype=torch.float32)
-
+    y = _DATASET_BUILDER.arrow_to_torch(targets.y, shape=(num_groups, 3), dtype=torch.float32)
     data.y = y
-    return GroupClassifierEventDataset(
-        data=data,
-        targets=y,
-        target_energy=y_energy,
-    )
+    return GroupClassifierEventDataset(data=data, targets=y)
 
 
 @step(enable_cache=False, output_materializers=GroupClassifierEventDatasetMaterializer)

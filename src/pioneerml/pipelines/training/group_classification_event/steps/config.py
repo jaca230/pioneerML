@@ -1,14 +1,18 @@
-from __future__ import annotations
-
-from typing import Mapping
-
-
-def resolve_step_config(pipeline_config: dict | None, step_name: str) -> dict | None:
-    if pipeline_config is None:
+def resolve_step_config(config, key: str) -> dict | None:
+    if config is None:
         return None
-    if step_name in pipeline_config:
-        cfg = pipeline_config.get(step_name)
-        return cfg if isinstance(cfg, dict) else None
-    if isinstance(pipeline_config, Mapping):
-        return dict(pipeline_config)
-    return None
+    if not isinstance(config, dict):
+        raise TypeError(f"Expected mapping config, got {type(config).__name__}.")
+
+    if key in config:
+        raw = config.get(key)
+        if raw is None:
+            return None
+        if isinstance(raw, dict):
+            return dict(raw)
+        raise TypeError(f"Expected dict for '{key}' config, got {type(raw).__name__}.")
+
+    known = ("loader", "hpo", "train", "evaluate", "export")
+    if any(step in config for step in known):
+        return None
+    return dict(config)

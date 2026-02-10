@@ -10,12 +10,26 @@ from typing import Callable
 class TorchscriptExporter:
     """Shared TorchScript export flow for training pipelines."""
 
+    def _json_safe(self, value):
+        if value is None:
+            return None
+        try:
+            json.dumps(value)
+            return value
+        except TypeError:
+            if isinstance(value, dict):
+                return {str(k): self._json_safe(v) for k, v in value.items()}
+            if isinstance(value, (list, tuple)):
+                return [self._json_safe(v) for v in value]
+            return str(value)
+
     def export(
         self,
         *,
         module,
         dataset,
         cfg: dict,
+        pipeline_config: dict | None,
         hpo_params: dict | None,
         metrics: dict | None,
         default_export_dir: str,
@@ -53,8 +67,10 @@ class TorchscriptExporter:
         meta = {
             "timestamp": timestamp,
             "torchscript_path": str(torchscript_path),
-            "hpo_params": hpo_params or {},
-            "metrics": metrics or {},
+            "pipeline_config": self._json_safe(pipeline_config or {}),
+            "export_config": self._json_safe(cfg or {}),
+            "hpo_params": self._json_safe(hpo_params or {}),
+            "metrics": self._json_safe(metrics or {}),
             "data_shapes": {
                 "x_dim": int(dataset.data.x.shape[-1]),
                 "edge_attr_dim": int(dataset.data.edge_attr.shape[-1]),

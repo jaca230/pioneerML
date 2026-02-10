@@ -22,6 +22,7 @@ from pioneerml.common.models.regressors import (
     PositronAngleModel,
 )
 from pioneerml.common.models.components.event_builder import EventBuilder
+from pioneerml.common.models.components.event_splitter import EventSplitter
 
 __all__ = [
     "FullGraphTransformerBlock",
@@ -34,5 +35,6 @@ __all__ = [
     "EndpointRegressor",
     "OrthogonalEndpointRegressor",
     "PositronAngleModel",
+    "EventSplitter",
     "EventBuilder",
 ]

@@ -26,6 +26,15 @@ from pioneerml.common.zenml.materializers.group_splitter_dataset_materializer im
 from pioneerml.common.zenml.materializers.group_splitter_event_dataset_materializer import (
     GroupSplitterEventDatasetMaterializer,
 )
+from pioneerml.common.zenml.materializers.endpoint_regressor_dataset_materializer import (
+    EndpointRegressorDatasetMaterializer,
+)
+from pioneerml.common.zenml.materializers.endpoint_regressor_event_dataset_materializer import (
+    EndpointRegressorEventDatasetMaterializer,
+)
+from pioneerml.common.zenml.materializers.event_splitter_event_dataset_materializer import (
+    EventSplitterEventDatasetMaterializer,
+)
 from pioneerml.common.zenml.materializers.torch_tensor_materializer import (
     TorchTensorMaterializer,
 )
@@ -37,6 +46,9 @@ __all__ = [
     "GroupClassifierEventDatasetMaterializer",
     "GroupSplitterDatasetMaterializer",
     "GroupSplitterEventDatasetMaterializer",
+    "EndpointRegressorDatasetMaterializer",
+    "EndpointRegressorEventDatasetMaterializer",
+    "EventSplitterEventDatasetMaterializer",
     "PyGDataListMaterializer",
     "TorchTensorMaterializer",
 ]

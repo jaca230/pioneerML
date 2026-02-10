@@ -1,96 +1,202 @@
-"""Stereo-aware endpoint regressor with quantile outputs."""
+"""Time-group endpoint regressor for per-group start/end coordinates."""
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import torch
 import torch.nn as nn
 from torch_geometric.data import Data
-from torch_geometric.nn import AttentionalAggregation, JumpingKnowledge
 
 from pioneerml.common.models.blocks import FullGraphTransformerBlock
-from pioneerml.common.models.components.quantile_output_head import QuantileOutputHead
-from pioneerml.common.models.components.view_aware_encoder import ViewAwareEncoder
 
 
-class OrthogonalEndpointRegressor(nn.Module):
-    """Graph-level regressor that outputs quantile endpoints per view."""
+class EndpointRegressor(nn.Module):
+    """Predicts `[start_x, start_y, start_z, end_x, end_y, end_z]` per time-group graph."""
 
     def __init__(
         self,
         in_channels: int = 4,
-        prob_dimension: int = 3,
-        hidden: int = 160,
+        group_prob_dimension: int = 3,
+        splitter_prob_dimension: int = 3,
+        hidden: int = 192,
         heads: int = 4,
-        layers: int = 2,
+        layers: int = 3,
         dropout: float = 0.1,
-        quantiles=None,
+        output_dim: int = 6,
     ):
         super().__init__()
+        self.group_prob_dimension = int(group_prob_dimension)
+        self.splitter_prob_dimension = int(splitter_prob_dimension)
 
-        self.hit_encoder = ViewAwareEncoder(prob_dim=prob_dimension, hidden_dim=hidden)
-        self.view_x_val = int(self.hit_encoder.view_x_val)
-        self.view_y_val = int(self.hit_encoder.view_y_val)
+        input_dim = int(in_channels) + self.group_prob_dimension + self.splitter_prob_dimension
+        self.input_proj = nn.Linear(input_dim, hidden)
 
         self.blocks = nn.ModuleList(
             [
-                FullGraphTransformerBlock(hidden, heads=heads, edge_dim=4, dropout=dropout)
+                FullGraphTransformerBlock(
+                    hidden=hidden,
+                    heads=heads,
+                    edge_dim=4,
+                    dropout=dropout,
+                )
                 for _ in range(layers)
             ]
         )
-        self.jk = JumpingKnowledge(mode="cat")
-        jk_dim = hidden * layers
 
-        self.pool_x = AttentionalAggregation(
-            nn.Sequential(nn.Linear(jk_dim, jk_dim // 2), nn.ReLU(), nn.Linear(jk_dim // 2, 1))
+        pooled_dim = hidden * 3 + self.group_prob_dimension + 3
+        self.head = nn.Sequential(
+            nn.Linear(pooled_dim, hidden),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden, hidden // 2),
+            nn.ReLU(),
+            nn.Linear(hidden // 2, output_dim),
         )
-        self.pool_y = AttentionalAggregation(
-            nn.Sequential(nn.Linear(jk_dim, jk_dim // 2), nn.ReLU(), nn.Linear(jk_dim // 2, 1))
-        )
 
-        self.head_x = QuantileOutputHead(input_dim=jk_dim + 1, num_points=2, coords=1, quantiles=quantiles)
-        self.head_y = QuantileOutputHead(input_dim=jk_dim + 1, num_points=2, coords=1, quantiles=quantiles)
-        self.head_z = QuantileOutputHead(input_dim=jk_dim + 1, num_points=2, coords=1, quantiles=quantiles)
+    @torch.jit.ignore
+    def forward(self, data: Data) -> torch.Tensor:
+        batch = getattr(data, "batch", None)
+        if batch is None:
+            batch = torch.zeros(data.x.shape[0], dtype=torch.long, device=data.x.device)
 
-    def forward(self, data: Data):
-        probs = data.group_probs[data.batch] if hasattr(data, "group_probs") and data.group_probs is not None else None
-        x = self.hit_encoder(data.x, probs)
+        num_graphs = int(batch.max().item()) + 1 if batch.numel() > 0 else 0
 
-        xs = []
-        for block in self.blocks:
-            x = block(x, data.edge_index, data.edge_attr)
-            xs.append(x)
-        x_cat = self.jk(xs)
+        u = getattr(data, "u", None)
+        if u is None:
+            u = torch.zeros((num_graphs, 1), dtype=data.x.dtype, device=data.x.device)
 
-        raw_view = data.x[:, 3].long()
-        mask_x = raw_view == self.view_x_val
-        mask_y = raw_view == self.view_y_val
-
-        def pool_and_count(mask, pool_layer):
-            if mask.any():
-                pooled = pool_layer(x_cat[mask], data.batch[mask], dim_size=data.num_graphs)
-                counts = torch.zeros(data.num_graphs, device=x.device)
-                counts.index_add_(0, data.batch, mask.float())
-                has_hits = (counts > 0).float().unsqueeze(1)
-                return pooled, has_hits
-            return (
-                torch.zeros(data.num_graphs, x_cat.size(1), device=x.device),
-                torch.zeros(data.num_graphs, 1, device=x.device),
+        group_probs = getattr(data, "group_probs", None)
+        if group_probs is None:
+            group_probs = torch.zeros(
+                (num_graphs, self.group_prob_dimension),
+                dtype=data.x.dtype,
+                device=data.x.device,
             )
 
-        pool_x, has_x = pool_and_count(mask_x, self.pool_x)
-        pool_y, has_y = pool_and_count(mask_y, self.pool_y)
+        splitter_probs = getattr(data, "splitter_probs", None)
+        if splitter_probs is None:
+            splitter_probs = torch.zeros(
+                (data.x.shape[0], self.splitter_prob_dimension),
+                dtype=data.x.dtype,
+                device=data.x.device,
+            )
 
-        out_x = self.head_x(torch.cat([pool_x, data.u], dim=1))
-        out_y = self.head_y(torch.cat([pool_y, data.u], dim=1))
+        return self.forward_tensors(
+            data.x,
+            data.edge_index,
+            data.edge_attr,
+            batch,
+            u,
+            group_probs,
+            splitter_probs,
+        )
 
-        sum_feat = (pool_x * has_x) + (pool_y * has_y)
-        valid_count = (has_x + has_y).clamp(min=1.0)
-        stereo_feat = sum_feat / valid_count
+    def forward_tensors(
+        self,
+        x: torch.Tensor,
+        edge_index: torch.Tensor,
+        edge_attr: torch.Tensor,
+        batch: torch.Tensor,
+        u: torch.Tensor,
+        group_probs: torch.Tensor,
+        splitter_probs: torch.Tensor,
+    ) -> torch.Tensor:
+        raw_x = x
+        probs_expanded = group_probs[batch]
 
-        out_z = self.head_z(torch.cat([stereo_feat, data.u], dim=1))
+        if splitter_probs.numel() == 0:
+            splitter_probs = torch.zeros(
+                (x.size(0), self.splitter_prob_dimension),
+                device=x.device,
+                dtype=x.dtype,
+            )
 
-        return torch.cat([out_x, out_y, out_z], dim=2)
+        x = self.input_proj(torch.cat([raw_x, probs_expanded, splitter_probs], dim=1))
+
+        for block in self.blocks:
+            x = block(x, edge_index, edge_attr)
+
+        num_graphs = int(u.shape[0])
+        feat_dim = int(x.size(1))
+
+        pool_x = x.new_zeros((num_graphs, feat_dim))
+        pool_y = x.new_zeros((num_graphs, feat_dim))
+        pool_all = x.new_zeros((num_graphs, feat_dim))
+        counts_x = x.new_zeros((num_graphs, 1))
+        counts_y = x.new_zeros((num_graphs, 1))
+        counts_all = x.new_zeros((num_graphs, 1))
+
+        one_vec = x.new_ones((x.size(0), 1))
+        counts_all.index_add_(0, batch, one_vec)
+        pool_all.index_add_(0, batch, x)
+
+        raw_view = raw_x[:, 3].to(torch.long)
+        mask_x = raw_view == 0
+        mask_y = raw_view == 1
+
+        if bool(mask_x.any().item()):
+            bid_x = batch[mask_x]
+            x_x = x[mask_x]
+            pool_x.index_add_(0, bid_x, x_x)
+            counts_x.index_add_(0, bid_x, x_x.new_ones((x_x.size(0), 1)))
+        if bool(mask_y.any().item()):
+            bid_y = batch[mask_y]
+            x_y = x[mask_y]
+            pool_y.index_add_(0, bid_y, x_y)
+            counts_y.index_add_(0, bid_y, x_y.new_ones((x_y.size(0), 1)))
+
+        pool_all = pool_all / counts_all.clamp_min(1.0)
+        pool_x = pool_x / counts_x.clamp_min(1.0)
+        pool_y = pool_y / counts_y.clamp_min(1.0)
+
+        has_x = (counts_x > 0).to(x.dtype)
+        has_y = (counts_y > 0).to(x.dtype)
+
+        out = torch.cat([pool_x, pool_y, pool_all, group_probs, u.to(x.dtype), has_x, has_y], dim=1)
+        return self.head(out)
+
+    def export_torchscript(
+        self,
+        path: str | Path | None,
+        *,
+        prefer_cuda: bool = True,
+        strict: bool = False,
+    ) -> torch.jit.ScriptModule:
+        device = torch.device("cuda") if prefer_cuda and torch.cuda.is_available() else torch.device("cpu")
+        self.eval()
+        self.to(device)
+        _ = strict
+
+        class _Scriptable(nn.Module):
+            def __init__(self, model: EndpointRegressor):
+                super().__init__()
+                self.model = model
+
+            def forward(
+                self,
+                x: torch.Tensor,
+                edge_index: torch.Tensor,
+                edge_attr: torch.Tensor,
+                batch: torch.Tensor,
+                u: torch.Tensor,
+                group_probs: torch.Tensor,
+                splitter_probs: torch.Tensor,
+            ) -> torch.Tensor:
+                return self.model.forward_tensors(
+                    x,
+                    edge_index,
+                    edge_attr,
+                    batch,
+                    u,
+                    group_probs,
+                    splitter_probs,
+                )
+
+        scripted = torch.jit.script(_Scriptable(self))
+        if path is not None:
+            scripted.save(str(path))
+        return scripted
 
 
-# Backwards-compatible alias
-EndpointRegressor = OrthogonalEndpointRegressor
+OrthogonalEndpointRegressor = EndpointRegressor

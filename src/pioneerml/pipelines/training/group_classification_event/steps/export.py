@@ -35,6 +35,7 @@ def export_group_classifier_event(
         module=module,
         dataset=dataset,
         cfg=cfg,
+        pipeline_config=pipeline_config,
         hpo_params=hpo_params,
         metrics=metrics,
         default_export_dir="trained_models/groupclassifier_event",

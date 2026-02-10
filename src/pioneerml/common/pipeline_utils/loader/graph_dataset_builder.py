@@ -56,16 +56,27 @@ class GraphDatasetBuilder:
         *,
         secondary_key: str | None = None,
         secondary_paths: Sequence[str] | None = None,
+        extra_paths_by_key: Mapping[str, Sequence[str]] | None = None,
     ) -> dict:
         if secondary_paths is not None and len(secondary_paths) != len(paths):
             raise ValueError(
                 f"secondary_paths must match paths length ({len(secondary_paths)} != {len(paths)})."
             )
+        if extra_paths_by_key is not None:
+            for key, extra_paths in extra_paths_by_key.items():
+                if len(extra_paths) != len(paths):
+                    raise ValueError(
+                        f"extra_paths_by_key[{key!r}] length must match paths length "
+                        f"({len(extra_paths)} != {len(paths)})."
+                    )
         files = []
         for idx, main_path in enumerate(paths):
             item = {"mainFile": main_path}
             if secondary_key is not None and secondary_paths is not None:
                 item[secondary_key] = secondary_paths[idx]
+            if extra_paths_by_key is not None:
+                for key, extra_paths in extra_paths_by_key.items():
+                    item[key] = extra_paths[idx]
             files.append(item)
         return {"files": files}
 
@@ -77,6 +88,7 @@ class GraphDatasetBuilder:
         config_json: Mapping | None = None,
         secondary_key: str | None = None,
         secondary_parquet_paths: Sequence[str | Path] | None = None,
+        extra_parquet_paths_by_key: Mapping[str, Sequence[str | Path]] | None = None,
     ):
         if config_json is not None:
             if hasattr(adapter, "load_config_json"):
@@ -90,5 +102,16 @@ class GraphDatasetBuilder:
             if secondary_parquet_paths is not None
             else None
         )
-        spec = self.build_input_spec(paths, secondary_key=secondary_key, secondary_paths=secondary_paths)
+        extra_paths_by_key = None
+        if extra_parquet_paths_by_key is not None:
+            extra_paths_by_key = {
+                key: self.resolve_paths(extra_paths)
+                for key, extra_paths in extra_parquet_paths_by_key.items()
+            }
+        spec = self.build_input_spec(
+            paths,
+            secondary_key=secondary_key,
+            secondary_paths=secondary_paths,
+            extra_paths_by_key=extra_paths_by_key,
+        )
         return adapter.load_training_json(json.dumps(spec))

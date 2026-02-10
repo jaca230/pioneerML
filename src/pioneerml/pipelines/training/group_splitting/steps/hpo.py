@@ -45,6 +45,31 @@ def _select_objective_value(module) -> float:
     return float("inf")
 
 
+def _resolve_batch_size_search(cfg: Mapping) -> tuple[int | None, int, int]:
+    raw = cfg.get("batch_size", {"min_exp": 0, "max_exp": 2})
+    if isinstance(raw, Mapping):
+        min_exp = int(raw.get("min_exp", 0))
+        max_exp = int(raw.get("max_exp", 2))
+        if min_exp > max_exp:
+            min_exp, max_exp = max_exp, min_exp
+        return None, min_exp, max_exp
+    if isinstance(raw, (list, tuple)):
+        values = [int(v) for v in raw if int(v) > 0]
+        if not values:
+            return 1, 0, 0
+        if len(values) == 1:
+            return values[0], 0, 0
+        min_value = min(values)
+        max_value = max(values)
+        min_exp = int(max(min_value - 1, 0)).bit_length()
+        max_exp = int(max_value).bit_length() - 1
+        if min_exp > max_exp:
+            return min_value, 0, 0
+        return None, min_exp, max_exp
+    fixed = int(raw)
+    return fixed, 0, 0
+
+
 def _optimize(
     *,
     objective,
@@ -89,7 +114,7 @@ def tune_group_splitter(
         "scheduler_gamma": 0.5,
         "threshold": 0.5,
         "trainer_kwargs": {"enable_progress_bar": True},
-        "batch_size": [1, 2, 4],
+        "batch_size": {"min_exp": 0, "max_exp": 2},
         "shuffle": True,
         "direction": "minimize",
         "seed": None,
@@ -120,16 +145,17 @@ def tune_group_splitter(
     graphs = _split_dataset_to_graphs(dataset)
     if not graphs:
         raise RuntimeError("No non-empty graphs found in dataset for HPO.")
+    fixed_batch_size, min_batch_size_exp, max_batch_size_exp = _resolve_batch_size_search(cfg)
 
     def objective(trial: optuna.Trial) -> float:
         lr = trial.suggest_float("lr", lr_low, lr_high, log=lr_log)
         weight_decay = trial.suggest_float("weight_decay", wd_low, wd_high, log=wd_log)
 
-        batch_size_cfg = cfg.get("batch_size", [1])
-        if isinstance(batch_size_cfg, (list, tuple)) and batch_size_cfg:
-            batch_size = int(trial.suggest_categorical("batch_size", list(batch_size_cfg)))
+        if fixed_batch_size is not None:
+            batch_size = fixed_batch_size
         else:
-            batch_size = int(batch_size_cfg)
+            batch_size_exp = trial.suggest_int("batch_size_exp", min_batch_size_exp, max_batch_size_exp)
+            batch_size = int(1 << int(batch_size_exp))
 
         hidden_low, hidden_high, _ = _suggest_range(base_model_cfg, "hidden", default_low=64, default_high=256)
         heads_low, heads_high, _ = _suggest_range(base_model_cfg, "heads", default_low=2, default_high=8)
@@ -199,7 +225,11 @@ def tune_group_splitter(
     return {
         "lr": float(study.best_params["lr"]),
         "weight_decay": float(study.best_params["weight_decay"]),
-        "batch_size": int(study.best_params.get("batch_size", 1)),
+        "batch_size": int(
+            fixed_batch_size
+            if fixed_batch_size is not None
+            else 1 << int(study.best_params.get("batch_size_exp", min_batch_size_exp))
+        ),
         "study_name": study.study_name,
         "storage": storage_used,
         "model": {

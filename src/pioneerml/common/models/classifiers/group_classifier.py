@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -54,7 +53,7 @@ class GroupClassifierStereo(GraphModel):
             nn.Sequential(nn.Linear(jk_dim, jk_dim // 2), nn.ReLU(), nn.Linear(jk_dim // 2, 1))
         )
 
-        concat_dim = (jk_dim * 2) + 1 + 2  # pools + global energy + valid bits
+        concat_dim = (jk_dim * 2) + 2  # pools + valid bits
 
         self.head = nn.Sequential(
             nn.Linear(concat_dim, jk_dim),
@@ -67,7 +66,7 @@ class GroupClassifierStereo(GraphModel):
 
     @torch.jit.ignore
     def forward(self, data: Data) -> torch.Tensor:
-        return self.forward_tensors(data.x, data.edge_index, data.edge_attr, data.batch, data.u)
+        return self.forward_tensors(data.x, data.edge_index, data.edge_attr, data.batch)
 
     def forward_tensors(
         self,
@@ -75,7 +74,6 @@ class GroupClassifierStereo(GraphModel):
         edge_index: torch.Tensor,
         edge_attr: torch.Tensor,
         batch: torch.Tensor,
-        u: torch.Tensor,
     ) -> torch.Tensor:
         x_embed = self.input_embed(x)
 
@@ -89,7 +87,7 @@ class GroupClassifierStereo(GraphModel):
         mask_x = raw_view == self.view_x_val
         mask_y = raw_view == self.view_y_val
 
-        num_graphs = int(u.shape[0])
+        num_graphs = int(batch.max().item()) + 1 if batch.numel() > 0 else 0
 
         if bool(mask_x.any().item()):
             pooled_x = self.pool_x(x_cat[mask_x], batch[mask_x], dim_size=num_graphs)
@@ -109,7 +107,7 @@ class GroupClassifierStereo(GraphModel):
             pooled_y = torch.zeros((num_graphs, x_cat.size(1)), device=x.device)
             has_y = torch.zeros((num_graphs, 1), device=x.device)
 
-        out = torch.cat([pooled_x, pooled_y, u, has_x, has_y], dim=1)
+        out = torch.cat([pooled_x, pooled_y, has_x, has_y], dim=1)
         return self.head(out)
 
     @torch.jit.ignore
@@ -126,7 +124,7 @@ class GroupClassifierStereo(GraphModel):
         mask_x = raw_view == self.view_x_val
         mask_y = raw_view == self.view_y_val
 
-        num_graphs = int(data.u.shape[0])
+        num_graphs = int(data.batch.max().item()) + 1 if data.batch.numel() > 0 else 0
 
         if bool(mask_x.any().item()):
             pooled_x = self.pool_x(x_cat[mask_x], data.batch[mask_x], dim_size=num_graphs)
@@ -146,7 +144,7 @@ class GroupClassifierStereo(GraphModel):
             pooled_y = torch.zeros((num_graphs, x_cat.size(1)), device=x_cat.device)
             has_y = torch.zeros((num_graphs, 1), device=x_cat.device)
 
-        return torch.cat([pooled_x, pooled_y, data.u, has_x, has_y], dim=1)
+        return torch.cat([pooled_x, pooled_y, has_x, has_y], dim=1)
 
     def export_torchscript(
         self,
@@ -170,9 +168,8 @@ class GroupClassifierStereo(GraphModel):
                 edge_index: torch.Tensor,
                 edge_attr: torch.Tensor,
                 batch: torch.Tensor,
-                u: torch.Tensor,
             ) -> torch.Tensor:
-                return self.model.forward_tensors(x, edge_index, edge_attr, batch, u)
+                return self.model.forward_tensors(x, edge_index, edge_attr, batch)
 
         scriptable = _Scriptable(self)
         scripted = torch.jit.script(scriptable)

@@ -1,3 +1,5 @@
 """Parquet helpers for common data access patterns."""
 
-__all__ = []
+from .chunked_reader import ParquetChunkReader
+
+__all__ = ["ParquetChunkReader"]

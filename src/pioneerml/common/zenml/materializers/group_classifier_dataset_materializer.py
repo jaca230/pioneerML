@@ -6,7 +6,6 @@ import torch
 from zenml.enums import ArtifactType
 from zenml.materializers.base_materializer import BaseMaterializer
 
-
 try:
     from pioneerml.pipelines.training.group_classification.dataset import (
         GroupClassifierDataset,
@@ -32,6 +31,7 @@ class GroupClassifierDatasetMaterializer(BaseMaterializer):
         return GroupClassifierDataset(
             data=payload["data"],
             targets=payload["targets"],
+            loader=payload.get("loader"),
         )
 
     def save(self, dataset) -> None:
@@ -46,6 +46,7 @@ class GroupClassifierDatasetMaterializer(BaseMaterializer):
             {
                 "data": data,
                 "targets": dataset.targets.detach().cpu(),
+                "loader": getattr(dataset, "loader", None),
             },
             path / "batch.pt",
         )

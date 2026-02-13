@@ -1,18 +1,16 @@
+import pytorch_lightning as pl
 import torch.nn as nn
-from torch.utils.data import DataLoader
-from torch_geometric.data import Batch, Data
 from zenml import step
 
+from pioneerml.common.loader import GroupClassifierGraphLoader
 from pioneerml.common.models.classifiers import GroupClassifier
 from pioneerml.common.pipeline_utils.misc import LightningWarningFilter
-from pioneerml.common.pipeline_utils.train import ModelTrainer
 from pioneerml.common.training.lightning import GraphLightningModule
+from pioneerml.common.zenml.utils import detect_available_accelerator
 from pioneerml.pipelines.training.group_classification.dataset import GroupClassifierDataset
 from pioneerml.pipelines.training.group_classification.steps.config import resolve_step_config
 
-
 _WARNING_FILTER = LightningWarningFilter()
-_MODEL_TRAINER = ModelTrainer()
 
 
 def _apply_lightning_warnings_filter() -> None:
@@ -26,45 +24,29 @@ def _merge_config(base: dict, override) -> dict:
     return merged
 
 
-def _split_dataset_to_graphs(dataset: GroupClassifierDataset):
-    data = dataset.data
-    if not hasattr(data, "node_ptr") or not hasattr(data, "edge_ptr"):
-        raise AttributeError("Dataset data is missing node_ptr/edge_ptr required for batching.")
-
-    node_ptr = data.node_ptr
-    edge_ptr = data.edge_ptr
-    y = dataset.targets
-    num_graphs = int(getattr(data, "num_graphs", int(node_ptr.numel() - 1)))
-
-    graphs: list[Data] = []
-    for graph_idx in range(num_graphs):
-        node_start = int(node_ptr[graph_idx].item())
-        node_end = int(node_ptr[graph_idx + 1].item())
-        edge_start = int(edge_ptr[graph_idx].item())
-        edge_end = int(edge_ptr[graph_idx + 1].item())
-        if node_end <= node_start:
-            continue
-
-        x = data.x[node_start:node_end]
-        edge_index = data.edge_index[:, edge_start:edge_end]
-        if edge_index.numel() > 0:
-            edge_index = edge_index - node_start
-        edge_attr = data.edge_attr[edge_start:edge_end]
-
-        graph = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
-        if hasattr(data, "u"):
-            graph.u = data.u[graph_idx : graph_idx + 1]
-        graph.y = y[graph_idx]
-        graph.num_graphs = 1
-        graphs.append(graph)
-
-    return graphs
-
-
-def _collate_graphs(items):
-    batch = Batch.from_data_list(items)
-    batch.num_groups = int(batch.num_graphs)
-    return batch
+def _fit_with_loaders(
+    *,
+    module: GraphLightningModule,
+    train_loader,
+    val_loader,
+    max_epochs: int,
+    grad_clip: float | None,
+    trainer_kwargs: dict | None,
+) -> GraphLightningModule:
+    merged_trainer_kwargs = dict(trainer_kwargs or {})
+    if grad_clip is not None:
+        merged_trainer_kwargs.setdefault("gradient_clip_val", float(grad_clip))
+    accelerator, devices = detect_available_accelerator()
+    trainer = pl.Trainer(
+        accelerator=accelerator,
+        devices=devices,
+        max_epochs=int(max_epochs),
+        enable_checkpointing=False,
+        logger=False,
+        **merged_trainer_kwargs,
+    )
+    trainer.fit(module, train_dataloaders=train_loader, val_dataloaders=val_loader)
+    return module
 
 
 @step
@@ -84,8 +66,10 @@ def train_group_classifier(
         "scheduler_gamma": 0.5,
         "threshold": 0.5,
         "trainer_kwargs": {"enable_progress_bar": True},
-        "batch_size": 1,
+        "batch_size": 64,
         "shuffle": True,
+        "chunk_row_groups": 4,
+        "chunk_workers": 0,
         "model": {
             "in_dim": 4,
             "edge_dim": 4,
@@ -131,15 +115,29 @@ def train_group_classifier(
         scheduler_gamma=float(cfg["scheduler_gamma"]),
     )
 
-    graphs = _split_dataset_to_graphs(dataset)
-    return _MODEL_TRAINER.fit(
+    base_loader = getattr(dataset, "loader", None)
+    if not isinstance(base_loader, GroupClassifierGraphLoader):
+        raise RuntimeError("Dataset is missing GroupClassifierGraphLoader required for chunked training.")
+    if not base_loader.include_targets:
+        raise RuntimeError("GroupClassifierGraphLoader must run in train mode for training.")
+
+    batch_size = int(cfg.get("batch_size", 64))
+    chunk_row_groups = int(cfg.get("chunk_row_groups", 4))
+    chunk_workers = int(cfg.get("chunk_workers", 0))
+
+    loader_provider = base_loader.with_runtime(
+        batch_size=batch_size,
+        row_groups_per_chunk=chunk_row_groups,
+        num_workers=chunk_workers,
+    )
+    train_loader = loader_provider.make_dataloader(shuffle_batches=bool(cfg.get("shuffle", True)))
+    val_loader = loader_provider.make_dataloader(shuffle_batches=False)
+
+    return _fit_with_loaders(
         module=module,
-        graphs=graphs,
+        train_loader=train_loader,
+        val_loader=val_loader,
         max_epochs=int(cfg["max_epochs"]),
-        batch_size=int(cfg.get("batch_size", 1)),
-        shuffle=bool(cfg.get("shuffle", True)),
         grad_clip=float(cfg["grad_clip"]) if cfg.get("grad_clip") is not None else None,
         trainer_kwargs=dict(cfg.get("trainer_kwargs") or {}),
-        loader_cls=DataLoader,
-        collate_fn=_collate_graphs,
     )

@@ -1,20 +1,17 @@
-from typing import Mapping
+from collections.abc import Mapping
 
 import optuna
 import torch.nn as nn
-from torch.utils.data import DataLoader
 from zenml import step
 
+from pioneerml.common.loader import GroupClassifierGraphLoader
 from pioneerml.common.models.classifiers import GroupClassifier
 from pioneerml.common.optuna.manager import OptunaStudyManager
-from pioneerml.common.pipeline_utils.train import ModelTrainer
 from pioneerml.common.training.lightning import GraphLightningModule
 from pioneerml.pipelines.training.group_classification.dataset import GroupClassifierDataset
 from pioneerml.pipelines.training.group_classification.steps.config import resolve_step_config
-from .train import _apply_lightning_warnings_filter, _collate_graphs, _merge_config, _split_dataset_to_graphs
 
-
-_MODEL_TRAINER = ModelTrainer()
+from .train import _apply_lightning_warnings_filter, _fit_with_loaders, _merge_config
 
 
 def _suggest_range(cfg: Mapping, key: str, *, default_low: float, default_high: float):
@@ -112,6 +109,8 @@ def tune_group_classifier(
         "trainer_kwargs": {"enable_progress_bar": True},
         "batch_size": {"min_exp": 0, "max_exp": 2},
         "shuffle": True,
+        "chunk_row_groups": 4,
+        "chunk_workers": 0,
         "direction": "minimize",
         "seed": None,
         "study_name": "group_classifier_hpo",
@@ -136,10 +135,14 @@ def tune_group_classifier(
     if "edge_dim" not in base_model_cfg:
         base_model_cfg["edge_dim"] = int(dataset.data.edge_attr.shape[-1])
 
-    graphs = _split_dataset_to_graphs(dataset)
-    if not graphs:
-        raise RuntimeError("No non-empty graphs found in dataset for HPO.")
     fixed_batch_size, min_batch_size_exp, max_batch_size_exp = _resolve_batch_size_search(cfg)
+    base_loader = getattr(dataset, "loader", None)
+    if not isinstance(base_loader, GroupClassifierGraphLoader):
+        raise RuntimeError("Dataset is missing GroupClassifierGraphLoader required for chunked HPO.")
+    if not base_loader.include_targets:
+        raise RuntimeError("GroupClassifierGraphLoader must run in train mode for HPO.")
+    chunk_row_groups = int(cfg.get("chunk_row_groups", 4))
+    chunk_workers = int(cfg.get("chunk_workers", 0))
 
     def objective(trial: optuna.Trial) -> float:
         lr = trial.suggest_float("lr", lr_low, lr_high, log=lr_log)
@@ -186,17 +189,20 @@ def tune_group_classifier(
             scheduler_step_size=int(cfg["scheduler_step_size"]) if cfg.get("scheduler_step_size") is not None else None,
             scheduler_gamma=float(cfg["scheduler_gamma"]),
         )
-
-        _MODEL_TRAINER.fit(
-            module=module,
-            graphs=graphs,
-            max_epochs=int(cfg["max_epochs"]),
+        loader_provider = base_loader.with_runtime(
             batch_size=batch_size,
-            shuffle=bool(cfg.get("shuffle", True)),
+            row_groups_per_chunk=chunk_row_groups,
+            num_workers=chunk_workers,
+        )
+        train_loader = loader_provider.make_dataloader(shuffle_batches=bool(cfg.get("shuffle", True)))
+        val_loader = loader_provider.make_dataloader(shuffle_batches=False)
+        _fit_with_loaders(
+            module=module,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            max_epochs=int(cfg["max_epochs"]),
             grad_clip=float(cfg["grad_clip"]) if cfg.get("grad_clip") is not None else None,
             trainer_kwargs=dict(cfg.get("trainer_kwargs") or {}),
-            loader_cls=DataLoader,
-            collate_fn=_collate_graphs,
         )
         return _select_objective_value(module)
 

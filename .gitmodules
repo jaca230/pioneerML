@@ -1,6 +1,0 @@
-[submodule "external/pioneerml_dataloaders"]
-	path = external/pioneerml_dataloaders
-	url = https://github.com/jaca230/pioneerML_data_loaders
-[submodule "external/pioneerml_inference"]
-	path = external/pioneerml_inference
-	url = https://github.com/jaca230/pioneerML_inference

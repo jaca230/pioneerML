@@ -31,6 +31,7 @@ class GroupSplitterDatasetMaterializer(BaseMaterializer):
         return GroupSplitterDataset(
             data=payload["data"],
             targets=payload["targets"],
+            loader=payload.get("loader"),
         )
 
     def save(self, dataset) -> None:
@@ -45,6 +46,7 @@ class GroupSplitterDatasetMaterializer(BaseMaterializer):
             {
                 "data": data,
                 "targets": dataset.targets.detach().cpu(),
+                "loader": getattr(dataset, "loader", None),
             },
             path / "batch.pt",
         )

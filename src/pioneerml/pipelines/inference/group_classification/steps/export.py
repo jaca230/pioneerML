@@ -15,6 +15,37 @@ def _get_export_cfg(pipeline_config: dict | None) -> dict:
     return {}
 
 
+def _build_prediction_table(
+    *,
+    event_ids_np: np.ndarray,
+    probs_np: np.ndarray,
+    num_rows: int,
+) -> pa.Table:
+    if num_rows <= 0:
+        num_rows = int(event_ids_np.max()) + 1 if event_ids_np.size > 0 else 0
+
+    valid = (event_ids_np >= 0) & (event_ids_np < num_rows)
+    event_ids_v = event_ids_np[valid]
+    probs_v = probs_np[valid]
+
+    if event_ids_v.size > 0:
+        order = np.argsort(event_ids_v, kind="stable")
+        event_sorted = event_ids_v[order]
+        probs_sorted = probs_v[order]
+    else:
+        event_sorted = np.zeros((0,), dtype=np.int64)
+        probs_sorted = np.zeros((0, 3), dtype=np.float32)
+
+    counts = np.bincount(event_sorted, minlength=num_rows).astype(np.int64, copy=False)
+    offsets = np.zeros((num_rows + 1,), dtype=np.int64)
+    offsets[1:] = np.cumsum(counts, dtype=np.int64)
+
+    pred_pion = pa.ListArray.from_arrays(offsets, pa.array(probs_sorted[:, 0], type=pa.float32()))
+    pred_muon = pa.ListArray.from_arrays(offsets, pa.array(probs_sorted[:, 1], type=pa.float32()))
+    pred_mip = pa.ListArray.from_arrays(offsets, pa.array(probs_sorted[:, 2], type=pa.float32()))
+    return pa.table({"pred_pion": pred_pion, "pred_muon": pred_muon, "pred_mip": pred_mip})
+
+
 @step(enable_cache=False)
 def export_group_classifier_predictions(
     inference_outputs: dict,
@@ -34,69 +65,56 @@ def export_group_classifier_predictions(
     probs = inference_outputs["probs"]
     targets = inference_outputs.get("targets")
     event_ids = inference_outputs["graph_event_ids"]
-    group_ids = inference_outputs["graph_group_ids"]
+    _ = inference_outputs["graph_group_ids"]
     num_rows = int(inference_outputs["num_rows"])
 
     probs_np = probs.detach().cpu().numpy().astype(np.float32, copy=False)
     event_ids_np = event_ids.detach().cpu().numpy().astype(np.int64, copy=False)
-    group_ids_np = group_ids.detach().cpu().numpy().astype(np.int64, copy=False)
-
-    if num_rows <= 0:
-        num_rows = int(event_ids_np.max()) + 1 if event_ids_np.size > 0 else 0
-
-    valid = (
-        (event_ids_np >= 0)
-        & (event_ids_np < num_rows)
-        & (group_ids_np >= 0)
-    )
-    event_ids_v = event_ids_np[valid]
-    group_ids_v = group_ids_np[valid]
-    probs_v = probs_np[valid]
-
-    if event_ids_v.size > 0:
-        order = np.lexsort((group_ids_v, event_ids_v))
-        event_sorted = event_ids_v[order]
-        probs_sorted = probs_v[order]
-    else:
-        event_sorted = np.zeros((0,), dtype=np.int64)
-        probs_sorted = np.zeros((0, 3), dtype=np.float32)
-
-    counts = np.bincount(event_sorted, minlength=num_rows).astype(np.int64, copy=False)
-    offsets = np.zeros((num_rows + 1,), dtype=np.int64)
-    offsets[1:] = np.cumsum(counts, dtype=np.int64)
-
-    pred_pion = pa.ListArray.from_arrays(offsets, pa.array(probs_sorted[:, 0], type=pa.float32()))
-    pred_muon = pa.ListArray.from_arrays(offsets, pa.array(probs_sorted[:, 1], type=pa.float32()))
-    pred_mip = pa.ListArray.from_arrays(offsets, pa.array(probs_sorted[:, 2], type=pa.float32()))
-    table = pa.table({"pred_pion": pred_pion, "pred_muon": pred_muon, "pred_mip": pred_mip})
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     validated_files = [str(Path(p).expanduser().resolve()) for p in inference_outputs.get("validated_files", [])]
-    if output_path:
-        latest_pred_path = Path(output_path)
-    else:
-        if len(validated_files) == 1:
-            stem = Path(validated_files[0]).stem
-            latest_pred_path = out_dir / f"{stem}_preds_latest.parquet"
-        else:
-            latest_pred_path = out_dir / "group_classifier_preds_latest.parquet"
-    latest_pred_path.parent.mkdir(parents=True, exist_ok=True)
-    pq.write_table(table, latest_pred_path)
+    per_file_output_paths: list[str] = []
+    per_file_timestamped_paths: list[str] = []
 
-    timestamped_pred_path = None
-    if write_timestamped:
-        if len(validated_files) == 1:
-            stem = Path(validated_files[0]).stem
-            p = out_dir / f"{stem}_preds_{ts}.parquet"
-        else:
+    if output_path and len(validated_files) != 1:
+        raise ValueError("output_path is only supported when exactly one input parquet file is provided.")
+
+    if validated_files:
+        row_counts = [int(pq.ParquetFile(p).metadata.num_rows) for p in validated_files]
+        start = 0
+        for src_file, n_rows in zip(validated_files, row_counts, strict=True):
+            end = start + n_rows
+            mask = (event_ids_np >= start) & (event_ids_np < end)
+            local_event_ids = event_ids_np[mask] - start
+            local_probs = probs_np[mask]
+            table = _build_prediction_table(event_ids_np=local_event_ids, probs_np=local_probs, num_rows=n_rows)
+
+            pred_path = Path(output_path) if (output_path and len(validated_files) == 1) else out_dir / f"{Path(src_file).stem}_preds.parquet"
+            pred_path.parent.mkdir(parents=True, exist_ok=True)
+            pq.write_table(table, pred_path)
+            per_file_output_paths.append(str(pred_path))
+
+            if write_timestamped:
+                p = out_dir / f"{Path(src_file).stem}_preds_{ts}.parquet"
+                pq.write_table(table, p)
+                per_file_timestamped_paths.append(str(p))
+            start = end
+    else:
+        table = _build_prediction_table(event_ids_np=event_ids_np, probs_np=probs_np, num_rows=num_rows)
+        pred_path = Path(output_path) if output_path else (out_dir / "group_classifier_preds.parquet")
+        pred_path.parent.mkdir(parents=True, exist_ok=True)
+        pq.write_table(table, pred_path)
+        per_file_output_paths.append(str(pred_path))
+        if write_timestamped:
             p = out_dir / f"group_classifier_preds_{ts}.parquet"
-        pq.write_table(table, p)
-        timestamped_pred_path = str(p)
+            pq.write_table(table, p)
+            per_file_timestamped_paths.append(str(p))
 
     metrics = {
         "mode": "group_classifier",
         "model_path": inference_outputs["model_path"],
-        "output_path": str(latest_pred_path),
+        "output_path": per_file_output_paths[0] if len(per_file_output_paths) == 1 else None,
+        "output_paths": per_file_output_paths,
         "threshold": float(inference_outputs["threshold"]),
         "validated_files": validated_files,
         "loss": None,
@@ -136,9 +154,11 @@ def export_group_classifier_predictions(
         timestamped_metrics_path = str(p)
 
     return {
-        "predictions_path": str(latest_pred_path),
+        "predictions_path": per_file_output_paths[0] if len(per_file_output_paths) == 1 else None,
+        "predictions_paths": per_file_output_paths,
         "metrics_path": str(latest_metrics),
-        "timestamped_predictions_path": timestamped_pred_path,
+        "timestamped_predictions_path": per_file_timestamped_paths[0] if len(per_file_timestamped_paths) == 1 else None,
+        "timestamped_predictions_paths": per_file_timestamped_paths,
         "timestamped_metrics_path": timestamped_metrics_path,
         "num_rows": num_rows,
     }

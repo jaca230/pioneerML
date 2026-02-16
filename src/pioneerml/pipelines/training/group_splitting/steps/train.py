@@ -1,18 +1,21 @@
+import pytorch_lightning as pl
 import torch.nn as nn
-from torch_geometric.data import Data
-from torch_geometric.loader import DataLoader
 from zenml import step
 
+from pioneerml.common.loader import GroupSplitterGraphLoader
 from pioneerml.common.models.classifiers import GroupSplitter
 from pioneerml.common.pipeline_utils.misc import LightningWarningFilter
-from pioneerml.common.pipeline_utils.train import ModelTrainer
-from pioneerml.common.training.lightning import GraphLightningModule
+from pioneerml.common.training import (
+    GraphLightningModule,
+    build_early_stopping_callback,
+    maybe_compile_model,
+    restore_eager_model_if_compiled,
+)
+from pioneerml.common.zenml.utils import detect_available_accelerator
 from pioneerml.pipelines.training.group_splitting.dataset import GroupSplitterDataset
 from pioneerml.pipelines.training.group_splitting.steps.config import resolve_step_config
 
-
 _WARNING_FILTER = LightningWarningFilter()
-_MODEL_TRAINER = ModelTrainer()
 
 
 def _apply_lightning_warnings_filter() -> None:
@@ -26,47 +29,37 @@ def _merge_config(base: dict, override) -> dict:
     return merged
 
 
-def _split_dataset_to_graphs(dataset: GroupSplitterDataset):
-    data = dataset.data
-    if not hasattr(data, "node_ptr") or not hasattr(data, "edge_ptr"):
-        raise AttributeError("Dataset data is missing node_ptr/edge_ptr required for batching.")
-
-    node_ptr = data.node_ptr
-    edge_ptr = data.edge_ptr
-    y_node = dataset.targets
-    num_graphs = int(getattr(data, "num_graphs", int(node_ptr.numel() - 1)))
-
-    graphs: list[Data] = []
-    for graph_idx in range(num_graphs):
-        node_start = int(node_ptr[graph_idx].item())
-        node_end = int(node_ptr[graph_idx + 1].item())
-        edge_start = int(edge_ptr[graph_idx].item())
-        edge_end = int(edge_ptr[graph_idx + 1].item())
-        if node_end <= node_start:
-            continue
-
-        x = data.x[node_start:node_end]
-        edge_index = data.edge_index[:, edge_start:edge_end]
-        if edge_index.numel() > 0:
-            edge_index = edge_index - node_start
-        edge_attr = data.edge_attr[edge_start:edge_end]
-        y = y_node[node_start:node_end]
-
-        graph = Data(
-            x=x,
-            edge_index=edge_index,
-            edge_attr=edge_attr,
-            y=y,
-            u=data.u[graph_idx : graph_idx + 1],
-            group_probs=data.group_probs[graph_idx : graph_idx + 1],
-        )
-        if hasattr(data, "graph_event_ids"):
-            graph.graph_event_id = data.graph_event_ids[graph_idx : graph_idx + 1]
-        if hasattr(data, "graph_group_ids"):
-            graph.graph_group_id = data.graph_group_ids[graph_idx : graph_idx + 1]
-        graphs.append(graph)
-
-    return graphs
+def _fit_with_loaders(
+    *,
+    module: GraphLightningModule,
+    train_loader,
+    val_loader,
+    max_epochs: int,
+    grad_clip: float | None,
+    trainer_kwargs: dict | None,
+    early_stopping_cfg: dict | None = None,
+) -> GraphLightningModule:
+    merged_trainer_kwargs = dict(trainer_kwargs or {})
+    if grad_clip is not None:
+        merged_trainer_kwargs.setdefault("gradient_clip_val", float(grad_clip))
+    callbacks = list(merged_trainer_kwargs.get("callbacks") or [])
+    es_callback = build_early_stopping_callback(early_stopping_cfg)
+    if es_callback is not None:
+        callbacks.append(es_callback)
+    if callbacks:
+        merged_trainer_kwargs["callbacks"] = callbacks
+    accelerator, devices = detect_available_accelerator()
+    trainer = pl.Trainer(
+        accelerator=accelerator,
+        devices=devices,
+        max_epochs=int(max_epochs),
+        enable_checkpointing=False,
+        logger=False,
+        **merged_trainer_kwargs,
+    )
+    trainer.fit(module, train_dataloaders=train_loader, val_dataloaders=val_loader)
+    restore_eager_model_if_compiled(module)
+    return module
 
 
 @step
@@ -86,8 +79,19 @@ def train_group_splitter(
         "scheduler_gamma": 0.5,
         "threshold": 0.5,
         "trainer_kwargs": {"enable_progress_bar": True},
-        "batch_size": 1,
+        "batch_size": 64,
         "shuffle": True,
+        "chunk_row_groups": 4,
+        "chunk_workers": 0,
+        "early_stopping": {
+            "enabled": False,
+            "monitor": "val_loss",
+            "mode": "min",
+            "patience": 5,
+            "min_delta": 0.0,
+            "min_delta_mode": "absolute",
+        },
+        "compile": {"enabled": False, "mode": "default"},
         "model": {
             "in_channels": 4,
             "prob_dimension": 3,
@@ -123,6 +127,7 @@ def train_group_splitter(
         dropout=float(model_cfg.get("dropout", 0.1)),
         num_classes=int(dataset.targets.shape[-1]),
     )
+    model = maybe_compile_model(model, cfg.get("compile"), context="train_group_splitter")
 
     module = GraphLightningModule(
         model,
@@ -135,14 +140,30 @@ def train_group_splitter(
         scheduler_gamma=float(cfg["scheduler_gamma"]),
     )
 
-    graphs = _split_dataset_to_graphs(dataset)
-    return _MODEL_TRAINER.fit(
+    base_loader = getattr(dataset, "loader", None)
+    if not isinstance(base_loader, GroupSplitterGraphLoader):
+        raise RuntimeError("Dataset is missing GroupSplitterGraphLoader required for chunked training.")
+    if not base_loader.include_targets:
+        raise RuntimeError("GroupSplitterGraphLoader must run in train mode for training.")
+
+    batch_size = int(cfg.get("batch_size", 64))
+    chunk_row_groups = int(cfg.get("chunk_row_groups", 4))
+    chunk_workers = int(cfg.get("chunk_workers", 0))
+
+    loader_provider = base_loader.with_runtime(
+        batch_size=batch_size,
+        row_groups_per_chunk=chunk_row_groups,
+        num_workers=chunk_workers,
+    )
+    train_loader = loader_provider.make_dataloader(shuffle_batches=bool(cfg.get("shuffle", True)))
+    val_loader = loader_provider.make_dataloader(shuffle_batches=False)
+
+    return _fit_with_loaders(
         module=module,
-        graphs=graphs,
+        train_loader=train_loader,
+        val_loader=val_loader,
         max_epochs=int(cfg["max_epochs"]),
-        batch_size=int(cfg.get("batch_size", 1)),
-        shuffle=bool(cfg.get("shuffle", True)),
         grad_clip=float(cfg["grad_clip"]) if cfg.get("grad_clip") is not None else None,
         trainer_kwargs=dict(cfg.get("trainer_kwargs") or {}),
-        loader_cls=DataLoader,
+        early_stopping_cfg=dict(cfg.get("early_stopping") or {}),
     )

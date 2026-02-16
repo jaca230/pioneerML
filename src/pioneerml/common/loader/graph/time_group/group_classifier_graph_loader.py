@@ -39,6 +39,12 @@ class GroupClassifierGraphLoader(TimeGroupGraphLoader):
         row_groups_per_chunk: int = 4,
         num_workers: int = 0,
         columns: list[str] | None = None,
+        split: str | None = None,
+        train_fraction: float = 0.9,
+        val_fraction: float = 0.05,
+        test_fraction: float = 0.05,
+        split_seed: int = 0,
+        sample_fraction: float | None = None,
     ) -> None:
         mode_norm = str(mode).strip().lower()
         if mode_norm not in (self.MODE_TRAIN, self.MODE_INFERENCE):
@@ -53,6 +59,12 @@ class GroupClassifierGraphLoader(TimeGroupGraphLoader):
             row_groups_per_chunk=row_groups_per_chunk,
             num_workers=num_workers,
             columns=resolved_columns,
+            split=split,
+            train_fraction=train_fraction,
+            val_fraction=val_fraction,
+            test_fraction=test_fraction,
+            split_seed=split_seed,
+            sample_fraction=sample_fraction,
         )
 
         missing = [c for c in required if c not in self.columns]

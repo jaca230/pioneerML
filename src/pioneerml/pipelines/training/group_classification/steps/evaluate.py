@@ -1,10 +1,9 @@
 import torch
 from zenml import step
 
-from pioneerml.common.loader import GroupClassifierGraphLoader
 from pioneerml.common.pipeline_utils.evaluation import SimpleClassificationEvaluator
-from pioneerml.pipelines.training.group_classification.dataset import GroupClassifierDataset
 from pioneerml.pipelines.training.group_classification.steps.config import resolve_step_config
+from .train import _build_stage_loader, _resolve_stage_loader_config
 
 _EVALUATOR = SimpleClassificationEvaluator()
 
@@ -84,24 +83,28 @@ def _evaluate_from_loader(*, module, loader, threshold: float, plot_config: dict
 @step
 def evaluate_group_classifier(
     module,
-    dataset: GroupClassifierDataset,
+    parquet_paths: list[str],
     pipeline_config: dict | None = None,
 ) -> dict:
     step_config = resolve_step_config(pipeline_config, "evaluate")
     threshold = 0.5 if step_config is None else float(step_config.get("threshold", 0.5))
-    batch_size = int(step_config.get("batch_size", 1)) if step_config else 1
-    base_loader = getattr(dataset, "loader", None)
-    if not isinstance(base_loader, GroupClassifierGraphLoader):
-        raise RuntimeError("Dataset is missing GroupClassifierGraphLoader required for chunked evaluation.")
-    if not base_loader.include_targets:
-        raise RuntimeError("GroupClassifierGraphLoader must run in train mode for evaluation.")
-    chunk_row_groups = int(step_config.get("chunk_row_groups", 4)) if step_config else 4
-    chunk_workers = int(step_config.get("chunk_workers", 0)) if step_config else 0
-
-    loader_provider = base_loader.with_runtime(
-        batch_size=batch_size,
-        row_groups_per_chunk=chunk_row_groups,
-        num_workers=chunk_workers,
+    stage_cfg = {
+        "batch_size": int(step_config.get("batch_size", 1)) if step_config else 1,
+        "chunk_row_groups": int(step_config.get("chunk_row_groups", 4)) if step_config else 4,
+        "chunk_workers": int(step_config.get("chunk_workers", 0)) if step_config else 0,
+    }
+    if isinstance(step_config, dict) and isinstance(step_config.get("loader_config"), dict):
+        stage_cfg["loader_config"] = step_config["loader_config"]
+    loader_cfg = _resolve_stage_loader_config(stage_cfg, stage="evaluate")
+    if "loader_config" in stage_cfg and isinstance(stage_cfg["loader_config"], dict):
+        lc = stage_cfg["loader_config"]
+        if not isinstance(lc.get("evaluate"), dict) and isinstance(lc.get("val"), dict):
+            loader_cfg = _resolve_stage_loader_config(stage_cfg, stage="val")
+    loader_provider = _build_stage_loader(
+        parquet_paths=[str(p) for p in parquet_paths],
+        loader_cfg=loader_cfg,
     )
+    if not loader_provider.include_targets:
+        raise RuntimeError("GroupClassifierGraphLoader must run in train mode for evaluation.")
     loader = loader_provider.make_dataloader(shuffle_batches=False)
     return _evaluate_from_loader(module=module, loader=loader, threshold=threshold, plot_config=step_config)

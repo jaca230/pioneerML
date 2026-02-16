@@ -1,3 +1,4 @@
 from pioneerml.pipelines.inference.group_classification import group_classification_inference_pipeline
+from pioneerml.pipelines.inference.group_splitting import group_splitting_inference_pipeline
 
-__all__ = ["group_classification_inference_pipeline"]
+__all__ = ["group_classification_inference_pipeline", "group_splitting_inference_pipeline"]

@@ -6,7 +6,6 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
-from torch_geometric.data import Data
 from torch_geometric.nn import AttentionalAggregation, JumpingKnowledge
 
 from pioneerml.common.models.base import GraphModel
@@ -65,8 +64,9 @@ class GroupClassifierStereo(GraphModel):
         )
 
     @torch.jit.ignore
-    def forward(self, data: Data) -> torch.Tensor:
-        return self.forward_tensors(data.x, data.edge_index, data.edge_attr, data.batch)
+    def forward(self, data) -> torch.Tensor:
+        num_graphs = int(getattr(data, "num_graphs", 0))
+        return self.forward_tensors(data.x, data.edge_index, data.edge_attr, data.batch, num_graphs=num_graphs)
 
     def forward_tensors(
         self,
@@ -74,6 +74,7 @@ class GroupClassifierStereo(GraphModel):
         edge_index: torch.Tensor,
         edge_attr: torch.Tensor,
         batch: torch.Tensor,
+        num_graphs: int | None = None,
     ) -> torch.Tensor:
         x_embed = self.input_embed(x)
 
@@ -87,31 +88,23 @@ class GroupClassifierStereo(GraphModel):
         mask_x = raw_view == self.view_x_val
         mask_y = raw_view == self.view_y_val
 
-        num_graphs = int(batch.max().item()) + 1 if batch.numel() > 0 else 0
+        if num_graphs is None:
+            num_graphs = int(torch.bincount(batch).shape[0]) if batch.numel() > 0 else 0
+        if int(num_graphs) == 0:
+            return x_cat.new_zeros((0, self.head[-1].out_features))
 
-        if bool(mask_x.any().item()):
-            pooled_x = self.pool_x(x_cat[mask_x], batch[mask_x], dim_size=num_graphs)
-            counts_x = torch.zeros((num_graphs,), device=x.device)
-            counts_x.index_add_(0, batch, mask_x.float())
-            has_x = (counts_x > 0).float().unsqueeze(1)
-        else:
-            pooled_x = torch.zeros((num_graphs, x_cat.size(1)), device=x.device)
-            has_x = torch.zeros((num_graphs, 1), device=x.device)
-
-        if bool(mask_y.any().item()):
-            pooled_y = self.pool_y(x_cat[mask_y], batch[mask_y], dim_size=num_graphs)
-            counts_y = torch.zeros((num_graphs,), device=x.device)
-            counts_y.index_add_(0, batch, mask_y.float())
-            has_y = (counts_y > 0).float().unsqueeze(1)
-        else:
-            pooled_y = torch.zeros((num_graphs, x_cat.size(1)), device=x.device)
-            has_y = torch.zeros((num_graphs, 1), device=x.device)
+        pooled_x = self.pool_x(x_cat[mask_x], batch[mask_x], dim_size=int(num_graphs))
+        pooled_y = self.pool_y(x_cat[mask_y], batch[mask_y], dim_size=int(num_graphs))
+        counts_x = torch.bincount(batch[mask_x], minlength=int(num_graphs)).to(x_cat.dtype)
+        counts_y = torch.bincount(batch[mask_y], minlength=int(num_graphs)).to(x_cat.dtype)
+        has_x = (counts_x > 0).to(x_cat.dtype).unsqueeze(1)
+        has_y = (counts_y > 0).to(x_cat.dtype).unsqueeze(1)
 
         out = torch.cat([pooled_x, pooled_y, has_x, has_y], dim=1)
         return self.head(out)
 
     @torch.jit.ignore
-    def extract_embeddings(self, data: Data) -> torch.Tensor:
+    def extract_embeddings(self, data) -> torch.Tensor:
         x_embed = self.input_embed(data.x)
 
         xs = []
@@ -124,25 +117,15 @@ class GroupClassifierStereo(GraphModel):
         mask_x = raw_view == self.view_x_val
         mask_y = raw_view == self.view_y_val
 
-        num_graphs = int(data.batch.max().item()) + 1 if data.batch.numel() > 0 else 0
-
-        if bool(mask_x.any().item()):
-            pooled_x = self.pool_x(x_cat[mask_x], data.batch[mask_x], dim_size=num_graphs)
-            counts_x = torch.zeros((num_graphs,), device=x_cat.device)
-            counts_x.index_add_(0, data.batch, mask_x.float())
-            has_x = (counts_x > 0).float().unsqueeze(1)
-        else:
-            pooled_x = torch.zeros((num_graphs, x_cat.size(1)), device=x_cat.device)
-            has_x = torch.zeros((num_graphs, 1), device=x_cat.device)
-
-        if bool(mask_y.any().item()):
-            pooled_y = self.pool_y(x_cat[mask_y], data.batch[mask_y], dim_size=num_graphs)
-            counts_y = torch.zeros((num_graphs,), device=x_cat.device)
-            counts_y.index_add_(0, data.batch, mask_y.float())
-            has_y = (counts_y > 0).float().unsqueeze(1)
-        else:
-            pooled_y = torch.zeros((num_graphs, x_cat.size(1)), device=x_cat.device)
-            has_y = torch.zeros((num_graphs, 1), device=x_cat.device)
+        num_graphs = int(getattr(data, "num_graphs", 0))
+        if num_graphs == 0:
+            return x_cat.new_zeros((0, (x_cat.size(1) * 2) + 2))
+        pooled_x = self.pool_x(x_cat[mask_x], data.batch[mask_x], dim_size=num_graphs)
+        pooled_y = self.pool_y(x_cat[mask_y], data.batch[mask_y], dim_size=num_graphs)
+        counts_x = torch.bincount(data.batch[mask_x], minlength=num_graphs).to(x_cat.dtype)
+        counts_y = torch.bincount(data.batch[mask_y], minlength=num_graphs).to(x_cat.dtype)
+        has_x = (counts_x > 0).to(x_cat.dtype).unsqueeze(1)
+        has_y = (counts_y > 0).to(x_cat.dtype).unsqueeze(1)
 
         return torch.cat([pooled_x, pooled_y, has_x, has_y], dim=1)
 

@@ -1,24 +1,21 @@
-from typing import Mapping
+from collections.abc import Mapping
 
 import optuna
 import torch.nn as nn
-from torch_geometric.loader import DataLoader
 from zenml import step
 
+from pioneerml.common.loader import GroupSplitterGraphLoader
 from pioneerml.common.models.classifiers import GroupSplitter
 from pioneerml.common.optuna.manager import OptunaStudyManager
-from pioneerml.common.pipeline_utils.train import ModelTrainer
 from pioneerml.common.training.lightning import GraphLightningModule
 from pioneerml.pipelines.training.group_splitting.dataset import GroupSplitterDataset
 from pioneerml.pipelines.training.group_splitting.steps.config import resolve_step_config
 from pioneerml.pipelines.training.group_splitting.steps.train import (
     _apply_lightning_warnings_filter,
+    _fit_with_loaders,
     _merge_config,
-    _split_dataset_to_graphs,
 )
-
-
-_MODEL_TRAINER = ModelTrainer()
+from pioneerml.common.training import maybe_compile_model
 
 
 def _suggest_range(cfg: Mapping, key: str, *, default_low: float, default_high: float):
@@ -46,7 +43,7 @@ def _select_objective_value(module) -> float:
 
 
 def _resolve_batch_size_search(cfg: Mapping) -> tuple[int | None, int, int]:
-    raw = cfg.get("batch_size", {"min_exp": 0, "max_exp": 2})
+    raw = cfg.get("batch_size", {"min_exp": 5, "max_exp": 7})
     if isinstance(raw, Mapping):
         min_exp = int(raw.get("min_exp", 0))
         max_exp = int(raw.get("max_exp", 2))
@@ -68,6 +65,17 @@ def _resolve_batch_size_search(cfg: Mapping) -> tuple[int | None, int, int]:
         return None, min_exp, max_exp
     fixed = int(raw)
     return fixed, 0, 0
+
+
+def _build_hpo_trainer_kwargs(cfg: Mapping) -> dict:
+    kwargs = dict(cfg.get("trainer_kwargs") or {})
+    max_train_batches = cfg.get("max_train_batches")
+    if max_train_batches is not None:
+        kwargs.setdefault("limit_train_batches", int(max_train_batches))
+    max_val_batches = cfg.get("max_val_batches")
+    if max_val_batches is not None:
+        kwargs.setdefault("limit_val_batches", int(max_val_batches))
+    return kwargs
 
 
 def _optimize(
@@ -114,8 +122,21 @@ def tune_group_splitter(
         "scheduler_gamma": 0.5,
         "threshold": 0.5,
         "trainer_kwargs": {"enable_progress_bar": True},
-        "batch_size": {"min_exp": 0, "max_exp": 2},
+        "batch_size": {"min_exp": 5, "max_exp": 7},
         "shuffle": True,
+        "chunk_row_groups": 4,
+        "chunk_workers": 0,
+        "max_train_batches": None,
+        "max_val_batches": None,
+        "early_stopping": {
+            "enabled": False,
+            "monitor": "val_loss",
+            "mode": "min",
+            "patience": 3,
+            "min_delta": 0.0,
+            "min_delta_mode": "absolute",
+        },
+        "compile": {"enabled": False, "mode": "default"},
         "direction": "minimize",
         "seed": None,
         "study_name": "group_splitter_hpo",
@@ -130,6 +151,11 @@ def tune_group_splitter(
         },
     }
     cfg = _merge_config(defaults, step_config)
+    if isinstance(step_config, Mapping) and "data_fraction" in step_config:
+        raise ValueError(
+            "hpo.data_fraction has been removed. "
+            "Use loader.config_json.sample_fraction (with deterministic split settings) instead."
+        )
 
     lr_low, lr_high, lr_log = _suggest_range(cfg, "lr", default_low=1e-4, default_high=1e-2)
     wd_low, wd_high, wd_log = _suggest_range(cfg, "weight_decay", default_low=1e-6, default_high=1e-3)
@@ -142,10 +168,15 @@ def tune_group_splitter(
     if "layers" not in base_model_cfg and "num_blocks" in base_model_cfg:
         base_model_cfg["layers"] = int(base_model_cfg["num_blocks"])
 
-    graphs = _split_dataset_to_graphs(dataset)
-    if not graphs:
-        raise RuntimeError("No non-empty graphs found in dataset for HPO.")
     fixed_batch_size, min_batch_size_exp, max_batch_size_exp = _resolve_batch_size_search(cfg)
+    base_loader = getattr(dataset, "loader", None)
+    if not isinstance(base_loader, GroupSplitterGraphLoader):
+        raise RuntimeError("Dataset is missing GroupSplitterGraphLoader required for chunked HPO.")
+    if not base_loader.include_targets:
+        raise RuntimeError("GroupSplitterGraphLoader must run in train mode for HPO.")
+    chunk_row_groups = int(cfg.get("chunk_row_groups", 4))
+    chunk_workers = int(cfg.get("chunk_workers", 0))
+    trainer_kwargs = _build_hpo_trainer_kwargs(cfg)
 
     def objective(trial: optuna.Trial) -> float:
         lr = trial.suggest_float("lr", lr_low, lr_high, log=lr_log)
@@ -184,6 +215,7 @@ def tune_group_splitter(
             dropout=float(dropout),
             num_classes=int(dataset.targets.shape[-1]),
         )
+        model = maybe_compile_model(model, cfg.get("compile"), context="tune_group_splitter")
         module = GraphLightningModule(
             model,
             task="classification",
@@ -195,15 +227,21 @@ def tune_group_splitter(
             scheduler_gamma=float(cfg["scheduler_gamma"]),
         )
 
-        _MODEL_TRAINER.fit(
-            module=module,
-            graphs=graphs,
-            max_epochs=int(cfg["max_epochs"]),
+        loader_provider = base_loader.with_runtime(
             batch_size=batch_size,
-            shuffle=bool(cfg.get("shuffle", True)),
+            row_groups_per_chunk=chunk_row_groups,
+            num_workers=chunk_workers,
+        )
+        train_loader = loader_provider.make_dataloader(shuffle_batches=bool(cfg.get("shuffle", True)))
+        val_loader = loader_provider.make_dataloader(shuffle_batches=False)
+        _fit_with_loaders(
+            module=module,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            max_epochs=int(cfg["max_epochs"]),
             grad_clip=float(cfg["grad_clip"]) if cfg.get("grad_clip") is not None else None,
-            trainer_kwargs=dict(cfg.get("trainer_kwargs") or {}),
-            loader_cls=DataLoader,
+            trainer_kwargs=trainer_kwargs,
+            early_stopping_cfg=dict(cfg.get("early_stopping") or {}),
         )
         return _select_objective_value(module)
 

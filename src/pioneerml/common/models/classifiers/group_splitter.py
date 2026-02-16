@@ -59,7 +59,18 @@ class GroupSplitter(nn.Module):
         if group_probs is None:
             num_graphs = int(batch.max().item()) + 1 if batch.numel() > 0 else 0
             group_probs = torch.zeros((num_graphs, self.prob_dimension), device=data.x.device, dtype=data.x.dtype)
-        return self.forward_tensors(data.x, data.edge_index, data.edge_attr, batch, data.u, group_probs)
+        group_total_energy = getattr(data, "group_total_energy", None)
+        if group_total_energy is None:
+            num_graphs = int(batch.max().item()) + 1 if batch.numel() > 0 else 0
+            group_total_energy = torch.zeros((num_graphs, 1), device=data.x.device, dtype=data.x.dtype)
+        return self.forward_tensors(
+            data.x,
+            data.edge_index,
+            data.edge_attr,
+            batch,
+            group_total_energy,
+            group_probs,
+        )
 
     def forward_tensors(
         self,
@@ -67,7 +78,7 @@ class GroupSplitter(nn.Module):
         edge_index: torch.Tensor,
         edge_attr: torch.Tensor,
         batch: torch.Tensor,
-        u: torch.Tensor,
+        group_total_energy: torch.Tensor,
         group_probs: torch.Tensor,
     ):
         probs_expanded = group_probs[batch]
@@ -76,8 +87,8 @@ class GroupSplitter(nn.Module):
         for block in self.blocks:
             x = block(x, edge_index, edge_attr)
 
-        u_expanded = u[batch]
-        node_out = torch.cat([x, u_expanded], dim=1)
+        energy_expanded = group_total_energy[batch]
+        node_out = torch.cat([x, energy_expanded], dim=1)
         node_logits = self.node_head(node_out)
 
         return node_logits
@@ -105,10 +116,17 @@ class GroupSplitter(nn.Module):
                 edge_index: torch.Tensor,
                 edge_attr: torch.Tensor,
                 batch: torch.Tensor,
-                u: torch.Tensor,
+                group_total_energy: torch.Tensor,
                 group_probs: torch.Tensor,
             ):
-                return self.model.forward_tensors(x, edge_index, edge_attr, batch, u, group_probs)
+                return self.model.forward_tensors(
+                    x,
+                    edge_index,
+                    edge_attr,
+                    batch,
+                    group_total_energy,
+                    group_probs,
+                )
 
         scripted = torch.jit.script(_Scriptable(self))
         if path is not None:

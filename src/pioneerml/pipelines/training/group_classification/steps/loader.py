@@ -20,6 +20,16 @@ def load_group_classifier_dataset(
         batch_size=max(1, int(config_json.get("batch_size", 64))),
         row_groups_per_chunk=max(1, int(config_json.get("chunk_row_groups", config_json.get("row_groups_per_chunk", 4)))),
         num_workers=max(0, int(config_json.get("chunk_workers", config_json.get("num_workers", 0)))),
+        split=(None if config_json.get("split") in (None, "", "none") else str(config_json.get("split"))),
+        train_fraction=float(config_json.get("train_fraction", 0.9)),
+        val_fraction=float(config_json.get("val_fraction", 0.05)),
+        test_fraction=float(config_json.get("test_fraction", 0.05)),
+        split_seed=int(config_json.get("split_seed", 0)),
+        sample_fraction=(
+            None
+            if config_json.get("sample_fraction") in (None, "", "none")
+            else float(config_json.get("sample_fraction"))
+        ),
     )
 
     data, targets = loader.empty_data()

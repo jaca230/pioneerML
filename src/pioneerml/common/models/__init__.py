@@ -4,7 +4,7 @@ GNN model architectures for PIONEER reconstruction tasks.
 Standard graph representation:
 - Node features (4D): [coord, z, energy, view]
 - Edge features (4D): [dx, dz, dE, same_view]
-- Global feature: data.u = total group energy
+- Optional graph-level features are model-specific (for example `group_probs`, `u`).
 """
 
 from pioneerml.common.models.blocks import FullGraphTransformerBlock

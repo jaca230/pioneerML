@@ -1,19 +1,15 @@
-"""
-ZenML training pipeline for PIONEER ML models.
+"""Quickstart tutorial pipeline for synthetic graph classification."""
 
-This pipeline builds synthetic data, trains a GroupClassifier with Lightning,
-and logs metrics.
-"""
-
+import pytorch_lightning as pl
 import torch
 from torch_geometric.data import Data
 from zenml import pipeline, step
-import pytorch_lightning as pl
 
 from pioneerml.common.models import GroupClassifier
-from pioneerml.common.training import GraphDataModule, GraphLightningModule
+from pioneerml.common.pipeline.services.training.utils import GraphLightningModule
 from pioneerml.common.zenml.materializers import TorchTensorMaterializer
 from pioneerml.common.zenml.utils import detect_available_accelerator
+from pioneerml.pipelines.tutorial_examples.graph_datamodule import GraphDataModule
 
 
 def make_synthetic_group(num_nodes: int, num_classes: int) -> Data:
@@ -42,7 +38,7 @@ def build_datamodule(
     val_split: float = 0.25,
 ) -> GraphDataModule:
     records = [make_synthetic_group(num_nodes, num_classes) for _ in range(num_samples)]
-    return GraphDataModule(dataset=records, val_split=val_split, batch_size=batch_size)
+    return GraphDataModule(dataset=records, val_split=val_split, batch_size=batch_size, num_workers=0)
 
 
 @step

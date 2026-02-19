@@ -16,10 +16,10 @@ PIONEER ML is an ML framework for the PIONEER experiment focused on scalable gra
 3. ZenML-based pipeline orchestration.
 4. Notebook workflows for training, inference, and validation.
 
-## Quick start (Conda, recommended)
+## Quick start (Conda)
 
 ```bash
-git clone git@github.com:jaca230/pioneerML.git
+git clone https://github.com/jaca230/pioneerML.git
 cd pioneerML
 ./scripts/env/setup_uv_conda.sh
 conda activate pioneerml
@@ -32,6 +32,13 @@ Notes:
 3. Alternative venv flow: `scripts/env/setup_uv_venv.sh`.
 
 ## Quick start (Docker)
+
+Clone repo:
+
+```bash
+git clone https://github.com/jaca230/pioneerML.git
+cd pioneerML
+```
 
 Build image:
 

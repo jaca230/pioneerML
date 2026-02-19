@@ -7,6 +7,7 @@ configuration without needing to manually configure stores.
 
 from __future__ import annotations
 
+import builtins
 import os
 from pathlib import Path
 from typing import Any
@@ -90,6 +91,7 @@ def find_project_root(start: Path | None = None) -> Path:
 def setup_zenml_for_notebook(
     root_path: Path | str | None = None,
     use_in_memory: bool = True,
+    restore_original_print: bool = True,
 ) -> Client:
     """
     Set up ZenML for use in notebooks using the proper global Client behavior.
@@ -121,6 +123,13 @@ def setup_zenml_for_notebook(
 
     # activate_root updates the *global* Client singleton
     Client().activate_root(root_path)
+
+    # ZenML monkey-patches builtins.print in some environments and currently
+    # duplicates positional args > 1. Restore original print for notebook UX.
+    if restore_original_print:
+        original_print = getattr(builtins, "_zenml_original_print", None)
+        if original_print is not None and builtins.print is not original_print:
+            builtins.print = original_print
 
     # Return the global client
     return Client()

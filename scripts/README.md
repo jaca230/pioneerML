@@ -10,9 +10,9 @@ This directory contains helper scripts grouped by purpose.
 
 The training scripts are placeholders. For now, please use the Jupyter notebooks in the main repository:
 
-- `classify_groups.ipynb` - Train the group classifier
-- `group_splitter.ipynb` - Train the hit splitter
-- `pion_stop.ipynb` - Train pion stop regression
+- `training/group_classification.ipynb` - Train the group classifier
+- `training/group_splitting.ipynb` - Train the hit splitter
+- `training/pion_stop_regression.ipynb` - Train pion stop regression
 
 ## Jupyter
 

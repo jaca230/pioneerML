@@ -1,0 +1,3 @@
+from .endpoint_regressor_inference_inputs_service import EndpointRegressorInferenceInputsService
+
+__all__ = ["EndpointRegressorInferenceInputsService"]

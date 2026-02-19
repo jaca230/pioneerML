@@ -1,9 +1,8 @@
 from zenml import step
 
-from pioneerml.common.loader import GroupClassifierGraphLoader
+from pioneerml.common.loader import GroupClassifierGraphLoaderFactory
 from pioneerml.common.zenml.materializers import GroupClassifierDatasetMaterializer
 from pioneerml.pipelines.training.group_classification.dataset import GroupClassifierDataset
-from pioneerml.pipelines.training.group_classification.steps.config import resolve_step_config
 
 
 @step(enable_cache=False, output_materializers=GroupClassifierDatasetMaterializer)
@@ -11,27 +10,20 @@ def load_group_classifier_dataset(
     parquet_paths: list[str],
     pipeline_config: dict | None = None,
 ) -> GroupClassifierDataset:
-    step_config = resolve_step_config(pipeline_config, "loader") or {}
+    if pipeline_config is not None and not isinstance(pipeline_config, dict):
+        raise TypeError(f"Expected dict for pipeline_config, got {type(pipeline_config).__name__}.")
+    step_config = {}
+    if isinstance(pipeline_config, dict):
+        raw = pipeline_config.get("loader")
+        if raw is not None:
+            if not isinstance(raw, dict):
+                raise TypeError(f"Expected dict for 'loader' config, got {type(raw).__name__}.")
+            step_config = dict(raw)
     config_json = dict(step_config.get("config_json") or {})
 
-    loader = GroupClassifierGraphLoader(
-        parquet_paths=[str(p) for p in parquet_paths],
-        mode=str(config_json.get("mode", "train")),
-        batch_size=max(1, int(config_json.get("batch_size", 64))),
-        row_groups_per_chunk=max(1, int(config_json.get("chunk_row_groups", config_json.get("row_groups_per_chunk", 4)))),
-        num_workers=max(0, int(config_json.get("chunk_workers", config_json.get("num_workers", 0)))),
-        split=(None if config_json.get("split") in (None, "", "none") else str(config_json.get("split"))),
-        train_fraction=float(config_json.get("train_fraction", 0.9)),
-        val_fraction=float(config_json.get("val_fraction", 0.05)),
-        test_fraction=float(config_json.get("test_fraction", 0.05)),
-        split_seed=int(config_json.get("split_seed", 0)),
-        sample_fraction=(
-            None
-            if config_json.get("sample_fraction") in (None, "", "none")
-            else float(config_json.get("sample_fraction"))
-        ),
-    )
+    loader_factory = GroupClassifierGraphLoaderFactory(parquet_paths=[str(p) for p in parquet_paths])
+    loader = loader_factory.build_loader(loader_params=dict(config_json))
 
     data, targets = loader.empty_data()
     data.source_parquet_paths = list(loader.parquet_paths)
-    return GroupClassifierDataset(data=data, targets=targets, loader=loader)
+    return GroupClassifierDataset(data=data, targets=targets, loader_factory=loader_factory, loader=loader_factory)

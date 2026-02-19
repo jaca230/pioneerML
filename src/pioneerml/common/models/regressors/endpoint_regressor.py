@@ -9,10 +9,11 @@ import torch.nn as nn
 from torch_geometric.data import Data
 
 from pioneerml.common.models.blocks import FullGraphTransformerBlock
+from pioneerml.common.models.components.quantile_output_head import QuantileOutputHead
 
 
 class EndpointRegressor(nn.Module):
-    """Predicts `[start_x, start_y, start_z, end_x, end_y, end_z]` per time-group graph."""
+    """Predicts endpoint quantiles per time-group graph as `[2 points, 3 coords, 3 quantiles]`."""
 
     def __init__(
         self,
@@ -23,11 +24,21 @@ class EndpointRegressor(nn.Module):
         heads: int = 4,
         layers: int = 3,
         dropout: float = 0.1,
-        output_dim: int = 6,
+        output_dim: int = 18,
+        quantiles: tuple[float, ...] = (0.16, 0.50, 0.84),
     ):
         super().__init__()
         self.group_prob_dimension = int(group_prob_dimension)
         self.splitter_prob_dimension = int(splitter_prob_dimension)
+        self.num_points = 2
+        self.num_coords = 3
+        self.quantiles = tuple(float(q) for q in quantiles)
+        expected_output_dim = int(self.num_points * self.num_coords * len(self.quantiles))
+        if int(output_dim) != expected_output_dim:
+            raise ValueError(
+                f"output_dim ({output_dim}) must equal num_points*coords*num_quantiles ({expected_output_dim})."
+            )
+        self.output_dim = expected_output_dim
 
         input_dim = int(in_channels) + self.group_prob_dimension + self.splitter_prob_dimension
         self.input_proj = nn.Linear(input_dim, hidden)
@@ -51,7 +62,12 @@ class EndpointRegressor(nn.Module):
             nn.Dropout(dropout),
             nn.Linear(hidden, hidden // 2),
             nn.ReLU(),
-            nn.Linear(hidden // 2, output_dim),
+        )
+        self.quantile_head = QuantileOutputHead(
+            input_dim=hidden // 2,
+            num_points=self.num_points,
+            coords=self.num_coords,
+            quantiles=list(self.quantiles),
         )
 
     @torch.jit.ignore
@@ -154,7 +170,9 @@ class EndpointRegressor(nn.Module):
         has_y = (counts_y > 0).to(x.dtype)
 
         out = torch.cat([pool_x, pool_y, pool_all, group_probs, u.to(x.dtype), has_x, has_y], dim=1)
-        return self.head(out)
+        out = self.head(out)
+        out = self.quantile_head(out)
+        return out.reshape(out.size(0), self.output_dim)
 
     def export_torchscript(
         self,

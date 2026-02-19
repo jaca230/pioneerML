@@ -1,0 +1,3 @@
+from .group_splitter_inference_inputs_service import GroupSplitterInferenceInputsService
+
+__all__ = ["GroupSplitterInferenceInputsService"]

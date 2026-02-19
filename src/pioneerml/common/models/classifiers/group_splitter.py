@@ -81,6 +81,25 @@ class GroupSplitter(nn.Module):
         group_total_energy: torch.Tensor,
         group_probs: torch.Tensor,
     ):
+        node_out = self.extract_embeddings_tensors(
+            x=x,
+            edge_index=edge_index,
+            edge_attr=edge_attr,
+            batch=batch,
+            group_total_energy=group_total_energy,
+            group_probs=group_probs,
+        )
+        return self.node_head(node_out)
+
+    def extract_embeddings_tensors(
+        self,
+        x: torch.Tensor,
+        edge_index: torch.Tensor,
+        edge_attr: torch.Tensor,
+        batch: torch.Tensor,
+        group_total_energy: torch.Tensor,
+        group_probs: torch.Tensor,
+    ) -> torch.Tensor:
         probs_expanded = group_probs[batch]
         x = self.input_proj(torch.cat([x, probs_expanded], dim=1))
 
@@ -88,10 +107,29 @@ class GroupSplitter(nn.Module):
             x = block(x, edge_index, edge_attr)
 
         energy_expanded = group_total_energy[batch]
-        node_out = torch.cat([x, energy_expanded], dim=1)
-        node_logits = self.node_head(node_out)
+        return torch.cat([x, energy_expanded], dim=1)
 
-        return node_logits
+    @torch.jit.ignore
+    def extract_embeddings(self, data: Data) -> torch.Tensor:
+        batch = getattr(data, "batch", None)
+        if batch is None:
+            batch = torch.zeros(data.x.shape[0], dtype=torch.long, device=data.x.device)
+        group_probs = getattr(data, "group_probs", None)
+        if group_probs is None:
+            num_graphs = int(batch.max().item()) + 1 if batch.numel() > 0 else 0
+            group_probs = torch.zeros((num_graphs, self.prob_dimension), device=data.x.device, dtype=data.x.dtype)
+        group_total_energy = getattr(data, "group_total_energy", None)
+        if group_total_energy is None:
+            num_graphs = int(batch.max().item()) + 1 if batch.numel() > 0 else 0
+            group_total_energy = torch.zeros((num_graphs, 1), device=data.x.device, dtype=data.x.dtype)
+        return self.extract_embeddings_tensors(
+            x=data.x,
+            edge_index=data.edge_index,
+            edge_attr=data.edge_attr,
+            batch=batch,
+            group_total_energy=group_total_energy,
+            group_probs=group_probs,
+        )
 
     def export_torchscript(
         self,

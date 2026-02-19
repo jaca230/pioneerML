@@ -14,11 +14,20 @@ from zenml.utils import source_utils
 from pioneerml.common.zenml.materializers.endpoint_regressor_dataset_materializer import (
     EndpointRegressorDatasetMaterializer,
 )
+from pioneerml.common.zenml.materializers.event_splitter_dataset_materializer import (
+    EventSplitterDatasetMaterializer,
+)
 from pioneerml.common.zenml.materializers.group_classifier_dataset_materializer import (
     GroupClassifierDatasetMaterializer,
 )
 from pioneerml.common.zenml.materializers.group_splitter_dataset_materializer import (
     GroupSplitterDatasetMaterializer,
+)
+from pioneerml.common.zenml.materializers.pion_stop_dataset_materializer import (
+    PionStopDatasetMaterializer,
+)
+from pioneerml.common.zenml.materializers.positron_angle_dataset_materializer import (
+    PositronAngleDatasetMaterializer,
 )
 from pioneerml.common.zenml.materializers.pyg_data_list_materializer import (
     PyGDataListMaterializer,
@@ -61,6 +70,9 @@ __all__ = [
     "GroupClassifierDatasetMaterializer",
     "GroupSplitterDatasetMaterializer",
     "EndpointRegressorDatasetMaterializer",
+    "EventSplitterDatasetMaterializer",
+    "PionStopDatasetMaterializer",
+    "PositronAngleDatasetMaterializer",
     "PyGDataListMaterializer",
     "TorchTensorMaterializer",
 ]

@@ -12,15 +12,20 @@ from pioneerml.common.models.blocks import FullGraphTransformerBlock
 
 
 class EventSplitter(nn.Module):
-    """Predicts per-edge affinity logits for event-level hit graphs."""
+    """Predicts per-edge affinity logits for event-level hit graphs.
+
+    Expected edge features are `[dcoord, dz, dedep, same_view, same_group]`.
+    If `same_group` is missing (4 feature edge_attr), it is reconstructed from
+    `group_ptr + time_group_ids` and appended.
+    """
 
     def __init__(
         self,
         in_channels: int = 4,
         group_prob_dimension: int = 3,
         splitter_prob_dimension: int = 3,
-        endpoint_dimension: int = 6,
-        edge_attr_dimension: int = 4,
+        endpoint_dimension: int = 18,
+        edge_attr_dimension: int = 5,
         hidden: int = 192,
         heads: int = 4,
         layers: int = 3,
@@ -129,6 +134,22 @@ class EventSplitter(nn.Module):
         group_base = group_ptr.index_select(0, batch) if group_ptr.numel() > 0 else batch.new_zeros(batch.shape)
         group_ids = (group_base + time_group_ids.to(group_base.dtype)).to(torch.long)
 
+        if edge_attr.dim() != 2:
+            raise ValueError("edge_attr must be rank-2 [E, F].")
+        if edge_attr.size(1) == self.edge_attr_dimension - 1 and self.edge_attr_dimension == 5:
+            if edge_index.numel() == 0:
+                edge_attr = edge_attr.new_empty((0, self.edge_attr_dimension))
+            else:
+                src = edge_index[0].to(torch.long)
+                dst = edge_index[1].to(torch.long)
+                same_group = (group_ids[src] == group_ids[dst]).to(edge_attr.dtype).unsqueeze(1)
+                edge_attr = torch.cat([edge_attr, same_group], dim=1)
+        elif edge_attr.size(1) != self.edge_attr_dimension:
+            raise ValueError(
+                f"edge_attr feature dimension ({edge_attr.size(1)}) does not match "
+                f"edge_attr_dimension ({self.edge_attr_dimension})."
+            )
+
         if group_probs.numel() == 0:
             expanded_group_probs = torch.zeros(
                 (x.size(0), self.group_prob_dimension),
@@ -154,6 +175,12 @@ class EventSplitter(nn.Module):
                 dtype=x.dtype,
             )
         else:
+            if int(endpoint_preds.size(1)) != self.endpoint_dimension:
+                if int(endpoint_preds.size(1)) < self.endpoint_dimension:
+                    pad = endpoint_preds.new_zeros((endpoint_preds.size(0), self.endpoint_dimension - endpoint_preds.size(1)))
+                    endpoint_preds = torch.cat([endpoint_preds, pad], dim=1)
+                else:
+                    endpoint_preds = endpoint_preds[:, : self.endpoint_dimension]
             max_group = int(endpoint_preds.size(0) - 1)
             safe_group_ids = group_ids.clamp(min=0, max=max_group)
             expanded_endpoint_preds = endpoint_preds[safe_group_ids]

@@ -1,6 +1,6 @@
 from zenml import step
 
-from pioneerml.common.loader import GroupSplitterGraphLoader
+from pioneerml.common.loader import GroupSplitterGraphLoaderFactory
 from pioneerml.common.zenml.materializers import GroupSplitterDatasetMaterializer
 from pioneerml.pipelines.training.group_splitting.dataset import GroupSplitterDataset
 
@@ -11,35 +11,24 @@ def load_group_splitter_dataset(
     group_probs_parquet_paths: list[str] | None = None,
     pipeline_config: dict | None = None,
 ) -> GroupSplitterDataset:
-    config_json = {}
+    if pipeline_config is not None and not isinstance(pipeline_config, dict):
+        raise TypeError(f"Expected dict for pipeline_config, got {type(pipeline_config).__name__}.")
+    step_config = {}
     if isinstance(pipeline_config, dict):
-        loader_cfg = pipeline_config.get("loader")
-        if isinstance(loader_cfg, dict):
-            config_json = dict(loader_cfg.get("config_json") or {})
+        raw = pipeline_config.get("loader")
+        if raw is not None:
+            if not isinstance(raw, dict):
+                raise TypeError(f"Expected dict for 'loader' config, got {type(raw).__name__}.")
+            step_config = dict(raw)
+    config_json = dict(step_config.get("config_json") or {})
 
-    loader = GroupSplitterGraphLoader(
+    loader_factory = GroupSplitterGraphLoaderFactory(
         parquet_paths=[str(p) for p in parquet_paths],
-        group_probs_parquet_paths=[str(p) for p in group_probs_parquet_paths]
-        if group_probs_parquet_paths is not None
-        else None,
-        mode=str(config_json.get("mode", "train")),
-        use_group_probs=bool(config_json.get("use_group_probs", True)),
-        batch_size=max(1, int(config_json.get("batch_size", 64))),
-        row_groups_per_chunk=max(1, int(config_json.get("chunk_row_groups", config_json.get("row_groups_per_chunk", 4)))),
-        num_workers=max(0, int(config_json.get("chunk_workers", config_json.get("num_workers", 0)))),
-        split=(None if config_json.get("split") in (None, "", "none") else str(config_json.get("split"))),
-        train_fraction=float(config_json.get("train_fraction", 0.9)),
-        val_fraction=float(config_json.get("val_fraction", 0.05)),
-        test_fraction=float(config_json.get("test_fraction", 0.05)),
-        split_seed=int(config_json.get("split_seed", 0)),
-        sample_fraction=(
-            None
-            if config_json.get("sample_fraction") in (None, "", "none")
-            else float(config_json.get("sample_fraction"))
-        ),
+        group_probs_parquet_paths=[str(p) for p in group_probs_parquet_paths] if group_probs_parquet_paths else None,
     )
+    loader = loader_factory.build_loader(loader_params=dict(config_json))
     data, targets = loader.empty_data()
     data.source_parquet_paths = list(loader.parquet_paths)
     if loader.group_probs_parquet_paths is not None:
         data.group_probs_parquet_paths = list(loader.group_probs_parquet_paths)
-    return GroupSplitterDataset(data=data, targets=targets, loader=loader)
+    return GroupSplitterDataset(data=data, targets=targets, loader_factory=loader_factory, loader=loader_factory)

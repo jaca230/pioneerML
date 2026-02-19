@@ -144,3 +144,9 @@ deprecated/pioneerml_zenml_materializers/**
 #custom
 .playground/
 workspace/
+
+#jupyter
+.jupyter/
+
+#cache
+.cache/

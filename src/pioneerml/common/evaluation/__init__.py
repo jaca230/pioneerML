@@ -20,6 +20,13 @@ from pioneerml.common.evaluation.plots import (
     plot_confidence_analysis,
 )
 from pioneerml.common.evaluation.utils import resolve_preds_targets
+from pioneerml.common.evaluation.evaluators import (
+    BaseEvaluator,
+    BaseClassificationEvaluator,
+    BaseRegressionEvaluator,
+    SimpleClassificationEvaluator,
+    SimpleRegressionEvaluator,
+)
 
 __all__ = [
     "METRIC_REGISTRY",
@@ -38,4 +45,9 @@ __all__ = [
     "resolve_preds_targets",
     "plot_probability_distributions",
     "plot_confidence_analysis",
+    "BaseEvaluator",
+    "BaseClassificationEvaluator",
+    "BaseRegressionEvaluator",
+    "SimpleClassificationEvaluator",
+    "SimpleRegressionEvaluator",
 ]

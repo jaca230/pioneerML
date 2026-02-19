@@ -12,7 +12,6 @@ from pioneerml.common.models.classifiers import (
     GroupClassifier,
     GroupClassifierStereo,
     GroupSplitter,
-    GroupSplitterEvent,
     GroupAffinityModel,
 )
 from pioneerml.common.models.regressors import (
@@ -29,7 +28,6 @@ __all__ = [
     "GroupClassifier",
     "GroupClassifierStereo",
     "GroupSplitter",
-    "GroupSplitterEvent",
     "GroupAffinityModel",
     "PionStopRegressor",
     "EndpointRegressor",

@@ -8,7 +8,6 @@ PIONEER ML is an ML framework for the PIONEER experiment focused on scalable gra
 ![Lightning](https://img.shields.io/badge/PyTorch%20Lightning-2.x-792EE5)
 ![ZenML](https://img.shields.io/badge/ZenML-0.92-4B9CD3)
 ![Optuna](https://img.shields.io/badge/Optuna-3.5%2B-4C4CFF)
-![License](https://img.shields.io/badge/License-MIT-green)
 
 ## What this repo provides
 
@@ -28,7 +27,7 @@ conda activate pioneerml
 
 Notes:
 
-1. The setup script installs dependencies and registers a Jupyter kernel named `pioneerml`.
+1. The setup script creates a conda environment, installs dependencies, and registers a Jupyter kernel named `pioneerml`.
 2. Script reference: `scripts/env/setup_uv_conda.sh`.
 3. Alternative venv flow: `scripts/env/setup_uv_venv.sh`.
 
@@ -101,4 +100,3 @@ Additional model notebooks are under:
 2. `notebooks/`: interactive workflows.
 3. `scripts/`: environment, docker, and jupyter helpers.
 4. `data/`: local parquet data and generated prediction outputs.
-5. `artifacts/`: smoke scripts and local utility outputs.

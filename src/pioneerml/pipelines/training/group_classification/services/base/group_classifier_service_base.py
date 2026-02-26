@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import json
+import logging
+
 from pioneerml.common.loader import GroupClassifierGraphLoaderFactory
 from pioneerml.common.pipeline.services import BasePipelineService
 from pioneerml.pipelines.training.group_classification.dataset import GroupClassifierDataset
 from pioneerml.pipelines.training.group_classification.objective import GroupClassifierObjectiveAdapter
+
+LOGGER = logging.getLogger(__name__)
 
 
 class GroupClassifierServiceBase(BasePipelineService):
@@ -44,3 +49,14 @@ class GroupClassifierServiceBase(BasePipelineService):
 
     def _merge(self, base: dict, override: dict | None) -> dict:
         return self.merge_config(base, override)
+
+    def _log_loader_diagnostics(self, *, label: str, loader_provider) -> dict:
+        if loader_provider is None or not hasattr(loader_provider, "get_diagnostics_summary"):
+            return {}
+        try:
+            summary = loader_provider.get_diagnostics_summary() or {}
+        except Exception:
+            return {}
+        if summary:
+            LOGGER.info("[loader_diagnostics][%s] %s", label, json.dumps(summary, sort_keys=True))
+        return summary

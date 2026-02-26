@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from pioneerml.common.loader.graph.time_group.group_classifier_graph_loader import GroupClassifierGraphLoader
-
-from .base_graph_loader_factory import BaseGraphLoaderFactory
+from .loader import GroupClassifierGraphLoader
 
 
-class GroupClassifierGraphLoaderFactory(BaseGraphLoaderFactory):
+class GroupClassifierGraphLoaderFactory:
+    def __init__(self, *, parquet_paths: list[str]) -> None:
+        self.parquet_paths = [str(p) for p in parquet_paths]
+
     @staticmethod
     def _as_optional(value) -> str | None:
         if value in (None, "", "none", "None"):
@@ -28,5 +29,5 @@ class GroupClassifierGraphLoaderFactory(BaseGraphLoaderFactory):
             sample_fraction=(
                 None if cfg.get("sample_fraction") in (None, "", "none", "None") else float(cfg.get("sample_fraction"))
             ),
+            profiling=dict(cfg.get("profiling") or {}),
         )
-

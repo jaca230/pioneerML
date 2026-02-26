@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pioneerml.common.loader.graph.time_group.pion_stop_graph_loader import PionStopGraphLoader
+from ..graph.time_group.pion_stop_graph_loader import PionStopGraphLoader
 
 from .base_graph_loader_factory import BaseGraphLoaderFactory
 

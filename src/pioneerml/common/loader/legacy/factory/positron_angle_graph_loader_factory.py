@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pioneerml.common.loader.graph.time_group.positron_angle_graph_loader import PositronAngleGraphLoader
+from ..graph.time_group.positron_angle_graph_loader import PositronAngleGraphLoader
 
 from .base_graph_loader_factory import BaseGraphLoaderFactory
 

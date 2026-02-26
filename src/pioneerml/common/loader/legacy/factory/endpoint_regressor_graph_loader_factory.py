@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from pioneerml.common.loader.graph.time_group.endpoint_regressor_graph_loader import (
-    EndpointRegressorGraphLoader,
-)
+from ..graph.time_group.endpoint_regressor_graph_loader import EndpointRegressorGraphLoader
 
 from .base_graph_loader_factory import BaseGraphLoaderFactory
 

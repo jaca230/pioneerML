@@ -103,4 +103,8 @@ class GroupClassifierEvaluationService(GroupClassifierServiceBase, BaseEvaluatio
         if not provider.include_targets:
             raise RuntimeError("GroupClassifierGraphLoader must run in train mode for evaluation.")
         loader = provider.make_dataloader(shuffle_batches=False)
-        return self._evaluate_from_loader(loader=loader, threshold=float(cfg.get("threshold", 0.5)), plot_config=cfg)
+        metrics = self._evaluate_from_loader(loader=loader, threshold=float(cfg.get("threshold", 0.5)), plot_config=cfg)
+        diag = self._log_loader_diagnostics(label="evaluate", loader_provider=provider)
+        if diag:
+            metrics["loader_diagnostics"] = diag
+        return metrics

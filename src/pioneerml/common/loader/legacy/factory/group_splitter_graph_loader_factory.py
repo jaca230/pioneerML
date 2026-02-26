@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pioneerml.common.loader.graph.time_group.group_splitter_graph_loader import GroupSplitterGraphLoader
+from ..graph.time_group.group_splitter_graph_loader import GroupSplitterGraphLoader
 
 from .base_graph_loader_factory import BaseGraphLoaderFactory
 

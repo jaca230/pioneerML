@@ -5,6 +5,15 @@ import pyarrow as pa
 import torch
 from torch_geometric.data import Data
 
+from .group_classifier_stages import (
+    BatchPacker,
+    EdgeBuilder,
+    GroupLayoutBuilder,
+    NodeFeatureBuilder,
+    RowFilter,
+    RowJoiner,
+    TargetBuilder,
+)
 from .time_group_graph_loader import TimeGroupGraphLoader
 
 
@@ -29,6 +38,8 @@ class GroupClassifierGraphLoader(TimeGroupGraphLoader):
     NUM_CLASSES = 3
     MODE_TRAIN = "train"
     MODE_INFERENCE = "inference"
+    IMPLEMENTATION_LEGACY = "legacy"
+    IMPLEMENTATION_STAGED = "staged"
 
     def __init__(
         self,
@@ -45,11 +56,27 @@ class GroupClassifierGraphLoader(TimeGroupGraphLoader):
         test_fraction: float = 0.05,
         split_seed: int = 0,
         sample_fraction: float | None = None,
+        implementation: str = IMPLEMENTATION_LEGACY,
     ) -> None:
         mode_norm = str(mode).strip().lower()
         if mode_norm not in (self.MODE_TRAIN, self.MODE_INFERENCE):
             raise ValueError(f"Unsupported mode: {mode}. Expected 'train' or 'inference'.")
         self.mode = mode_norm
+        implementation_norm = str(implementation).strip().lower()
+        if implementation_norm not in {self.IMPLEMENTATION_LEGACY, self.IMPLEMENTATION_STAGED}:
+            raise ValueError(
+                f"Unsupported implementation: {implementation}. "
+                f"Expected '{self.IMPLEMENTATION_LEGACY}' or '{self.IMPLEMENTATION_STAGED}'."
+            )
+        self.implementation = implementation_norm
+        if self.implementation == self.IMPLEMENTATION_STAGED:
+            self._row_filter = RowFilter()
+            self._row_joiner = RowJoiner()
+            self._group_layout_builder = GroupLayoutBuilder()
+            self._node_feature_builder = NodeFeatureBuilder()
+            self._edge_builder = EdgeBuilder()
+            self._target_builder = TargetBuilder()
+            self._batch_packer = BatchPacker()
 
         required = self._required_columns_for_mode(self.mode)
         resolved_columns = list(columns) if columns is not None else required
@@ -80,6 +107,7 @@ class GroupClassifierGraphLoader(TimeGroupGraphLoader):
     def _constructor_kwargs(self) -> dict[str, object]:
         kwargs = super()._constructor_kwargs()
         kwargs["mode"] = self.mode
+        kwargs["implementation"] = self.implementation
         return kwargs
 
     @property
@@ -267,6 +295,11 @@ class GroupClassifierGraphLoader(TimeGroupGraphLoader):
                 )
 
     def _build_chunk_graph_arrays(self, *, table: pa.Table) -> dict:
+        if self.implementation == self.IMPLEMENTATION_STAGED:
+            return self._build_chunk_graph_arrays_staged(table=table)
+        return self._build_chunk_graph_arrays_legacy(table=table)
+
+    def _build_chunk_graph_arrays_legacy(self, *, table: pa.Table) -> dict:
         n_rows = int(table.num_rows)
         chunk_in = self._extract_chunk_inputs(table)
 
@@ -363,6 +396,56 @@ class GroupClassifierGraphLoader(TimeGroupGraphLoader):
         if targets_torch is not None:
             chunk_out["targets"] = targets_torch
         return chunk_out
+
+    def _build_chunk_graph_arrays_staged(self, *, table: pa.Table) -> dict:
+        table = self._row_filter.apply(table=table, loader=self)
+        table = self._row_joiner.apply(table=table, loader=self)
+        n_rows = int(table.num_rows)
+        chunk_in = self._extract_chunk_inputs(table)
+
+        layout_out = self._group_layout_builder.build(
+            loader=self,
+            n_rows=n_rows,
+            chunk_in=chunk_in,
+            include_targets=self.include_targets,
+        )
+        layout = layout_out["layout"]
+        total_graphs = int(layout["total_graphs"])
+
+        node_out = self._node_feature_builder.build(
+            loader=self,
+            chunk_in=chunk_in,
+            layout=layout,
+        )
+        edge_out = self._edge_builder.build(
+            loader=self,
+            layout=layout,
+            coord_sorted=node_out["coord_sorted"],
+            z_sorted=node_out["z_sorted"],
+            e_sorted=node_out["e_sorted"],
+            view_sorted=node_out["view_sorted"],
+        )
+        targets_torch = self._target_builder.build(
+            loader=self,
+            include_targets=self.include_targets,
+            chunk_in=chunk_in,
+            total_graphs=total_graphs,
+            local_gid=layout_out["local_gid"],
+            row_ids_graph=layout_out["row_ids_graph"],
+        )
+        return self._batch_packer.pack(
+            n_rows=n_rows,
+            total_graphs=total_graphs,
+            x_out=node_out["x_out"],
+            edge_index_out=edge_out["edge_index_out"],
+            edge_attr_out=edge_out["edge_attr_out"],
+            tgroup_out=node_out["tgroup_out"],
+            graph_event_ids=layout_out["graph_event_ids"],
+            graph_group_ids=layout_out["graph_group_ids"],
+            node_ptr=layout["node_ptr"],
+            edge_ptr=layout["edge_ptr"],
+            targets_torch=targets_torch,
+        )
 
     @staticmethod
     def _slice_chunk_batch(chunk: dict, g0: int, g1: int) -> Data:

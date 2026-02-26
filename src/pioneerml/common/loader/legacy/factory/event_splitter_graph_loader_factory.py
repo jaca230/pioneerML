@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pioneerml.common.loader.graph.event.event_splitter_graph_loader import EventSplitterGraphLoader
+from ..graph.event.event_splitter_graph_loader import EventSplitterGraphLoader
 
 from .base_graph_loader_factory import BaseGraphLoaderFactory
 

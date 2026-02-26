@@ -103,6 +103,9 @@ class BaseGraphLoader:
             kwargs["prefetch_factor"] = 2
         return DataLoader(ds, **kwargs)
 
+    def get_diagnostics_summary(self) -> dict:
+        return {}
+
     def _iter_batches(self, *, shuffle_batches: bool) -> Iterator[Data]:
         chunk_reader = ParquetChunkReader(
             parquet_paths=self.parquet_paths,

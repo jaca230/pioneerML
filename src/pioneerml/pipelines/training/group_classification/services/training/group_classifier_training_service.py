@@ -74,7 +74,7 @@ class GroupClassifierTrainingService(GroupClassifierServiceBase, BaseTrainingSer
             raise RuntimeError("GroupClassifierGraphLoader must run in train mode for training/validation.")
         train_loader = train_provider.make_dataloader(shuffle_batches=bool(cfg.get("shuffle", True)))
         val_loader = val_provider.make_dataloader(shuffle_batches=False)
-        return self.fit_module(
+        module = self.fit_module(
             module=module,
             train_loader=train_loader,
             val_loader=val_loader,
@@ -83,3 +83,6 @@ class GroupClassifierTrainingService(GroupClassifierServiceBase, BaseTrainingSer
             trainer_kwargs=dict(cfg.get("trainer_kwargs") or {}),
             early_stopping_cfg=dict(cfg.get("early_stopping") or {}),
         )
+        self._log_loader_diagnostics(label="train", loader_provider=train_provider)
+        self._log_loader_diagnostics(label="val", loader_provider=val_provider)
+        return module

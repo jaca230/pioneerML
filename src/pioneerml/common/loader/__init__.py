@@ -1,7 +1,7 @@
 from .array_store import NDArrayColumnSpec, NDArrayStore
 from .array_store.schemas import FeatureSchema, LoaderSchema, NDArrayField, TargetSchema
 from .base_loader import BaseLoader
-from .graph_training_dataset import GraphTrainingDataset
+from .bundles import BaseBatchBundle, InferenceBatchBundle, TrainingBatchBundle
 from .parquet import GraphLoader, GroupClassifierGraphLoader, GroupClassifierGraphLoaderFactory, ParquetLoader, StructuredLoader, TimeGroupGraphLoader
 from .stage import (
     CompositeStageObserver,
@@ -23,7 +23,9 @@ __all__ = [
     "TimeGroupGraphLoader",
     "GroupClassifierGraphLoader",
     "GroupClassifierGraphLoaderFactory",
-    "GraphTrainingDataset",
+    "BaseBatchBundle",
+    "TrainingBatchBundle",
+    "InferenceBatchBundle",
     "NDArrayStore",
     "NDArrayColumnSpec",
     "NDArrayField",

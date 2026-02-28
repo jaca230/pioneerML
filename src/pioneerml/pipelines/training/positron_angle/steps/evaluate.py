@@ -1,13 +1,13 @@
 from zenml import step
 
-from pioneerml.pipelines.training.positron_angle.dataset import PositronAngleDataset
+from pioneerml.common.loader import TrainingBatchBundle
 from pioneerml.pipelines.training.positron_angle.services import PositronAngleEvaluationService
 
 
 @step
 def evaluate_positron_angle(
     module,
-    dataset: PositronAngleDataset,
+    dataset: TrainingBatchBundle,
     pipeline_config: dict | None = None,
 ) -> dict:
     service = PositronAngleEvaluationService(

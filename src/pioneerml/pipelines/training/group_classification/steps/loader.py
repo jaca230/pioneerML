@@ -1,15 +1,15 @@
 from zenml import step
 
 from pioneerml.common.loader import GroupClassifierGraphLoaderFactory
-from pioneerml.common.zenml.materializers import GroupClassifierDatasetMaterializer
-from pioneerml.pipelines.training.group_classification.dataset import GroupClassifierDataset
+from pioneerml.common.zenml.materializers import TrainingBatchBundleMaterializer
+from pioneerml.common.loader import TrainingBatchBundle
 
 
-@step(enable_cache=False, output_materializers=GroupClassifierDatasetMaterializer)
+@step(enable_cache=False, output_materializers=TrainingBatchBundleMaterializer)
 def load_group_classifier_dataset(
     parquet_paths: list[str],
     pipeline_config: dict | None = None,
-) -> GroupClassifierDataset:
+) -> TrainingBatchBundle:
     if pipeline_config is not None and not isinstance(pipeline_config, dict):
         raise TypeError(f"Expected dict for pipeline_config, got {type(pipeline_config).__name__}.")
     step_config = {}
@@ -26,4 +26,4 @@ def load_group_classifier_dataset(
 
     data, targets = loader.empty_data()
     data.source_parquet_paths = list(loader.parquet_paths)
-    return GroupClassifierDataset(data=data, targets=targets, loader_factory=loader_factory, loader=loader_factory)
+    return TrainingBatchBundle(inputs=data, targets=targets, loader_factory=loader_factory, loader=loader_factory)

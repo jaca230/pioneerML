@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pioneerml.common.loader import GroupSplitterGraphLoaderFactory
 from pioneerml.common.pipeline.services import BasePipelineService
-from pioneerml.pipelines.training.group_splitting.dataset import GroupSplitterDataset
+from pioneerml.common.loader import TrainingBatchBundle
 from pioneerml.pipelines.training.group_splitting.objective import GroupSplitterObjectiveAdapter
 
 
@@ -10,7 +10,7 @@ class GroupSplitterServiceBase(BasePipelineService):
     def __init__(
         self,
         *,
-        dataset: GroupSplitterDataset,
+        dataset: TrainingBatchBundle,
         pipeline_config: dict | None = None,
     ) -> None:
         super().__init__(pipeline_config=pipeline_config)

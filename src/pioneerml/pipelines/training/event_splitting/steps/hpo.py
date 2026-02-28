@@ -1,12 +1,12 @@
 from zenml import step
 
-from pioneerml.pipelines.training.event_splitting.dataset import EventSplitterDataset
+from pioneerml.common.loader import TrainingBatchBundle
 from pioneerml.pipelines.training.event_splitting.services import EventSplitterHPOService
 
 
 @step
 def tune_event_splitter(
-    dataset: EventSplitterDataset,
+    dataset: TrainingBatchBundle,
     pipeline_config: dict | None = None,
 ) -> dict:
     service = EventSplitterHPOService(

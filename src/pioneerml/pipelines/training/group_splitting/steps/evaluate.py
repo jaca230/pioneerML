@@ -1,13 +1,13 @@
 from zenml import step
 
-from pioneerml.pipelines.training.group_splitting.dataset import GroupSplitterDataset
+from pioneerml.common.loader import TrainingBatchBundle
 from pioneerml.pipelines.training.group_splitting.services import GroupSplitterEvaluationService
 
 
 @step
 def evaluate_group_splitter(
     module,
-    dataset: GroupSplitterDataset,
+    dataset: TrainingBatchBundle,
     pipeline_config: dict | None = None,
 ) -> dict:
     service = GroupSplitterEvaluationService(

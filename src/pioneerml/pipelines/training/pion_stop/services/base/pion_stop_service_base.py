@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pioneerml.common.loader import PionStopGraphLoaderFactory
 from pioneerml.common.pipeline.services import BasePipelineService
-from pioneerml.pipelines.training.pion_stop.dataset import PionStopDataset
+from pioneerml.common.loader import TrainingBatchBundle
 from pioneerml.pipelines.training.pion_stop.objective import PionStopObjectiveAdapter
 
 
@@ -10,7 +10,7 @@ class PionStopServiceBase(BasePipelineService):
     def __init__(
         self,
         *,
-        dataset: PionStopDataset,
+        dataset: TrainingBatchBundle,
         pipeline_config: dict | None = None,
     ) -> None:
         super().__init__(pipeline_config=pipeline_config)

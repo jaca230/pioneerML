@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pioneerml.common.pipeline.services import BaseExportService
-from pioneerml.pipelines.training.group_splitting.dataset import GroupSplitterDataset
+from pioneerml.common.loader import TrainingBatchBundle
 
 from ..base import GroupSplitterServiceBase
 
@@ -27,10 +27,17 @@ class GroupSplitterExportService(GroupSplitterServiceBase, BaseExportService):
         return {}
 
     @staticmethod
-    def _build_export_example(dataset: GroupSplitterDataset):
-        data = dataset.data
-        if hasattr(data, "batch"):
-            return (data.x, data.edge_index, data.edge_attr, data.batch, data.group_total_energy, data.group_probs)
+    def _build_export_example(dataset: TrainingBatchBundle):
+        inputs = dataset.inputs
+        if hasattr(inputs, "batch"):
+            return (
+                inputs.x,
+                inputs.edge_index,
+                inputs.edge_attr,
+                inputs.batch,
+                inputs.group_total_energy,
+                inputs.group_probs,
+            )
         factory = getattr(dataset, "loader_factory", None) or getattr(dataset, "loader", None)
         if factory is not None:
             loader = factory.build_loader(
@@ -71,8 +78,8 @@ class GroupSplitterExportService(GroupSplitterServiceBase, BaseExportService):
         data.source_parquet_paths = list(loader.parquet_paths)
         if loader.group_probs_parquet_paths is not None:
             data.group_probs_parquet_paths = list(loader.group_probs_parquet_paths)
-        dataset = GroupSplitterDataset(
-            data=data,
+        dataset = TrainingBatchBundle(
+            inputs=data,
             targets=targets,
             loader_factory=self.loader_factory,
             loader=self.loader_factory,

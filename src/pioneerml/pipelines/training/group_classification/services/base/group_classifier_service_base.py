@@ -5,7 +5,7 @@ import logging
 
 from pioneerml.common.loader import GroupClassifierGraphLoaderFactory
 from pioneerml.common.pipeline.services import BasePipelineService
-from pioneerml.pipelines.training.group_classification.dataset import GroupClassifierDataset
+from pioneerml.common.loader import TrainingBatchBundle
 from pioneerml.pipelines.training.group_classification.objective import GroupClassifierObjectiveAdapter
 
 LOGGER = logging.getLogger(__name__)
@@ -15,7 +15,7 @@ class GroupClassifierServiceBase(BasePipelineService):
     def __init__(
         self,
         *,
-        dataset: GroupClassifierDataset,
+        dataset: TrainingBatchBundle,
         pipeline_config: dict | None = None,
     ) -> None:
         super().__init__(pipeline_config=pipeline_config)

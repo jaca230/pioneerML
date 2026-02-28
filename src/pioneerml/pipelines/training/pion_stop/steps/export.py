@@ -1,13 +1,13 @@
 from zenml import step
 
-from pioneerml.pipelines.training.pion_stop.dataset import PionStopDataset
+from pioneerml.common.loader import TrainingBatchBundle
 from pioneerml.pipelines.training.pion_stop.services import PionStopExportService
 
 
 @step
 def export_pion_stop(
     module,
-    dataset: PionStopDataset,
+    dataset: TrainingBatchBundle,
     pipeline_config: dict | None = None,
     hpo_params: dict | None = None,
     metrics: dict | None = None,

@@ -1,11 +1,11 @@
 from zenml import step
 
 from pioneerml.common.loader import PositronAngleGraphLoaderFactory
-from pioneerml.common.zenml.materializers import PositronAngleDatasetMaterializer
-from pioneerml.pipelines.training.positron_angle.dataset import PositronAngleDataset
+from pioneerml.common.zenml.materializers import TrainingBatchBundleMaterializer
+from pioneerml.common.loader import TrainingBatchBundle
 
 
-@step(enable_cache=False, output_materializers=PositronAngleDatasetMaterializer)
+@step(enable_cache=False, output_materializers=TrainingBatchBundleMaterializer)
 def load_positron_angle_dataset(
     parquet_paths: list[str],
     group_probs_parquet_paths: list[str] | None = None,
@@ -14,7 +14,7 @@ def load_positron_angle_dataset(
     event_splitter_parquet_paths: list[str] | None = None,
     pion_stop_parquet_paths: list[str] | None = None,
     pipeline_config: dict | None = None,
-) -> PositronAngleDataset:
+) -> TrainingBatchBundle:
     required_name_to_paths = {
         "group_probs_parquet_paths": group_probs_parquet_paths,
         "group_splitter_parquet_paths": group_splitter_parquet_paths,
@@ -67,8 +67,7 @@ def load_positron_angle_dataset(
         data.event_splitter_parquet_paths = list(loader.event_splitter_parquet_paths)
     if loader.pion_stop_parquet_paths is not None:
         data.pion_stop_parquet_paths = list(loader.pion_stop_parquet_paths)
-    return PositronAngleDataset(
-        data=data,
+    return TrainingBatchBundle(inputs=data,
         targets=targets,
         loader_factory=loader_factory,
         loader=loader_factory,

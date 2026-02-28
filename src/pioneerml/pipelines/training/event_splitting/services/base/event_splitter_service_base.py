@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pioneerml.common.loader import EventSplitterGraphLoaderFactory
 from pioneerml.common.pipeline.services import BasePipelineService
-from pioneerml.pipelines.training.event_splitting.dataset import EventSplitterDataset
+from pioneerml.common.loader import TrainingBatchBundle
 from pioneerml.pipelines.training.event_splitting.objective import EventSplitterObjectiveAdapter
 
 
@@ -10,7 +10,7 @@ class EventSplitterServiceBase(BasePipelineService):
     def __init__(
         self,
         *,
-        dataset: EventSplitterDataset,
+        dataset: TrainingBatchBundle,
         pipeline_config: dict | None = None,
     ) -> None:
         super().__init__(pipeline_config=pipeline_config)

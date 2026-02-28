@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pioneerml.common.pipeline.services import BaseExportService
-from pioneerml.pipelines.training.group_classification.dataset import GroupClassifierDataset
+from pioneerml.common.loader import TrainingBatchBundle
 
 from ..base import GroupClassifierServiceBase
 
@@ -27,10 +27,10 @@ class GroupClassifierExportService(GroupClassifierServiceBase, BaseExportService
         return {}
 
     @staticmethod
-    def _build_export_example(dataset: GroupClassifierDataset):
-        data = dataset.data
-        if hasattr(data, "batch"):
-            return (data.x, data.edge_index, data.edge_attr, data.batch)
+    def _build_export_example(dataset: TrainingBatchBundle):
+        inputs = dataset.inputs
+        if hasattr(inputs, "batch"):
+            return (inputs.x, inputs.edge_index, inputs.edge_attr, inputs.batch)
         factory = getattr(dataset, "loader_factory", None) or getattr(dataset, "loader", None)
         if factory is not None:
             loader = factory.build_loader(
@@ -55,7 +55,7 @@ class GroupClassifierExportService(GroupClassifierServiceBase, BaseExportService
         loader = self.loader_factory.build_loader(loader_params=params)
         data, targets = loader.empty_data()
         data.source_parquet_paths = list(loader.parquet_paths)
-        dataset = GroupClassifierDataset(data=data, targets=targets, loader_factory=self.loader_factory, loader=self.loader_factory)
+        dataset = TrainingBatchBundle(inputs=data, targets=targets, loader_factory=self.loader_factory, loader=self.loader_factory)
         return self.export_torchscript(
             module=self.module,
             dataset=dataset,

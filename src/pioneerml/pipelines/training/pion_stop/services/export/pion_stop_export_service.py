@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pioneerml.common.pipeline.services import BaseExportService
-from pioneerml.pipelines.training.pion_stop.dataset import PionStopDataset
+from pioneerml.common.loader import TrainingBatchBundle
 
 from ..base import PionStopServiceBase
 
@@ -27,19 +27,19 @@ class PionStopExportService(PionStopServiceBase, BaseExportService):
         return {}
 
     @staticmethod
-    def _build_export_example(dataset: PionStopDataset):
-        data = dataset.data
-        if hasattr(data, "batch"):
+    def _build_export_example(dataset: TrainingBatchBundle):
+        inputs = dataset.inputs
+        if hasattr(inputs, "batch"):
             return (
-                data.x,
-                data.edge_index,
-                data.edge_attr,
-                data.batch,
-                data.group_probs,
-                data.splitter_probs,
-                data.endpoint_preds,
-                data.event_affinity,
-                data.pion_stop_preds,
+                inputs.x,
+                inputs.edge_index,
+                inputs.edge_attr,
+                inputs.batch,
+                inputs.group_probs,
+                inputs.splitter_probs,
+                inputs.endpoint_preds,
+                inputs.event_affinity,
+                inputs.pion_stop_preds,
             )
         factory = getattr(dataset, "loader_factory", None) or getattr(dataset, "loader", None)
         if factory is not None:
@@ -98,8 +98,8 @@ class PionStopExportService(PionStopServiceBase, BaseExportService):
             data.endpoint_parquet_paths = list(loader.endpoint_parquet_paths)
         if loader.event_splitter_parquet_paths is not None:
             data.event_splitter_parquet_paths = list(loader.event_splitter_parquet_paths)
-        dataset = PionStopDataset(
-            data=data,
+        dataset = TrainingBatchBundle(
+            inputs=data,
             targets=targets,
             loader_factory=self.loader_factory,
             loader=self.loader_factory,

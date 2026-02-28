@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pioneerml.common.loader import PositronAngleGraphLoaderFactory
 from pioneerml.common.pipeline.services import BasePipelineService
-from pioneerml.pipelines.training.positron_angle.dataset import PositronAngleDataset
+from pioneerml.common.loader import TrainingBatchBundle
 from pioneerml.pipelines.training.positron_angle.objective import PositronAngleObjectiveAdapter
 
 
@@ -10,7 +10,7 @@ class PositronAngleServiceBase(BasePipelineService):
     def __init__(
         self,
         *,
-        dataset: PositronAngleDataset,
+        dataset: TrainingBatchBundle,
         pipeline_config: dict | None = None,
     ) -> None:
         super().__init__(pipeline_config=pipeline_config)

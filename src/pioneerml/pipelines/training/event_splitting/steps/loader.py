@@ -1,18 +1,18 @@
 from zenml import step
 
 from pioneerml.common.loader import EventSplitterGraphLoaderFactory
-from pioneerml.common.zenml.materializers import EventSplitterDatasetMaterializer
-from pioneerml.pipelines.training.event_splitting.dataset import EventSplitterDataset
+from pioneerml.common.zenml.materializers import TrainingBatchBundleMaterializer
+from pioneerml.common.loader import TrainingBatchBundle
 
 
-@step(enable_cache=False, output_materializers=EventSplitterDatasetMaterializer)
+@step(enable_cache=False, output_materializers=TrainingBatchBundleMaterializer)
 def load_event_splitter_dataset(
     parquet_paths: list[str],
     group_probs_parquet_paths: list[str] | None = None,
     group_splitter_parquet_paths: list[str] | None = None,
     endpoint_parquet_paths: list[str] | None = None,
     pipeline_config: dict | None = None,
-) -> EventSplitterDataset:
+) -> TrainingBatchBundle:
     if pipeline_config is not None and not isinstance(pipeline_config, dict):
         raise TypeError(f"Expected dict for pipeline_config, got {type(pipeline_config).__name__}.")
     step_config = {}
@@ -41,4 +41,4 @@ def load_event_splitter_dataset(
         data.group_splitter_parquet_paths = list(loader.group_splitter_parquet_paths)
     if loader.endpoint_parquet_paths is not None:
         data.endpoint_parquet_paths = list(loader.endpoint_parquet_paths)
-    return EventSplitterDataset(data=data, targets=targets, loader_factory=loader_factory, loader=loader_factory)
+    return TrainingBatchBundle(inputs=data, targets=targets, loader_factory=loader_factory, loader=loader_factory)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pioneerml.common.pipeline.services import BaseExportService
-from pioneerml.pipelines.training.event_splitting.dataset import EventSplitterDataset
+from pioneerml.common.loader import TrainingBatchBundle
 
 from ..base import EventSplitterServiceBase
 
@@ -27,19 +27,19 @@ class EventSplitterExportService(EventSplitterServiceBase, BaseExportService):
         return {}
 
     @staticmethod
-    def _build_export_example(dataset: EventSplitterDataset):
-        data = dataset.data
-        if hasattr(data, "batch"):
+    def _build_export_example(dataset: TrainingBatchBundle):
+        inputs = dataset.inputs
+        if hasattr(inputs, "batch"):
             return (
-                data.x,
-                data.edge_index,
-                data.edge_attr,
-                data.batch,
-                data.group_ptr,
-                data.time_group_ids,
-                data.group_probs,
-                data.splitter_probs,
-                data.endpoint_preds,
+                inputs.x,
+                inputs.edge_index,
+                inputs.edge_attr,
+                inputs.batch,
+                inputs.group_ptr,
+                inputs.time_group_ids,
+                inputs.group_probs,
+                inputs.splitter_probs,
+                inputs.endpoint_preds,
             )
         factory = getattr(dataset, "loader_factory", None) or getattr(dataset, "loader", None)
         if factory is not None:
@@ -92,8 +92,8 @@ class EventSplitterExportService(EventSplitterServiceBase, BaseExportService):
             data.group_splitter_parquet_paths = list(loader.group_splitter_parquet_paths)
         if loader.endpoint_parquet_paths is not None:
             data.endpoint_parquet_paths = list(loader.endpoint_parquet_paths)
-        dataset = EventSplitterDataset(
-            data=data,
+        dataset = TrainingBatchBundle(
+            inputs=data,
             targets=targets,
             loader_factory=self.loader_factory,
             loader=self.loader_factory,

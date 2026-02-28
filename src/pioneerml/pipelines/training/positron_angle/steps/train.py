@@ -1,12 +1,12 @@
 from zenml import step
 
-from pioneerml.pipelines.training.positron_angle.dataset import PositronAngleDataset
+from pioneerml.common.loader import TrainingBatchBundle
 from pioneerml.pipelines.training.positron_angle.services import PositronAngleTrainingService
 
 
 @step
 def train_positron_angle(
-    dataset: PositronAngleDataset,
+    dataset: TrainingBatchBundle,
     pipeline_config: dict | None = None,
     hpo_params: dict | None = None,
 ):

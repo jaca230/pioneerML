@@ -1,17 +1,17 @@
 from zenml import step
 
 from pioneerml.common.loader import EndpointRegressorGraphLoaderFactory
-from pioneerml.common.zenml.materializers import EndpointRegressorDatasetMaterializer
-from pioneerml.pipelines.training.endpoint_regression.dataset import EndpointRegressorDataset
+from pioneerml.common.zenml.materializers import TrainingBatchBundleMaterializer
+from pioneerml.common.loader import TrainingBatchBundle
 
 
-@step(enable_cache=False, output_materializers=EndpointRegressorDatasetMaterializer)
+@step(enable_cache=False, output_materializers=TrainingBatchBundleMaterializer)
 def load_endpoint_regressor_dataset(
     parquet_paths: list[str],
     group_probs_parquet_paths: list[str] | None = None,
     group_splitter_parquet_paths: list[str] | None = None,
     pipeline_config: dict | None = None,
-) -> EndpointRegressorDataset:
+) -> TrainingBatchBundle:
     if pipeline_config is not None and not isinstance(pipeline_config, dict):
         raise TypeError(f"Expected dict for pipeline_config, got {type(pipeline_config).__name__}.")
     step_config = {}
@@ -39,8 +39,7 @@ def load_endpoint_regressor_dataset(
         data.group_probs_parquet_paths = list(loader.group_probs_parquet_paths)
     if loader.group_splitter_parquet_paths is not None:
         data.group_splitter_parquet_paths = list(loader.group_splitter_parquet_paths)
-    return EndpointRegressorDataset(
-        data=data,
+    return TrainingBatchBundle(inputs=data,
         targets=targets,
         loader_factory=loader_factory,
         loader=loader_factory,

@@ -1,11 +1,11 @@
 from zenml import step
 
 from pioneerml.common.loader import PionStopGraphLoaderFactory
-from pioneerml.common.zenml.materializers import PionStopDatasetMaterializer
-from pioneerml.pipelines.training.pion_stop.dataset import PionStopDataset
+from pioneerml.common.zenml.materializers import TrainingBatchBundleMaterializer
+from pioneerml.common.loader import TrainingBatchBundle
 
 
-@step(enable_cache=False, output_materializers=PionStopDatasetMaterializer)
+@step(enable_cache=False, output_materializers=TrainingBatchBundleMaterializer)
 def load_pion_stop_dataset(
     parquet_paths: list[str],
     group_probs_parquet_paths: list[str] | None = None,
@@ -13,7 +13,7 @@ def load_pion_stop_dataset(
     endpoint_parquet_paths: list[str] | None = None,
     event_splitter_parquet_paths: list[str] | None = None,
     pipeline_config: dict | None = None,
-) -> PionStopDataset:
+) -> TrainingBatchBundle:
     required_name_to_paths = {
         "group_probs_parquet_paths": group_probs_parquet_paths,
         "group_splitter_parquet_paths": group_splitter_parquet_paths,
@@ -62,8 +62,7 @@ def load_pion_stop_dataset(
         data.endpoint_parquet_paths = list(loader.endpoint_parquet_paths)
     if loader.event_splitter_parquet_paths is not None:
         data.event_splitter_parquet_paths = list(loader.event_splitter_parquet_paths)
-    return PionStopDataset(
-        data=data,
+    return TrainingBatchBundle(inputs=data,
         targets=targets,
         loader_factory=loader_factory,
         loader=loader_factory,

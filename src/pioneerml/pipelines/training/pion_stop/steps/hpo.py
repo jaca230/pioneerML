@@ -1,12 +1,12 @@
 from zenml import step
 
-from pioneerml.pipelines.training.pion_stop.dataset import PionStopDataset
+from pioneerml.common.loader import TrainingBatchBundle
 from pioneerml.pipelines.training.pion_stop.services import PionStopHPOService
 
 
 @step
 def tune_pion_stop(
-    dataset: PionStopDataset,
+    dataset: TrainingBatchBundle,
     pipeline_config: dict | None = None,
 ) -> dict:
     service = PionStopHPOService(

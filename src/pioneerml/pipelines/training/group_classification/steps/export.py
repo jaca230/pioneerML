@@ -1,13 +1,13 @@
 from zenml import step
 
-from pioneerml.pipelines.training.group_classification.dataset import GroupClassifierDataset
+from pioneerml.common.loader import TrainingBatchBundle
 from pioneerml.pipelines.training.group_classification.services import GroupClassifierExportService
 
 
 @step
 def export_group_classifier(
     module,
-    dataset: GroupClassifierDataset,
+    dataset: TrainingBatchBundle,
     pipeline_config: dict | None = None,
     hpo_params: dict | None = None,
     metrics: dict | None = None,

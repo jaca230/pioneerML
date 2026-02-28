@@ -1,12 +1,12 @@
 from zenml import step
 
-from pioneerml.pipelines.training.group_splitting.dataset import GroupSplitterDataset
+from pioneerml.common.loader import TrainingBatchBundle
 from pioneerml.pipelines.training.group_splitting.services import GroupSplitterHPOService
 
 
 @step
 def tune_group_splitter(
-    dataset: GroupSplitterDataset,
+    dataset: TrainingBatchBundle,
     pipeline_config: dict | None = None,
 ) -> dict:
     service = GroupSplitterHPOService(

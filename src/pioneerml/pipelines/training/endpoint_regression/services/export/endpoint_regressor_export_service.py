@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pioneerml.common.pipeline.services import BaseExportService
-from pioneerml.pipelines.training.endpoint_regression.dataset import EndpointRegressorDataset
+from pioneerml.common.loader import TrainingBatchBundle
 
 from ..base import EndpointRegressorServiceBase
 
@@ -27,17 +27,17 @@ class EndpointRegressorExportService(EndpointRegressorServiceBase, BaseExportSer
         return {}
 
     @staticmethod
-    def _build_export_example(dataset: EndpointRegressorDataset):
-        data = dataset.data
-        if hasattr(data, "batch"):
+    def _build_export_example(dataset: TrainingBatchBundle):
+        inputs = dataset.inputs
+        if hasattr(inputs, "batch"):
             return (
-                data.x,
-                data.edge_index,
-                data.edge_attr,
-                data.batch,
-                data.u,
-                data.group_probs,
-                data.splitter_probs,
+                inputs.x,
+                inputs.edge_index,
+                inputs.edge_attr,
+                inputs.batch,
+                inputs.u,
+                inputs.group_probs,
+                inputs.splitter_probs,
             )
         factory = getattr(dataset, "loader_factory", None) or getattr(dataset, "loader", None)
         if factory is not None:
@@ -84,8 +84,8 @@ class EndpointRegressorExportService(EndpointRegressorServiceBase, BaseExportSer
             data.group_probs_parquet_paths = list(loader.group_probs_parquet_paths)
         if loader.group_splitter_parquet_paths is not None:
             data.group_splitter_parquet_paths = list(loader.group_splitter_parquet_paths)
-        dataset = EndpointRegressorDataset(
-            data=data,
+        dataset = TrainingBatchBundle(
+            inputs=data,
             targets=targets,
             loader_factory=self.loader_factory,
             loader=self.loader_factory,

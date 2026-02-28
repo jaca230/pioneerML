@@ -1,16 +1,16 @@
 from zenml import step
 
 from pioneerml.common.loader import GroupSplitterGraphLoaderFactory
-from pioneerml.common.zenml.materializers import GroupSplitterDatasetMaterializer
-from pioneerml.pipelines.training.group_splitting.dataset import GroupSplitterDataset
+from pioneerml.common.zenml.materializers import TrainingBatchBundleMaterializer
+from pioneerml.common.loader import TrainingBatchBundle
 
 
-@step(enable_cache=False, output_materializers=GroupSplitterDatasetMaterializer)
+@step(enable_cache=False, output_materializers=TrainingBatchBundleMaterializer)
 def load_group_splitter_dataset(
     parquet_paths: list[str],
     group_probs_parquet_paths: list[str] | None = None,
     pipeline_config: dict | None = None,
-) -> GroupSplitterDataset:
+) -> TrainingBatchBundle:
     if pipeline_config is not None and not isinstance(pipeline_config, dict):
         raise TypeError(f"Expected dict for pipeline_config, got {type(pipeline_config).__name__}.")
     step_config = {}
@@ -31,4 +31,4 @@ def load_group_splitter_dataset(
     data.source_parquet_paths = list(loader.parquet_paths)
     if loader.group_probs_parquet_paths is not None:
         data.group_probs_parquet_paths = list(loader.group_probs_parquet_paths)
-    return GroupSplitterDataset(data=data, targets=targets, loader_factory=loader_factory, loader=loader_factory)
+    return TrainingBatchBundle(inputs=data, targets=targets, loader_factory=loader_factory, loader=loader_factory)

@@ -1,13 +1,13 @@
 from zenml import step
 
-from pioneerml.pipelines.training.endpoint_regression.dataset import EndpointRegressorDataset
+from pioneerml.common.loader import TrainingBatchBundle
 from pioneerml.pipelines.training.endpoint_regression.services import EndpointRegressorEvaluationService
 
 
 @step
 def evaluate_endpoint_regressor(
     module,
-    dataset: EndpointRegressorDataset,
+    dataset: TrainingBatchBundle,
     pipeline_config: dict | None = None,
 ) -> dict:
     service = EndpointRegressorEvaluationService(

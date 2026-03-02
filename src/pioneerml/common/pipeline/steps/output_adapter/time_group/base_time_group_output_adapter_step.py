@@ -7,10 +7,10 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from ..base_metric_output_adapter_step import BaseMetricOutputAdapterStep
+from ..base_output_adapter_step import BaseOutputAdapterStep
 
 
-class BaseTimeGroupOutputAdapterStep(BaseMetricOutputAdapterStep):
+class BaseTimeGroupOutputAdapterStep(BaseOutputAdapterStep):
     """Output-adapter helpers for stitching time-group predictions back to event rows."""
 
     @staticmethod
@@ -59,18 +59,13 @@ class BaseTimeGroupOutputAdapterStep(BaseMetricOutputAdapterStep):
         num_rows: int,
         value_types: Mapping[str, pa.DataType] | None = None,
     ) -> pa.Table:
-        """Build event-level list columns from per-time-group predictions.
-
-        - `event_ids_np`: shape [num_groups], each entry is the event row index.
-        - `prediction_columns`: column_name -> array with first dimension `num_groups`.
-        - returns one row per event with list-valued prediction columns.
-        """
+        """Build event-level list columns from per-time-group predictions."""
         event_ids_arr = np.asarray(event_ids_np, dtype=np.int64)
         resolved_rows = cls._normalize_num_rows(event_ids_arr, int(num_rows))
         valid_mask = cls._validated_event_indices(event_ids_np=event_ids_arr, num_rows=resolved_rows)
         event_ids_valid = event_ids_arr[valid_mask]
 
-        order, event_sorted, offsets_short = cls._stable_group_order(event_ids_valid)
+        order, event_sorted, _offsets_short = cls._stable_group_order(event_ids_valid)
         counts = np.bincount(event_sorted, minlength=resolved_rows).astype(np.int64, copy=False)
         offsets = np.zeros((resolved_rows + 1,), dtype=np.int64)
         offsets[1:] = np.cumsum(counts, dtype=np.int64)

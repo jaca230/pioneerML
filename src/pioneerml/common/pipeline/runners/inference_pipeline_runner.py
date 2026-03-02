@@ -18,7 +18,6 @@ class InferencePipelineRunner:
         model_path: str | None,
         output_dir: str | None,
         output_path: str | None,
-        metrics_path: str | None,
         pipeline_config: dict | None,
     ) -> dict:
         inputs = self.load_inputs_step(pipeline_config=pipeline_config, **loader_kwargs)
@@ -28,7 +27,5 @@ class InferencePipelineRunner:
             inference_outputs=outputs,
             output_dir=output_dir,
             output_path=output_path,
-            metrics_path=metrics_path,
             pipeline_config=pipeline_config,
         )
-

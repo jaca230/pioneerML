@@ -6,7 +6,7 @@ from .export import BaseExportStep
 from .inference import BaseInferenceStep
 from .loader import BaseLoaderStep
 from .model_loader import BaseModelLoaderStep
-from .output_adapter import BaseMetricOutputAdapterStep, BaseOutputAdapterStep, BaseTimeGroupOutputAdapterStep
+from .output_adapter import BaseOutputAdapterStep, BaseTimeGroupOutputAdapterStep
 from .training.hpo import build_hpo_trainer_kwargs, resolve_batch_size_search, suggest_range
 
 __all__ = [
@@ -19,7 +19,6 @@ __all__ = [
     "BaseLoaderStep",
     "BaseModelLoaderStep",
     "BaseOutputAdapterStep",
-    "BaseMetricOutputAdapterStep",
     "BaseTimeGroupOutputAdapterStep",
     "suggest_range",
     "resolve_batch_size_search",

@@ -25,7 +25,6 @@ def group_classification_inference_pipeline(
     model_path: str | None = None,
     output_dir: str | None = None,
     output_path: str | None = None,
-    metrics_path: str | None = None,
     pipeline_config: dict | None = None,
 ):
     return _RUNNER.run(
@@ -33,7 +32,5 @@ def group_classification_inference_pipeline(
         model_path=model_path,
         output_dir=output_dir,
         output_path=output_path,
-        metrics_path=metrics_path,
         pipeline_config=pipeline_config,
     )
-

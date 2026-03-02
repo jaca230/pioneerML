@@ -16,7 +16,6 @@ class BaseOutputAdapterStep(BasePipelineStep):
     def default_config(self) -> dict:
         return {
             "write_timestamped": False,
-            "check_accuracy": False,
         }
 
     @staticmethod

@@ -23,6 +23,7 @@ class GroupClassifierEvaluateStep(BaseEvaluationStep):
         return {
             "threshold": 0.5,
             "metrics": ["binary_classification_from_tensors"],
+            "plots": ["loss_curves"],
             "batch_size": 1,
             "chunk_row_groups": 4,
             "chunk_workers": None,
@@ -62,10 +63,18 @@ class GroupClassifierEvaluateStep(BaseEvaluationStep):
         loss = float(total_loss / total_samples)
 
         plot_path = self.evaluator.resolve_plot_path(plot_config)
-        if plot_path is not None:
-            from pioneerml.common.evaluation.plots.loss import LossCurvesPlot
-
-            LossCurvesPlot().render(self.module, save_path=plot_path, show=False)
+        plot_outputs = self.apply_registered_plots(
+            context={
+                "plot_kwargs_by_name": {
+                    "loss_curves": {
+                        "train_losses": self.module,
+                        "save_path": plot_path,
+                        "show": False,
+                    }
+                }
+            },
+            plot_names=self.resolve_plot_names(plot_config),
+        )
         train_history, train_total = self.evaluator.concise_history(list(self.module.train_epoch_loss_history))
         val_history, val_total = self.evaluator.concise_history(list(self.module.val_epoch_loss_history))
         metrics = {
@@ -75,7 +84,7 @@ class GroupClassifierEvaluateStep(BaseEvaluationStep):
             "train_loss_history_total_points": train_total,
             "val_loss_history": val_history,
             "val_loss_history_total_points": val_total,
-            "loss_plot_path": plot_path,
+            "loss_plot_path": plot_outputs.get("loss_curves_path"),
         }
         self.apply_registered_metrics(
             metrics=metrics,

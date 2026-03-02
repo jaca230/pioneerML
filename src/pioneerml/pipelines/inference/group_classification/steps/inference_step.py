@@ -21,45 +21,6 @@ class GroupClassifierInferenceRunStep(BaseInferenceStep):
             "streaming_tmp_dir": ".cache/pioneerml/inference/group_classifier",
         }
 
-    @staticmethod
-    def _init_accuracy_counters(num_classes: int = 3) -> dict:
-        return {
-            "has_targets": False,
-            "num_classes": int(num_classes),
-            "label_total": 0,
-            "label_equal": 0,
-            "graph_total": 0,
-            "graph_exact": 0,
-            "tn": [0 for _ in range(int(num_classes))],
-            "tp": [0 for _ in range(int(num_classes))],
-            "fp": [0 for _ in range(int(num_classes))],
-            "fn": [0 for _ in range(int(num_classes))],
-        }
-
-    @staticmethod
-    def _update_accuracy_counters(*, counters: dict, preds_binary: torch.Tensor, targets: torch.Tensor) -> None:
-        preds = preds_binary.to(torch.float32)
-        truth = targets.to(torch.float32)
-        if preds.ndim == 1:
-            preds = preds.unsqueeze(1)
-        if truth.ndim == 1:
-            truth = truth.unsqueeze(1)
-
-        counters["has_targets"] = True
-        counters["label_total"] += int(truth.numel())
-        counters["label_equal"] += int((preds == truth).sum().item())
-        counters["graph_total"] += int(truth.shape[0])
-        counters["graph_exact"] += int(((preds == truth).all(dim=1)).sum().item())
-
-        num_classes = int(counters.get("num_classes", truth.shape[1]))
-        for cls in range(num_classes):
-            cls_truth = truth[:, cls].to(torch.int64)
-            cls_pred = preds[:, cls].to(torch.int64)
-            counters["tn"][cls] += int(((cls_truth == 0) & (cls_pred == 0)).sum().item())
-            counters["fp"][cls] += int(((cls_truth == 0) & (cls_pred == 1)).sum().item())
-            counters["fn"][cls] += int(((cls_truth == 1) & (cls_pred == 0)).sum().item())
-            counters["tp"][cls] += int(((cls_truth == 1) & (cls_pred == 1)).sum().item())
-
     def execute(self, *, model_info: dict, inputs: dict) -> dict:
         cfg = self.get_config()
         threshold = float(cfg.get("threshold", 0.5))
@@ -71,15 +32,12 @@ class GroupClassifierInferenceRunStep(BaseInferenceStep):
         scripted = self.load_torchscript(model_path=model_path, device=device)
 
         probs_parts: list[torch.Tensor] = []
-        target_parts: list[torch.Tensor] = []
         graph_event_id_parts: list[torch.Tensor] = []
-        graph_group_id_parts: list[torch.Tensor] = []
 
         validated_files = [str(p) for p in inputs.get("validated_files") or inputs.get("parquet_paths") or []]
         if not validated_files:
             raise RuntimeError("No validated files provided for inference.")
 
-        counters = self._init_accuracy_counters(num_classes=3)
         total_rows = 0
         streamed_prediction_files: list[dict] = []
 
@@ -116,7 +74,6 @@ class GroupClassifierInferenceRunStep(BaseInferenceStep):
                     if isinstance(logits, (tuple, list)):
                         logits = logits[0]
                     probs = torch.sigmoid(logits).detach().cpu().to(torch.float32)
-                    preds_binary = (probs >= threshold).to(torch.float32)
 
                     file_probs_parts.append(probs)
                     file_event_parts.append(batch.event_ids.to(torch.int64).cpu())
@@ -124,13 +81,6 @@ class GroupClassifierInferenceRunStep(BaseInferenceStep):
                     if materialize_outputs:
                         probs_parts.append(probs)
                         graph_event_id_parts.append(batch.event_ids.to(torch.int64).cpu() + int(file_event_offset))
-                        graph_group_id_parts.append(batch.group_ids.to(torch.int64).cpu())
-
-                    if hasattr(batch, "y") and batch.y is not None:
-                        truth = batch.y.detach().cpu().to(torch.float32)
-                        self._update_accuracy_counters(counters=counters, preds_binary=preds_binary, targets=truth)
-                        if materialize_outputs:
-                            target_parts.append(truth)
 
                 if not file_probs_parts:
                     file_event_ids_np = torch.empty((0,), dtype=torch.int64).numpy()
@@ -171,7 +121,6 @@ class GroupClassifierInferenceRunStep(BaseInferenceStep):
             "streaming": bool(streaming),
             "streamed_prediction_files": streamed_prediction_files,
             "streaming_tmp_dir": str(streaming_tmp_dir) if streaming_tmp_dir is not None else None,
-            "accuracy_counters": counters,
             "num_rows": int(total_rows),
             "validated_files": validated_files,
             "threshold": float(threshold),
@@ -180,17 +129,11 @@ class GroupClassifierInferenceRunStep(BaseInferenceStep):
 
         if materialize_outputs and probs_parts:
             probs = torch.cat(probs_parts, dim=0)
-            targets = torch.cat(target_parts, dim=0) if target_parts else None
             graph_event_ids = torch.cat(graph_event_id_parts, dim=0)
-            graph_group_ids = torch.cat(graph_group_id_parts, dim=0)
-            preds_binary = (probs >= threshold).to(torch.float32)
             out.update(
                 {
                     "probs": probs,
-                    "preds_binary": preds_binary,
-                    "targets": targets,
                     "graph_event_ids": graph_event_ids,
-                    "graph_group_ids": graph_group_ids,
                 }
             )
         return out

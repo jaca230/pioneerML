@@ -22,6 +22,11 @@ from pioneerml.common.models.regressors import (
 )
 from pioneerml.common.models.components.event_builder import EventBuilder
 from pioneerml.common.models.components.event_splitter import EventSplitter
+from pioneerml.common.models.loss import (
+    AngularUnitVectorLoss,
+    QuantileAngularLoss,
+    QuantilePinballLoss,
+)
 
 __all__ = [
     "FullGraphTransformerBlock",
@@ -35,4 +40,7 @@ __all__ = [
     "PositronAngleModel",
     "EventSplitter",
     "EventBuilder",
+    "AngularUnitVectorLoss",
+    "QuantileAngularLoss",
+    "QuantilePinballLoss",
 ]

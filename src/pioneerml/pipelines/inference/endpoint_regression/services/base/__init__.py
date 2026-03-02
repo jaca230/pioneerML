@@ -1,3 +1,0 @@
-from .endpoint_regressor_inference_service_base import EndpointRegressorInferenceServiceBase
-
-__all__ = ["EndpointRegressorInferenceServiceBase"]

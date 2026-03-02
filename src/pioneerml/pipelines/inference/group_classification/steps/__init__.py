@@ -1,11 +1,11 @@
-from .inference import run_group_classifier_inference
-from .loader import load_group_classifier_inference_inputs
-from .model_loader import load_group_classifier_model
-from .save_predictions import save_group_classifier_predictions
+from .inference_step import run_group_classifier_inference_step
+from .loader_step import load_group_classifier_inference_inputs_step
+from .model_loader_step import load_group_classifier_model_step
+from .save_predictions_step import save_group_classifier_predictions_step
 
 __all__ = [
-    "load_group_classifier_inference_inputs",
-    "load_group_classifier_model",
-    "run_group_classifier_inference",
-    "save_group_classifier_predictions",
+    "load_group_classifier_inference_inputs_step",
+    "load_group_classifier_model_step",
+    "run_group_classifier_inference_step",
+    "save_group_classifier_predictions_step",
 ]

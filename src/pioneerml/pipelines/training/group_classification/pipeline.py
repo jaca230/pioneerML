@@ -1,11 +1,23 @@
+from __future__ import annotations
+
 from zenml import pipeline
 
+from pioneerml.common.pipeline.runners import TrainingPipelineRunner
+
 from .steps import (
-    evaluate_group_classifier,
-    export_group_classifier,
-    load_group_classifier_dataset,
-    train_group_classifier,
-    tune_group_classifier,
+    evaluate_group_classifier_step,
+    export_group_classifier_step,
+    load_group_classifier_dataset_step,
+    train_group_classifier_step,
+    tune_group_classifier_step,
+)
+
+_RUNNER = TrainingPipelineRunner(
+    load_step=load_group_classifier_dataset_step,
+    hpo_step=tune_group_classifier_step,
+    train_step=train_group_classifier_step,
+    evaluate_step=evaluate_group_classifier_step,
+    export_step=export_group_classifier_step,
 )
 
 
@@ -14,15 +26,8 @@ def group_classification_pipeline(
     parquet_paths: list[str],
     pipeline_config: dict | None = None,
 ):
-    dataset = load_group_classifier_dataset(parquet_paths=parquet_paths, pipeline_config=pipeline_config)
-    hpo_params = tune_group_classifier(dataset, pipeline_config=pipeline_config)
-    module = train_group_classifier(dataset, pipeline_config=pipeline_config, hpo_params=hpo_params)
-    metrics = evaluate_group_classifier(module, dataset, pipeline_config=pipeline_config)
-    export = export_group_classifier(
-        module,
-        dataset,
+    return _RUNNER.run(
+        loader_kwargs={"parquet_paths": parquet_paths},
         pipeline_config=pipeline_config,
-        hpo_params=hpo_params,
-        metrics=metrics,
     )
-    return module, dataset, metrics, export
+

@@ -23,6 +23,12 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
+from .base_metric import BaseMetric
+from .registry import STEP_METRIC_REGISTRY, compute_step_metrics, create_step_metric, register_step_metric
+
+# Ensure step-level metric classes are registered.
+from .classification import binary as _binary_classification  # noqa: F401
+
 MetricFn = Callable[[Any, Any], Dict[str, float]]
 
 

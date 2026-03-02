@@ -1,9 +1,22 @@
+from __future__ import annotations
+
 from zenml import pipeline
 
-from .steps.inference import run_group_classifier_inference
-from .steps.loader import load_group_classifier_inference_inputs
-from .steps.model_loader import load_group_classifier_model
-from .steps.save_predictions import save_group_classifier_predictions
+from pioneerml.common.pipeline.runners import InferencePipelineRunner
+
+from .steps import (
+    load_group_classifier_inference_inputs_step,
+    load_group_classifier_model_step,
+    run_group_classifier_inference_step,
+    save_group_classifier_predictions_step,
+)
+
+_RUNNER = InferencePipelineRunner(
+    load_inputs_step=load_group_classifier_inference_inputs_step,
+    load_model_step=load_group_classifier_model_step,
+    run_inference_step=run_group_classifier_inference_step,
+    save_predictions_step=save_group_classifier_predictions_step,
+)
 
 
 @pipeline
@@ -15,16 +28,12 @@ def group_classification_inference_pipeline(
     metrics_path: str | None = None,
     pipeline_config: dict | None = None,
 ):
-    inputs = load_group_classifier_inference_inputs(
-        parquet_paths=parquet_paths,
-        pipeline_config=pipeline_config,
-    )
-    model_info = load_group_classifier_model(model_path=model_path, pipeline_config=pipeline_config)
-    outputs = run_group_classifier_inference(model_info=model_info, inputs=inputs, pipeline_config=pipeline_config)
-    return save_group_classifier_predictions(
-        inference_outputs=outputs,
+    return _RUNNER.run(
+        loader_kwargs={"parquet_paths": parquet_paths},
+        model_path=model_path,
         output_dir=output_dir,
         output_path=output_path,
         metrics_path=metrics_path,
         pipeline_config=pipeline_config,
     )
+

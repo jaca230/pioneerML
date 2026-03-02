@@ -1,3 +1,0 @@
-from .group_classifier_inference_inputs_service import GroupClassifierInferenceInputsService
-
-__all__ = ["GroupClassifierInferenceInputsService"]

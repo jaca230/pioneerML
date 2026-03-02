@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 import optuna
 
-from pioneerml.common.pipeline.services.training.hpo.utils import suggest_range
+from pioneerml.common.pipeline.steps.training.hpo.utils import suggest_range
 
 
 class BaseObjectiveAdapter(ABC):

@@ -1,3 +1,0 @@
-from .group_splitter_save_predictions_service import GroupSplitterSavePredictionsService
-
-__all__ = ["GroupSplitterSavePredictionsService"]

@@ -1,3 +1,0 @@
-from .event_splitter_inference_inputs_service import EventSplitterInferenceInputsService
-
-__all__ = ["EventSplitterInferenceInputsService"]

@@ -1,3 +1,0 @@
-from .group_splitter_inference_model_loader_service import GroupSplitterInferenceModelLoaderService
-
-__all__ = ["GroupSplitterInferenceModelLoaderService"]

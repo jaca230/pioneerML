@@ -1,3 +1,0 @@
-from .group_classifier_inference_model_loader_service import GroupClassifierInferenceModelLoaderService
-
-__all__ = ["GroupClassifierInferenceModelLoaderService"]

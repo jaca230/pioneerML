@@ -2,11 +2,16 @@
 
 from pioneerml.common.evaluation.metrics import (
     METRIC_REGISTRY,
+    STEP_METRIC_REGISTRY,
+    BaseMetric,
     MetricCollection,
+    compute_step_metrics,
+    create_step_metric,
     default_metrics_for_task,
     multilabel_classification_metrics,
     regression_metrics,
     register_metric,
+    register_step_metric,
 )
 from pioneerml.common.evaluation.plots import (
     PLOT_CLASSES,
@@ -19,7 +24,6 @@ from pioneerml.common.evaluation.plots import (
     plot_roc_curves,
     plot_confidence_analysis,
 )
-from pioneerml.common.evaluation.utils import resolve_preds_targets
 from pioneerml.common.evaluation.evaluators import (
     BaseEvaluator,
     BaseClassificationEvaluator,
@@ -30,19 +34,23 @@ from pioneerml.common.evaluation.evaluators import (
 
 __all__ = [
     "METRIC_REGISTRY",
+    "STEP_METRIC_REGISTRY",
+    "BaseMetric",
     "PLOT_CLASSES",
     "PLOT_REGISTRY",
     "MetricCollection",
+    "compute_step_metrics",
+    "create_step_metric",
     "default_metrics_for_task",
     "multilabel_classification_metrics",
     "regression_metrics",
     "register_metric",
+    "register_step_metric",
     "plot_embedding_space",
     "plot_multilabel_confusion_matrix",
     "plot_precision_recall_curves",
     "plot_regression_diagnostics",
     "plot_roc_curves",
-    "resolve_preds_targets",
     "plot_probability_distributions",
     "plot_confidence_analysis",
     "BaseEvaluator",

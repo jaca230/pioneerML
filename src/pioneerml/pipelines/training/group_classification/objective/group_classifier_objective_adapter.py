@@ -6,8 +6,8 @@ import torch.nn as nn
 from pioneerml.common.loader import GroupClassifierGraphLoader
 from pioneerml.common.models.classifiers import GroupClassifier
 from pioneerml.common.pipeline.objective.base import BaseObjectiveAdapter
-from pioneerml.common.pipeline.services import suggest_range
-from pioneerml.common.pipeline.services.training.utils import GraphLightningModule
+from pioneerml.common.pipeline.steps import suggest_range
+from pioneerml.common.pipeline.steps.training.utils import GraphLightningModule
 
 
 class GroupClassifierObjectiveAdapter(BaseObjectiveAdapter):
@@ -87,12 +87,13 @@ class GroupClassifierObjectiveAdapter(BaseObjectiveAdapter):
         return cfg
 
     def build_model(self, *, model_cfg: dict, compile_cfg: dict | None, context: str):
+        _ = compile_cfg, context
         cfg = self.default_model_cfg(model_cfg)
         hidden = int(cfg.get("hidden", 200))
         heads = int(cfg.get("heads", 4))
         if hidden % heads != 0:
             raise ValueError(f"hidden ({hidden}) must be divisible by heads ({heads})")
-        model = GroupClassifier(
+        return GroupClassifier(
             in_dim=int(cfg["in_dim"]),
             edge_dim=int(cfg["edge_dim"]),
             hidden=hidden,
@@ -101,7 +102,6 @@ class GroupClassifierObjectiveAdapter(BaseObjectiveAdapter):
             dropout=float(cfg.get("dropout", 0.1)),
             num_classes=int(GroupClassifierGraphLoader.NUM_CLASSES),
         )
-        return model
 
     def build_module(self, *, model, train_cfg: dict):
         return GraphLightningModule(
@@ -128,14 +128,7 @@ class GroupClassifierObjectiveAdapter(BaseObjectiveAdapter):
             return float(module.train_loss_history[-1])
         return float("inf")
 
-    def build_hpo_result(
-        self,
-        *,
-        study,
-        storage_used: str | None,
-        batch_size: int,
-        cfg: dict,
-    ) -> dict:
+    def build_hpo_result(self, *, study, storage_used: str | None, batch_size: int, cfg: dict) -> dict:
         _ = cfg
         return {
             "lr": float(study.best_params["lr"]),

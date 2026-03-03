@@ -5,6 +5,8 @@ from collections.abc import Iterator
 
 from torch.utils.data import DataLoader, IterableDataset
 
+from .config import DataFlowConfig
+
 
 class BaseLoader(ABC):
     """Abstract loader: input stream -> training/inference batch tensors."""
@@ -12,9 +14,10 @@ class BaseLoader(ABC):
     MODE_TRAIN = "train"
     MODE_INFERENCE = "inference"
 
-    def __init__(self, *, batch_size: int = 64, num_workers: int = 0, mode: str | None = None) -> None:
-        self.batch_size = max(1, int(batch_size))
-        self.num_workers = max(0, int(num_workers))
+    def __init__(self, *, data_flow_config: DataFlowConfig | None = None, mode: str | None = None) -> None:
+        self.data_flow_config = data_flow_config if data_flow_config is not None else DataFlowConfig()
+        self.batch_size = int(self.data_flow_config.batch_size)
+        self.num_workers = int(self.data_flow_config.num_workers)
         mode_default = getattr(self, "mode", self.MODE_TRAIN) if mode is None else mode
         mode_norm = str(mode_default).strip().lower()
         if mode_norm not in {self.MODE_TRAIN, self.MODE_INFERENCE}:

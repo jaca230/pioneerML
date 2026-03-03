@@ -50,7 +50,7 @@ class GroupClassifierSavePredictionsStep(BaseTimeGroupOutputAdapterStep):
             )
         else:
             probs = inference_outputs["probs"]
-            event_ids = inference_outputs["graph_event_ids"]
+            event_ids = inference_outputs["graph_event_id"]
             probs_np = probs.detach().cpu().numpy().astype(np.float32, copy=False)
             event_ids_np = event_ids.detach().cpu().numpy().astype(np.int64, copy=False)
             per_file_output_paths, per_file_timestamped_paths = self.write_non_streamed_time_group_predictions(

@@ -23,11 +23,10 @@ _RUNNER = TrainingPipelineRunner(
 
 @pipeline
 def group_classification_pipeline(
-    parquet_paths: list[str],
+    parquet_input_set: dict,
     pipeline_config: dict | None = None,
 ):
     return _RUNNER.run(
-        loader_kwargs={"parquet_paths": parquet_paths},
+        loader_kwargs={"parquet_input_set": parquet_input_set},
         pipeline_config=pipeline_config,
     )
-

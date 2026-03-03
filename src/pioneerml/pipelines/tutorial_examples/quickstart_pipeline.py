@@ -44,7 +44,7 @@ def build_datamodule(
 @step
 def build_module(num_classes: int = 3, lr: float = 5e-4) -> GraphLightningModule:
     model = GroupClassifier(
-        in_dim=5,
+        node_dim=5,
         edge_dim=4,
         hidden=128,
         heads=4,

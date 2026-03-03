@@ -23,26 +23,29 @@ class BatchPackStage(BaseStage):
         scalar_state_fields: dict[str, str] | None = None,
         scalar_layout_fields: dict[str, str] | None = None,
         optional_tensor_state_fields: dict[str, str] | None = None,
-        target_state_key: str = "targets_torch",
-        target_output_key: str = "targets",
     ) -> None:
         self.tensor_state_fields = dict(
             tensor_state_fields
             or {
-                "x": "x_out",
+                "x_node": "x_out",
+                "x_edge": "edge_attr_out",
                 "edge_index": "edge_index_out",
-                "edge_attr": "edge_attr_out",
-                "time_group_ids": "tgroup_out",
-                "graph_event_ids": "graph_event_ids",
-                "graph_group_ids": "graph_group_ids",
+                "graph_event_id": "graph_event_id",
+                "graph_time_group_id": "graph_time_group_id",
             }
         )
         self.tensor_layout_fields = dict(tensor_layout_fields or {"node_ptr": "node_ptr", "edge_ptr": "edge_ptr"})
         self.scalar_state_fields = dict(scalar_state_fields or {"num_rows": "n_rows"})
         self.scalar_layout_fields = dict(scalar_layout_fields or {"num_graphs": "total_graphs"})
-        self.optional_tensor_state_fields = dict(optional_tensor_state_fields or {})
-        self.target_state_key = str(target_state_key)
-        self.target_output_key = str(target_output_key)
+        self.optional_tensor_state_fields = dict(
+            optional_tensor_state_fields
+            or {
+                "x_graph": "x_graph_out",
+                "y_node": "y_node",
+                "y_edge": "y_edge",
+                "y_graph": "y_graph",
+            }
+        )
 
     @staticmethod
     def _as_torch(arr):
@@ -75,7 +78,4 @@ class BatchPackStage(BaseStage):
             if state_key in state and state[state_key] is not None:
                 chunk_out[out_key] = self._as_torch(state[state_key])
 
-        targets_torch = state.get(self.target_state_key)
-        if targets_torch is not None:
-            chunk_out[self.target_output_key] = targets_torch
         state["chunk_out"] = chunk_out

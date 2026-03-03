@@ -4,7 +4,7 @@ from typing import Any
 
 from zenml import step
 
-from pioneerml.common.loader import GroupClassifierGraphLoaderFactory, TrainingBatchBundle
+from pioneerml.common.loader import GroupClassifierGraphLoaderFactory, BatchBundle
 from pioneerml.common.pipeline.steps import BaseExportStep, BaseLoaderStep
 
 
@@ -15,7 +15,7 @@ class GroupClassifierExportStep(BaseExportStep):
         self,
         *,
         module: Any,
-        dataset: TrainingBatchBundle,
+        dataset: BatchBundle,
         pipeline_config: dict | None = None,
         hpo_params: dict | None = None,
         metrics: dict | None = None,
@@ -31,10 +31,10 @@ class GroupClassifierExportStep(BaseExportStep):
         return {}
 
     @staticmethod
-    def _build_export_example(dataset: TrainingBatchBundle):
-        inputs = dataset.inputs
-        if hasattr(inputs, "batch"):
-            return (inputs.x, inputs.edge_index, inputs.edge_attr, inputs.batch)
+    def _build_export_example(dataset: BatchBundle):
+        data = dataset.data
+        if hasattr(data, "node_graph_id"):
+            return (data.x_node, data.edge_index, data.x_edge, data.node_graph_id)
 
         factory = getattr(dataset, "loader_factory", None) or getattr(dataset, "loader", None)
         if factory is not None:
@@ -42,7 +42,7 @@ class GroupClassifierExportStep(BaseExportStep):
                 loader_params={"mode": "train", "batch_size": 1, "chunk_row_groups": 1, "chunk_workers": 0}
             ).make_dataloader(shuffle_batches=False)
             for batch in loader:
-                return (batch.x, batch.edge_index, batch.edge_attr, batch.batch)
+                return (batch.x_node, batch.edge_index, batch.x_edge, batch.node_graph_id)
         return None
 
     def execute(self) -> dict:
@@ -58,10 +58,10 @@ class GroupClassifierExportStep(BaseExportStep):
             forced_batch_size=1,
         )
         loader = self.loader_factory.build_loader(loader_params=params)
-        data, targets = loader.empty_data()
+        data = loader.empty_data()
         data.source_parquet_paths = list(loader.parquet_paths)
 
-        dataset_for_export = SimpleNamespace(data=data, targets=targets)
+        dataset_for_export = SimpleNamespace(data=data)
         return self.export_torchscript(
             module=self.module,
             dataset=dataset_for_export,
@@ -78,7 +78,7 @@ class GroupClassifierExportStep(BaseExportStep):
 @step(name="export_group_classifier")
 def export_group_classifier_step(
     module: Any,
-    dataset: TrainingBatchBundle,
+    dataset: BatchBundle,
     pipeline_config: dict | None = None,
     hpo_params: dict | None = None,
     metrics: dict | None = None,

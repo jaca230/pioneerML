@@ -2,7 +2,6 @@
 from pathlib import Path
 
 import pyarrow as pa
-import pyarrow.parquet as pq
 import torch
 from zenml import step
 
@@ -34,9 +33,9 @@ class GroupClassifierInferenceRunStep(BaseInferenceStep):
         probs_parts: list[torch.Tensor] = []
         graph_event_id_parts: list[torch.Tensor] = []
 
-        validated_files = [str(p) for p in inputs.get("validated_files") or inputs.get("parquet_paths") or []]
-        if not validated_files:
-            raise RuntimeError("No validated files provided for inference.")
+        validated_files = self.resolve_validated_files(inputs)
+        flow_cfg = self.resolve_data_flow_config(inputs)
+        file_contexts = self.iter_file_contexts(validated_files)
 
         total_rows = 0
         streamed_prediction_files: list[dict] = []
@@ -46,29 +45,26 @@ class GroupClassifierInferenceRunStep(BaseInferenceStep):
             tmp_root = str(cfg.get("streaming_tmp_dir", ".cache/pioneerml/inference/group_classifier"))
             streaming_tmp_dir = self.create_streaming_tmp_dir(tmp_root, prefix="run_")
 
-        file_event_offset = 0
         with torch.no_grad():
-            for file_idx, src_file in enumerate(validated_files):
-                src_path = Path(src_file).expanduser().resolve()
-                n_rows = int(pq.ParquetFile(str(src_path)).metadata.num_rows)
+            for ctx in file_contexts:
+                src_path = ctx.src_path
+                n_rows = int(ctx.num_rows)
                 total_rows += n_rows
 
                 loader = GroupClassifierGraphLoader(
-                    parquet_paths=[str(src_path)],
+                    parquet_inputs=self.build_parquet_input_for_file(src_path=src_path),
                     mode=str(inputs.get("mode", "inference")),
-                    batch_size=int(inputs["batch_size"]),
-                    row_groups_per_chunk=int(inputs["row_groups_per_chunk"]),
-                    num_workers=int(inputs["num_workers"]),
+                    data_flow_config=flow_cfg,
                 ).make_dataloader(shuffle_batches=False)
 
                 file_probs_parts: list[torch.Tensor] = []
                 file_event_parts: list[torch.Tensor] = []
 
                 for batch in loader:
-                    x = batch.x.to(device, non_blocking=(device.type == "cuda"))
+                    x = batch.x_node.to(device, non_blocking=(device.type == "cuda"))
                     edge_index = batch.edge_index.to(device, non_blocking=(device.type == "cuda"))
-                    edge_attr = batch.edge_attr.to(device, non_blocking=(device.type == "cuda"))
-                    b = batch.batch.to(device, non_blocking=(device.type == "cuda"))
+                    edge_attr = batch.x_edge.to(device, non_blocking=(device.type == "cuda"))
+                    b = batch.node_graph_id.to(device, non_blocking=(device.type == "cuda"))
 
                     logits = scripted(x, edge_index, edge_attr, b)
                     if isinstance(logits, (tuple, list)):
@@ -76,11 +72,13 @@ class GroupClassifierInferenceRunStep(BaseInferenceStep):
                     probs = torch.sigmoid(logits).detach().cpu().to(torch.float32)
 
                     file_probs_parts.append(probs)
-                    file_event_parts.append(batch.event_ids.to(torch.int64).cpu())
+                    file_event_parts.append(batch.graph_event_id.to(torch.int64).cpu())
 
                     if materialize_outputs:
                         probs_parts.append(probs)
-                        graph_event_id_parts.append(batch.event_ids.to(torch.int64).cpu() + int(file_event_offset))
+                        graph_event_id_parts.append(
+                            batch.graph_event_id.to(torch.int64).cpu() + int(ctx.file_event_offset)
+                        )
 
                 if not file_probs_parts:
                     file_event_ids_np = torch.empty((0,), dtype=torch.int64).numpy()
@@ -105,17 +103,14 @@ class GroupClassifierInferenceRunStep(BaseInferenceStep):
                         },
                     )
                     assert streaming_tmp_dir is not None
-                    tmp_pred_path = streaming_tmp_dir / f"{file_idx:04d}_{src_path.stem}_preds.parquet"
+                    tmp_pred_path = streaming_tmp_dir / f"{ctx.file_idx:04d}_{src_path.stem}_preds.parquet"
                     self.write_streaming_table(table=table, dst_path=tmp_pred_path)
-                    streamed_prediction_files.append(
-                        {
-                            "source_path": str(src_path),
-                            "prediction_path": str(tmp_pred_path),
-                            "num_rows": int(n_rows),
-                        }
+                    self.append_streamed_file_record(
+                        records=streamed_prediction_files,
+                        src_path=src_path,
+                        prediction_path=tmp_pred_path,
+                        num_rows=n_rows,
                     )
-
-                file_event_offset += n_rows
 
         out = {
             "streaming": bool(streaming),
@@ -129,11 +124,11 @@ class GroupClassifierInferenceRunStep(BaseInferenceStep):
 
         if materialize_outputs and probs_parts:
             probs = torch.cat(probs_parts, dim=0)
-            graph_event_ids = torch.cat(graph_event_id_parts, dim=0)
+            graph_event_id = torch.cat(graph_event_id_parts, dim=0)
             out.update(
                 {
                     "probs": probs,
-                    "graph_event_ids": graph_event_ids,
+                    "graph_event_id": graph_event_id,
                 }
             )
         return out

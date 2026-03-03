@@ -1,5 +1,15 @@
 from .parquet_loader import ParquetLoader
-from .structured import GraphLoader, GroupClassifierGraphLoader, GroupClassifierGraphLoaderFactory, StructuredLoader, TimeGroupGraphLoader
+from .structured import (
+    GraphLoader,
+    GroupClassifierGraphLoader,
+    GroupClassifierGraphLoaderFactory,
+    EndpointRegressionGraphLoader,
+    EndpointRegressionGraphLoaderFactory,
+    GroupSplitterGraphLoader,
+    GroupSplitterGraphLoaderFactory,
+    StructuredLoader,
+    TimeGroupGraphLoader,
+)
 
 __all__ = [
     "ParquetLoader",
@@ -8,4 +18,8 @@ __all__ = [
     "TimeGroupGraphLoader",
     "GroupClassifierGraphLoader",
     "GroupClassifierGraphLoaderFactory",
+    "EndpointRegressionGraphLoader",
+    "EndpointRegressionGraphLoaderFactory",
+    "GroupSplitterGraphLoader",
+    "GroupSplitterGraphLoaderFactory",
 ]

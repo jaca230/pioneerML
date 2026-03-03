@@ -51,6 +51,68 @@ class BaseTimeGroupOutputAdapterStep(BaseOutputAdapterStep):
         return pa.ListArray.from_arrays(offsets, inner)
 
     @classmethod
+    def stitch_node_predictions_to_events(
+        cls,
+        *,
+        node_event_ids_np: np.ndarray,
+        graph_event_ids_np: np.ndarray,
+        graph_group_ids_np: np.ndarray,
+        prediction_columns: Mapping[str, np.ndarray],
+        num_rows: int,
+        value_types: Mapping[str, pa.DataType] | None = None,
+        group_id_column: str = "time_group_ids",
+    ) -> pa.Table:
+        """Build event-level list columns from per-node predictions plus per-graph group IDs."""
+        n_rows = int(max(0, num_rows))
+        node_event_ids = np.asarray(node_event_ids_np, dtype=np.int64)
+        graph_event_ids = np.asarray(graph_event_ids_np, dtype=np.int64)
+        graph_group_ids = np.asarray(graph_group_ids_np, dtype=np.int64)
+
+        valid_node = (node_event_ids >= 0) & (node_event_ids < n_rows)
+        node_event_ids = node_event_ids[valid_node]
+        node_order = np.argsort(node_event_ids, kind="stable")
+        node_event_ids = node_event_ids[node_order]
+        node_counts = np.bincount(node_event_ids, minlength=n_rows).astype(np.int64, copy=False)
+        node_offsets = np.zeros((n_rows + 1,), dtype=np.int64)
+        node_offsets[1:] = np.cumsum(node_counts, dtype=np.int64)
+
+        valid_graph = (graph_event_ids >= 0) & (graph_event_ids < n_rows)
+        graph_event_ids = graph_event_ids[valid_graph]
+        graph_group_ids = graph_group_ids[valid_graph]
+        if graph_event_ids.size > 0:
+            graph_order = np.lexsort((graph_group_ids, graph_event_ids))
+            graph_event_ids = graph_event_ids[graph_order]
+            graph_group_ids = graph_group_ids[graph_order]
+            graph_counts = np.bincount(graph_event_ids, minlength=n_rows).astype(np.int64, copy=False)
+        else:
+            graph_counts = np.zeros((n_rows,), dtype=np.int64)
+        graph_offsets = np.zeros((n_rows + 1,), dtype=np.int64)
+        graph_offsets[1:] = np.cumsum(graph_counts, dtype=np.int64)
+
+        arrays: dict[str, pa.Array] = {
+            str(group_id_column): cls._list_array_from_group_values(
+                offsets=graph_offsets,
+                values=graph_group_ids.astype(np.int64, copy=False),
+                value_type=pa.int64(),
+            )
+        }
+        type_map = dict(value_types or {})
+        for col, raw in prediction_columns.items():
+            values = np.asarray(raw)
+            if values.shape[0] != valid_node.shape[0]:
+                raise ValueError(
+                    f"Column '{col}' has leading dim {values.shape[0]} but expected {valid_node.shape[0]}."
+                )
+            valid_vals = values[valid_node]
+            sorted_vals = valid_vals[node_order] if valid_vals.shape[0] > 0 else valid_vals
+            arrays[str(col)] = cls._list_array_from_group_values(
+                offsets=node_offsets,
+                values=sorted_vals,
+                value_type=type_map.get(str(col)),
+            )
+        return pa.table(arrays)
+
+    @classmethod
     def stitch_time_group_predictions_to_events(
         cls,
         *,

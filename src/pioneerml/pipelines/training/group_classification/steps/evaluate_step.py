@@ -5,14 +5,14 @@ import torch
 from zenml import step
 
 from pioneerml.common.evaluation.evaluators import SimpleClassificationEvaluator
-from pioneerml.common.loader import GroupClassifierGraphLoaderFactory, TrainingBatchBundle
+from pioneerml.common.loader import GroupClassifierGraphLoaderFactory, BatchBundle
 from pioneerml.common.pipeline.steps import BaseEvaluationStep, BaseLoaderStep
 
 
 class GroupClassifierEvaluateStep(BaseEvaluationStep):
     step_key = "evaluate"
 
-    def __init__(self, *, module: Any, dataset: TrainingBatchBundle, pipeline_config: dict | None = None) -> None:
+    def __init__(self, *, module: Any, dataset: BatchBundle, pipeline_config: dict | None = None) -> None:
         super().__init__(pipeline_config=pipeline_config)
         self.module = module
         self.dataset = dataset
@@ -41,11 +41,9 @@ class GroupClassifierEvaluateStep(BaseEvaluationStep):
             for batch in loader:
                 batch = batch.to(device, non_blocking=True)
                 logits = self.module(batch)
-                preds = logits[0] if isinstance(logits, (tuple, list)) else logits
-                target = batch.y
-                if target.dim() == 1 and preds.dim() == 2 and target.numel() % preds.shape[-1] == 0:
-                    target = target.view(-1, preds.shape[-1])
-                loss = self.module.loss_fn(preds, target)
+                loss, _ = self.module.compute_loss(logits, batch)
+                preds = self.module.primary_predictions(logits)
+                target = self.module.primary_target(batch, preds)
                 bs = int(target.shape[0])
                 total_loss += float(loss.detach().cpu().item()) * bs
                 total_samples += bs
@@ -117,7 +115,7 @@ class GroupClassifierEvaluateStep(BaseEvaluationStep):
 @step(name="evaluate_group_classifier")
 def evaluate_group_classifier_step(
     module: Any,
-    dataset: TrainingBatchBundle,
+    dataset: BatchBundle,
     pipeline_config: dict | None = None,
 ) -> dict:
     return GroupClassifierEvaluateStep(module=module, dataset=dataset, pipeline_config=pipeline_config).execute()

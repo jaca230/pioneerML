@@ -51,7 +51,7 @@ class LoaderDiagnostics:
         chunk_out = state.get("chunk_out")
         if isinstance(chunk_out, Mapping):
             self.chunk_graphs_total += _safe_int(chunk_out.get("num_graphs"), 0)
-            x = chunk_out.get("x")
+            x = chunk_out.get("x_node")
             edge_index = chunk_out.get("edge_index")
             self.chunk_nodes_total += _safe_int(getattr(x, "shape", [0])[0] if x is not None else 0, 0)
             self.chunk_edges_total += _safe_int(getattr(edge_index, "shape", [0, 0])[1] if edge_index is not None else 0, 0)
@@ -59,7 +59,7 @@ class LoaderDiagnostics:
     def record_batch(self, *, batch: Any) -> None:
         self.batches_total += 1
         self.graphs_total += _safe_int(getattr(batch, "num_graphs", 0), 0)
-        self.nodes_total += _safe_int(getattr(getattr(batch, "x", None), "shape", [0])[0], 0)
+        self.nodes_total += _safe_int(getattr(getattr(batch, "x_node", None), "shape", [0])[0], 0)
         self.edges_total += _safe_int(getattr(getattr(batch, "edge_index", None), "shape", [0, 0])[1], 0)
 
     def update_memory(self, *, rss_mb: float | None = None, vram_mb: float | None = None) -> None:

@@ -4,7 +4,7 @@ import optuna
 import torch.nn as nn
 
 from pioneerml.common.loader import GroupClassifierGraphLoader
-from pioneerml.common.models.classifiers import GroupClassifier
+from pioneerml.common.models.graph.transformer.classifiers import GroupClassifier
 from pioneerml.common.pipeline.objective.base import BaseObjectiveAdapter
 from pioneerml.common.pipeline.steps import suggest_range
 from pioneerml.common.pipeline.steps.training.utils import GraphLightningModule
@@ -41,8 +41,9 @@ class GroupClassifierObjectiveAdapter(BaseObjectiveAdapter):
             else trial.suggest_int("hidden", hidden_low_adj, hidden_high_adj, step=heads)
         )
         return {
-            "in_dim": int(GroupClassifierGraphLoader.NODE_FEATURE_DIM),
+            "node_dim": int(GroupClassifierGraphLoader.NODE_FEATURE_DIM),
             "edge_dim": int(GroupClassifierGraphLoader.EDGE_FEATURE_DIM),
+            "graph_dim": 0,
             "hidden": int(hidden),
             "heads": int(heads),
             "num_blocks": int(trial.suggest_int("num_blocks", int(blocks_low), int(blocks_high))),
@@ -78,8 +79,9 @@ class GroupClassifierObjectiveAdapter(BaseObjectiveAdapter):
 
     def default_model_cfg(self, model_cfg: dict | None = None) -> dict:
         cfg = dict(model_cfg or {})
-        cfg.setdefault("in_dim", int(GroupClassifierGraphLoader.NODE_FEATURE_DIM))
+        cfg.setdefault("node_dim", int(GroupClassifierGraphLoader.NODE_FEATURE_DIM))
         cfg.setdefault("edge_dim", int(GroupClassifierGraphLoader.EDGE_FEATURE_DIM))
+        cfg.setdefault("graph_dim", 0)
         cfg.setdefault("hidden", 200)
         cfg.setdefault("heads", 4)
         cfg.setdefault("num_blocks", 2)
@@ -94,8 +96,9 @@ class GroupClassifierObjectiveAdapter(BaseObjectiveAdapter):
         if hidden % heads != 0:
             raise ValueError(f"hidden ({hidden}) must be divisible by heads ({heads})")
         return GroupClassifier(
-            in_dim=int(cfg["in_dim"]),
+            node_dim=int(cfg["node_dim"]),
             edge_dim=int(cfg["edge_dim"]),
+            graph_dim=int(cfg.get("graph_dim", 0)),
             hidden=hidden,
             heads=heads,
             num_blocks=int(cfg.get("num_blocks", 2)),
@@ -137,8 +140,9 @@ class GroupClassifierObjectiveAdapter(BaseObjectiveAdapter):
             "study_name": study.study_name,
             "storage": storage_used,
             "model": {
-                "in_dim": int(GroupClassifierGraphLoader.NODE_FEATURE_DIM),
+                "node_dim": int(GroupClassifierGraphLoader.NODE_FEATURE_DIM),
                 "edge_dim": int(GroupClassifierGraphLoader.EDGE_FEATURE_DIM),
+                "graph_dim": 0,
                 "hidden": int(study.best_params["hidden"]),
                 "heads": int(study.best_params["heads"]),
                 "num_blocks": int(study.best_params["num_blocks"]),

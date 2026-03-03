@@ -17,6 +17,7 @@ class NDArrayColumnSpec:
     target_only: bool = False
     include_validity: bool = False
     required: bool = True
+    source: str | None = None
 
 
 class NDArrayStore:

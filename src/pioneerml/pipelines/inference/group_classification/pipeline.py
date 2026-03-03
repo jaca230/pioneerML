@@ -21,14 +21,14 @@ _RUNNER = InferencePipelineRunner(
 
 @pipeline
 def group_classification_inference_pipeline(
-    parquet_paths: list[str],
+    parquet_input_set: dict,
     model_path: str | None = None,
     output_dir: str | None = None,
     output_path: str | None = None,
     pipeline_config: dict | None = None,
 ):
     return _RUNNER.run(
-        loader_kwargs={"parquet_paths": parquet_paths},
+        loader_kwargs={"parquet_input_set": parquet_input_set},
         model_path=model_path,
         output_dir=output_dir,
         output_path=output_path,

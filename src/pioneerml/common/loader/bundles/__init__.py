@@ -1,5 +1,3 @@
-from .base_batch_bundle import BaseBatchBundle
-from .inference_batch_bundle import InferenceBatchBundle
-from .training_batch_bundle import TrainingBatchBundle
+from .batch_bundle import BatchBundle
 
-__all__ = ["BaseBatchBundle", "TrainingBatchBundle", "InferenceBatchBundle"]
+__all__ = ["BatchBundle"]

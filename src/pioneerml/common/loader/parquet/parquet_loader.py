@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
+from dataclasses import replace
 
-import numpy as np
-
-from pioneerml.common.parquet import ParquetChunkReader
+from pioneerml.common.loader.array_store.ndarray_store import NDArrayColumnSpec
+from pioneerml.common.loader.config import DataFlowConfig, SplitSampleConfig
+from pioneerml.common.parquet import ParquetChunkReader, ParquetInputSet
 
 from ..base_loader import BaseLoader
 
@@ -15,65 +15,155 @@ class ParquetLoader(BaseLoader):
     def __init__(
         self,
         *,
-        parquet_paths: list[str],
+        parquet_inputs: ParquetInputSet,
+        resolved_column_specs: tuple[NDArrayColumnSpec, ...] | None = None,
         mode: str | None = None,
-        batch_size: int = 64,
-        row_groups_per_chunk: int = 4,
-        num_workers: int = 0,
-        input_columns: list[str] | None = None,
-        target_columns: list[str] | None = None,
-        columns: list[str] | None = None,
-        split: str | None = None,
-        train_fraction: float = 0.9,
-        val_fraction: float = 0.05,
-        test_fraction: float = 0.05,
-        split_seed: int = 0,
-        sample_fraction: float | None = None,
+        data_flow_config: DataFlowConfig | None = None,
+        split_config: SplitSampleConfig | None = None,
     ) -> None:
-        super().__init__(batch_size=batch_size, num_workers=num_workers, mode=mode)
-        resolved = [str(p) for p in parquet_paths]
-        if not resolved:
-            raise RuntimeError("No parquet paths provided.")
-        missing = [p for p in resolved if not Path(p).exists()]
-        if missing:
-            raise RuntimeError(f"Missing parquet path(s): {missing}")
-
-        self.parquet_paths = resolved
-        self.row_groups_per_chunk = max(1, int(row_groups_per_chunk))
-        self.input_columns = list(getattr(self, "input_columns", []) if input_columns is None else input_columns)
-        self.target_columns = list(getattr(self, "target_columns", []) if target_columns is None else target_columns)
-        self.columns = list(columns) if columns is not None else self.required_columns(include_targets=self.include_targets)
-        split_norm = None if split is None else str(split).strip().lower()
-        if split_norm is not None and split_norm not in {"train", "val", "test"}:
-            raise ValueError(f"Unsupported split: {split}. Expected one of: 'train', 'val', 'test'.")
-        self.split = split_norm
-        self.train_fraction = float(train_fraction)
-        self.val_fraction = float(val_fraction)
-        self.test_fraction = float(test_fraction)
-        total_frac = self.train_fraction + self.val_fraction + self.test_fraction
-        if self.split is not None and not np.isclose(total_frac, 1.0, atol=1e-9):
-            raise ValueError(
-                "train_fraction + val_fraction + test_fraction must sum to 1.0 "
-                f"(got {self.train_fraction} + {self.val_fraction} + {self.test_fraction} = {total_frac})."
-            )
-        self.split_seed = int(split_seed)
-        self.sample_fraction = None if sample_fraction is None else float(sample_fraction)
-        if self.sample_fraction is not None and not (0.0 < self.sample_fraction <= 1.0):
-            raise ValueError(f"sample_fraction must be in (0, 1], got: {self.sample_fraction}")
+        super().__init__(data_flow_config=data_flow_config, mode=mode)
+        self.parquet_inputs = parquet_inputs
+        self.parquet_paths = list(parquet_inputs.main_paths)
+        self.row_groups_per_chunk = int(self.data_flow_config.row_groups_per_chunk)
+        self.resolved_column_specs = tuple(
+            resolved_column_specs if resolved_column_specs is not None else ()
+        )
+        self.input_columns = self.columns_from_specs(
+            column_specs=self.resolved_column_specs,
+            target_only=False,
+            required=True,
+        )
+        self.target_columns = self.columns_from_specs(
+            column_specs=self.resolved_column_specs,
+            target_only=True,
+            required=True,
+        )
+        self.optional_input_columns = self.columns_from_specs(
+            column_specs=self.resolved_column_specs,
+            target_only=False,
+            required=False,
+        )
+        self.columns = self.columns_from_specs(
+            column_specs=self.resolved_column_specs,
+            source="main",
+        )
+        self.split_config = split_config if split_config is not None else SplitSampleConfig()
+        self.split = self.split_config.split
+        self.train_fraction = float(self.split_config.train_fraction)
+        self.val_fraction = float(self.split_config.val_fraction)
+        self.test_fraction = float(self.split_config.test_fraction)
+        self.split_seed = int(self.split_config.split_seed if self.split_config.split_seed is not None else 0)
+        self.sample_fraction = self.split_config.sample_fraction
         self.edge_populate_graph_block = 512
 
-    def required_input_columns(self) -> list[str]:
-        return list(self.input_columns)
+    @classmethod
+    def resolve_dynamic_column_map(
+        cls,
+        *,
+        parquet_inputs: ParquetInputSet,
+        required_columns: list[str],
+        optional_columns: list[str] | None = None,
+    ) -> dict[str, str]:
+        """
+        Resolve a logical column->source plan without materializing joined tables.
 
-    def required_target_columns(self) -> list[str]:
-        return list(self.target_columns)
+        Source precedence is:
+        1) main
+        2) optional sources in insertion order of ParquetInputSet optional_paths_by_name.
+        """
+        resolved_optional_sources: dict[str, list[str]] = {
+            str(name): list(paths) for name, paths in parquet_inputs.optional_paths_by_name.items()
+        }
+
+        available_by_source: dict[str, set[str]] = {
+            "main": ParquetInputSet.schema_columns_intersection(parquet_inputs.main_paths)
+        }
+        for source_name, source_paths in resolved_optional_sources.items():
+            available_by_source[source_name] = ParquetInputSet.schema_columns_intersection(tuple(source_paths))
+
+        all_required = [str(c) for c in required_columns]
+        all_optional = [str(c) for c in (optional_columns or [])]
+
+        column_to_source: dict[str, str] = {}
+
+        def assign_column(column_name: str, *, required: bool) -> None:
+            if column_name in column_to_source:
+                return
+            if column_name in available_by_source["main"]:
+                column_to_source[column_name] = "main"
+                return
+            for source_name in resolved_optional_sources:
+                if column_name in available_by_source[source_name]:
+                    column_to_source[column_name] = source_name
+                    return
+            if required:
+                raise ValueError(f"Required column '{column_name}' not found in main or optional parquet sources.")
+
+        for col in all_required:
+            assign_column(col, required=True)
+        for col in all_optional:
+            assign_column(col, required=False)
+
+        return column_to_source
+
+    @classmethod
+    def resolve_declared_columns_from_sources(
+        cls,
+        *,
+        parquet_inputs: ParquetInputSet,
+        column_specs: tuple[NDArrayColumnSpec, ...],
+        include_targets: bool,
+    ) -> dict[str, object]:
+        required_inputs = [str(s.column) for s in column_specs if (not bool(s.target_only)) and bool(s.required)]
+        required_targets = [str(s.column) for s in column_specs if bool(s.target_only) and bool(s.required)]
+        optional_inputs = [str(s.column) for s in column_specs if (not bool(s.target_only)) and (not bool(s.required))]
+        required_columns = list(required_inputs) + (list(required_targets) if include_targets else [])
+        column_to_source = cls.resolve_dynamic_column_map(
+            parquet_inputs=parquet_inputs,
+            required_columns=required_columns,
+            optional_columns=optional_inputs,
+        )
+        selected_columns = set(str(c) for c in cls.unique_columns(required_columns + optional_inputs))
+        resolved_column_specs: list[NDArrayColumnSpec] = []
+        for spec in column_specs:
+            col = str(spec.column)
+            if col not in selected_columns:
+                continue
+            if col not in column_to_source:
+                continue
+            resolved_column_specs.append(replace(spec, source=str(column_to_source[col])))
+        return {"resolved_column_specs": tuple(resolved_column_specs)}
+
+    @classmethod
+    def columns_from_specs(
+        cls,
+        *,
+        column_specs: tuple[NDArrayColumnSpec, ...],
+        target_only: bool | None = None,
+        required: bool | None = None,
+        source: str | None = None,
+    ) -> list[str]:
+        cols: list[str] = []
+        for spec in column_specs:
+            if target_only is not None and bool(spec.target_only) != bool(target_only):
+                continue
+            if required is not None and bool(spec.required) != bool(required):
+                continue
+            if source is not None and str(spec.source) != str(source):
+                continue
+            cols.append(str(spec.column))
+        return cls.unique_columns(cols)
 
     def required_columns(self, *, include_targets: bool | None = None) -> list[str]:
         use_targets = self.include_targets if include_targets is None else bool(include_targets)
-        cols = [*self.required_input_columns()]
+        cols = [*self.input_columns]
         if use_targets:
-            cols.extend(self.required_target_columns())
+            cols.extend(self.target_columns)
         return list(dict.fromkeys(cols))
+
+    @staticmethod
+    def unique_columns(columns: list[str]) -> list[str]:
+        return list(dict.fromkeys(columns))
 
     def _iter_tables(self):
         reader = ParquetChunkReader(

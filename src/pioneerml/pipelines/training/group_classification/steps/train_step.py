@@ -3,7 +3,7 @@ from typing import Any
 
 from zenml import step
 
-from pioneerml.common.loader import GroupClassifierGraphLoaderFactory, TrainingBatchBundle
+from pioneerml.common.loader import GroupClassifierGraphLoaderFactory, BatchBundle
 from pioneerml.common.pipeline.steps import BaseLoaderStep, BaseTrainingStep
 from pioneerml.common.pipeline.steps.training.utils import GraphLightningModule
 from pioneerml.common.zenml.materializers import GraphLightningModuleMaterializer
@@ -17,7 +17,7 @@ class GroupClassifierTrainStep(BaseTrainingStep):
     def __init__(
         self,
         *,
-        dataset: TrainingBatchBundle,
+        dataset: BatchBundle,
         pipeline_config: dict | None = None,
         hpo_params: dict | None = None,
     ) -> None:
@@ -51,8 +51,9 @@ class GroupClassifierTrainStep(BaseTrainingStep):
             },
             "compile": {"enabled": False, "mode": "default"},
             "model": {
-                "in_dim": 4,
+                "node_dim": 4,
                 "edge_dim": 4,
+                "graph_dim": 0,
                 "hidden": 200,
                 "heads": 4,
                 "num_blocks": 2,
@@ -98,7 +99,7 @@ class GroupClassifierTrainStep(BaseTrainingStep):
 
 @step(name="train_group_classifier", output_materializers=GraphLightningModuleMaterializer)
 def train_group_classifier_step(
-    dataset: TrainingBatchBundle,
+    dataset: BatchBundle,
     pipeline_config: dict | None = None,
     hpo_params: dict | None = None,
 ) -> Any:

@@ -17,11 +17,8 @@ from pioneerml.common.zenml.materializers.pyg_data_list_materializer import (
 from pioneerml.common.zenml.materializers.torch_tensor_materializer import (
     TorchTensorMaterializer,
 )
-from pioneerml.common.zenml.materializers.inference_batch_bundle_materializer import (
-    InferenceBatchBundleMaterializer,
-)
-from pioneerml.common.zenml.materializers.training_batch_bundle_materializer import (
-    TrainingBatchBundleMaterializer,
+from pioneerml.common.zenml.materializers.batch_bundle_materializer import (
+    BatchBundleMaterializer,
 )
 from pioneerml.common.zenml.materializers.graph_lightning_module_materializer import (
     GraphLightningModuleMaterializer,
@@ -30,8 +27,7 @@ from pioneerml.common.zenml.materializers.graph_lightning_module_materializer im
 source_utils.set_custom_source_root(Path(__file__).resolve().parents[4])
 
 __all__ = [
-    "TrainingBatchBundleMaterializer",
-    "InferenceBatchBundleMaterializer",
+    "BatchBundleMaterializer",
     "GraphLightningModuleMaterializer",
     "PyGDataListMaterializer",
     "TorchTensorMaterializer",

@@ -1,9 +1,9 @@
 
 from zenml import step
 
-from pioneerml.common.loader import GroupClassifierGraphLoaderFactory, TrainingBatchBundle
+from pioneerml.common.loader import GroupClassifierGraphLoaderFactory, BatchBundle
 from pioneerml.common.pipeline.steps import BaseLoaderStep
-from pioneerml.common.zenml.materializers import TrainingBatchBundleMaterializer
+from pioneerml.common.zenml.materializers import BatchBundleMaterializer
 
 
 class GroupClassifierLoaderStep(BaseLoaderStep):
@@ -15,18 +15,20 @@ class GroupClassifierLoaderStep(BaseLoaderStep):
     def execute(
         self,
         *,
-        parquet_paths: list[str],
-    ) -> TrainingBatchBundle:
+        parquet_input_set: dict,
+    ) -> BatchBundle:
         cfg = self.get_config()
         config_json = dict(cfg.get("config_json") or {})
+        parquet_inputs = self.resolve_parquet_input_set(parquet_input_set)
 
-        loader_factory = GroupClassifierGraphLoaderFactory(parquet_paths=[str(p) for p in parquet_paths])
+        loader_factory = GroupClassifierGraphLoaderFactory(
+            parquet_inputs=parquet_inputs
+        )
         loader = loader_factory.build_loader(loader_params=dict(config_json))
-        inputs, targets = loader.empty_data()
-        inputs.source_parquet_paths = list(loader.parquet_paths)
-        return TrainingBatchBundle(
-            inputs=inputs,
-            targets=targets,
+        data = loader.empty_data()
+        data.source_parquet_paths = list(loader.parquet_paths)
+        return BatchBundle(
+            data=data,
             loader_factory=loader_factory,
             loader=loader_factory,
         )
@@ -35,10 +37,10 @@ class GroupClassifierLoaderStep(BaseLoaderStep):
 @step(
     name="load_group_classifier_dataset",
     enable_cache=False,
-    output_materializers=TrainingBatchBundleMaterializer,
+    output_materializers=BatchBundleMaterializer,
 )
 def load_group_classifier_dataset_step(
-    parquet_paths: list[str],
+    parquet_input_set: dict,
     pipeline_config: dict | None = None,
-) -> TrainingBatchBundle:
-    return GroupClassifierLoaderStep(pipeline_config=pipeline_config).execute(parquet_paths=parquet_paths)
+) -> BatchBundle:
+    return GroupClassifierLoaderStep(pipeline_config=pipeline_config).execute(parquet_input_set=parquet_input_set)

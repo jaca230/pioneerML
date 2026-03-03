@@ -28,6 +28,14 @@ class BaseExportStep(BasePipelineStep):
                 return [self._json_safe(v) for v in value]
             return str(value)
 
+    @staticmethod
+    def _resolve_tensor_last_dim(obj, *names: str) -> int:
+        for name in names:
+            tensor = getattr(obj, name, None)
+            if tensor is not None and hasattr(tensor, "shape") and len(tensor.shape) >= 2:
+                return int(tensor.shape[-1])
+        return 0
+
     def export_torchscript(
         self,
         *,
@@ -65,6 +73,22 @@ class BaseExportStep(BasePipelineStep):
             example_builder=example_builder,
         )
 
+        bundle_inputs = getattr(dataset, "inputs", None)
+        if bundle_inputs is None:
+            bundle_inputs = getattr(dataset, "data", None)
+        bundle_targets = getattr(dataset, "targets", None)
+        if bundle_targets is None and bundle_inputs is not None:
+            bundle_targets = getattr(bundle_inputs, "y_graph", None)
+            if bundle_targets is None:
+                bundle_targets = getattr(bundle_inputs, "y_node", None)
+            if bundle_targets is None:
+                bundle_targets = getattr(bundle_inputs, "y", None)
+        x_dim = self._resolve_tensor_last_dim(bundle_inputs, "x_node", "x")
+        edge_attr_dim = self._resolve_tensor_last_dim(bundle_inputs, "x_edge", "edge_attr")
+        num_classes = 0
+        if bundle_targets is not None and hasattr(bundle_targets, "shape") and len(bundle_targets.shape) >= 2:
+            num_classes = int(bundle_targets.shape[-1])
+
         meta = {
             "timestamp": timestamp,
             "torchscript_path": str(torchscript_path),
@@ -73,9 +97,9 @@ class BaseExportStep(BasePipelineStep):
             "hpo_params": self._json_safe(hpo_params or {}),
             "metrics": self._json_safe(metrics or {}),
             "data_shapes": {
-                "x_dim": int(dataset.data.x.shape[-1]),
-                "edge_attr_dim": int(dataset.data.edge_attr.shape[-1]),
-                "num_classes": int(dataset.targets.shape[-1]),
+                "x_dim": int(x_dim),
+                "edge_attr_dim": int(edge_attr_dim),
+                "num_classes": int(num_classes),
             },
         }
         with meta_path.open("w", encoding="utf-8") as handle:
@@ -111,4 +135,3 @@ class BaseExportStep(BasePipelineStep):
             export_fn(torchscript_path, prefer_cuda=prefer_cuda)
             return
         export_fn(torchscript_path)
-

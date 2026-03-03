@@ -1,8 +1,20 @@
 from .array_store import NDArrayColumnSpec, NDArrayStore
-from .array_store.schemas import FeatureSchema, LoaderSchema, NDArrayField, TargetSchema
+from .array_store.schemas import FeatureSchema, LoaderSchema, TargetSchema
 from .base_loader import BaseLoader
-from .bundles import BaseBatchBundle, InferenceBatchBundle, TrainingBatchBundle
-from .parquet import GraphLoader, GroupClassifierGraphLoader, GroupClassifierGraphLoaderFactory, ParquetLoader, StructuredLoader, TimeGroupGraphLoader
+from .bundles import BatchBundle
+from .config import DataFlowConfig, GraphTensorDims, SplitSampleConfig
+from .parquet import (
+    GraphLoader,
+    GroupClassifierGraphLoader,
+    GroupClassifierGraphLoaderFactory,
+    EndpointRegressionGraphLoader,
+    EndpointRegressionGraphLoaderFactory,
+    GroupSplitterGraphLoader,
+    GroupSplitterGraphLoaderFactory,
+    ParquetLoader,
+    StructuredLoader,
+    TimeGroupGraphLoader,
+)
 from .stage import (
     CompositeStageObserver,
     JsonlObserver,
@@ -23,12 +35,16 @@ __all__ = [
     "TimeGroupGraphLoader",
     "GroupClassifierGraphLoader",
     "GroupClassifierGraphLoaderFactory",
-    "BaseBatchBundle",
-    "TrainingBatchBundle",
-    "InferenceBatchBundle",
+    "EndpointRegressionGraphLoader",
+    "EndpointRegressionGraphLoaderFactory",
+    "GroupSplitterGraphLoader",
+    "GroupSplitterGraphLoaderFactory",
+    "BatchBundle",
+    "SplitSampleConfig",
+    "DataFlowConfig",
+    "GraphTensorDims",
     "NDArrayStore",
     "NDArrayColumnSpec",
-    "NDArrayField",
     "FeatureSchema",
     "TargetSchema",
     "LoaderSchema",

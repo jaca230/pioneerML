@@ -8,20 +8,19 @@ Standard graph representation:
 """
 
 from pioneerml.common.models.blocks import FullGraphTransformerBlock
-from pioneerml.common.models.classifiers import (
+from pioneerml.common.models.graph.transformer.classifiers import (
+    EventSplitter,
     GroupClassifier,
     GroupClassifierStereo,
     GroupSplitter,
     GroupAffinityModel,
 )
-from pioneerml.common.models.regressors import (
+from pioneerml.common.models.graph.transformer.regressors import (
     PionStopRegressor,
     EndpointRegressor,
     OrthogonalEndpointRegressor,
     PositronAngleModel,
 )
-from pioneerml.common.models.components.event_builder import EventBuilder
-from pioneerml.common.models.components.event_splitter import EventSplitter
 from pioneerml.common.models.loss import (
     AngularUnitVectorLoss,
     QuantileAngularLoss,
@@ -39,7 +38,6 @@ __all__ = [
     "OrthogonalEndpointRegressor",
     "PositronAngleModel",
     "EventSplitter",
-    "EventBuilder",
     "AngularUnitVectorLoss",
     "QuantileAngularLoss",
     "QuantilePinballLoss",

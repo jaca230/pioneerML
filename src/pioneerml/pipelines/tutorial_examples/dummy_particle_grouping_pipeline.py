@@ -13,7 +13,7 @@ import pytorch_lightning as pl
 from zenml import pipeline, step
 
 from pioneerml.data.datasets.graph_group import GraphRecord
-from pioneerml.common.models.classifiers.group_classifier import GroupClassifier
+from pioneerml.common.models.graph.transformer.classifiers.group_classifier import GroupClassifier
 from pioneerml.common.training.datamodules import GroupClassificationDataModule
 from pioneerml.common.training.lightning import GraphLightningModule
 from pioneerml.common.zenml.materializers import TorchTensorMaterializer
@@ -99,7 +99,7 @@ def build_dummy_module(
     weight_decay: float = 1e-3,
 ) -> GraphLightningModule:
     model = GroupClassifier(
-        in_dim=4,
+        node_dim=4,
         edge_dim=4,
         hidden=hidden,
         heads=heads,

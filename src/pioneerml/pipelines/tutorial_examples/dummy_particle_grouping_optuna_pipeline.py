@@ -16,7 +16,7 @@ import torch
 import torch.nn as nn
 from zenml import pipeline, step
 
-from pioneerml.common.models.classifiers.group_classifier import GroupClassifier
+from pioneerml.common.models.graph.transformer.classifiers.group_classifier import GroupClassifier
 from pioneerml.common.training.lightning import GraphLightningModule
 from pioneerml.common.training.datamodules import GroupClassificationDataModule
 from pioneerml.common.zenml.utils import detect_available_accelerator
@@ -93,7 +93,7 @@ def run_dummy_hparam_search(
         datamodule.batch_size = batch_size
 
         model = GroupClassifier(
-            in_dim=4,
+            node_dim=4,
             edge_dim=4,
             hidden=hidden,
             heads=4,
@@ -164,7 +164,7 @@ def train_best_dummy_model(
         datamodule.batch_size = int(best_params["batch_size"])
 
     model = GroupClassifier(
-        in_dim=4,
+        node_dim=4,
         edge_dim=4,
         hidden=int(best_params.get("hidden", 192)),
         heads=4,

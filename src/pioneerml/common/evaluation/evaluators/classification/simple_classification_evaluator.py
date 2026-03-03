@@ -40,11 +40,9 @@ class SimpleClassificationEvaluator(BaseClassificationEvaluator):
             for batch in loader:
                 batch = batch.to(device)
                 logits = module(batch)
-                preds = logits[0] if isinstance(logits, (tuple, list)) else logits
-                target = batch.y
-                if target.dim() == 1 and preds.dim() == 2 and target.numel() % preds.shape[-1] == 0:
-                    target = target.view(-1, preds.shape[-1])
-                loss = module.loss_fn(preds, target)
+                loss, _ = module.compute_loss(logits, batch)
+                preds = module.primary_predictions(logits)
+                target = module.primary_target(batch, preds)
                 bs = int(target.shape[0])
                 total_loss += loss.detach().cpu().item() * bs
                 total_samples += bs
@@ -104,4 +102,3 @@ class SimpleClassificationEvaluator(BaseClassificationEvaluator):
             "val_loss_history_total_points": val_total,
             "loss_plot_path": plot_path,
         }
-

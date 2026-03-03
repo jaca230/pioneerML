@@ -98,8 +98,8 @@ class StructuredLoader(ParquetLoader):
                 row_offset += raw_rows
                 continue
 
-            if "graph_event_ids" in chunk and row_offset != 0:
-                chunk["graph_event_ids"] = chunk["graph_event_ids"] + int(row_offset)
+            if "graph_event_id" in chunk and row_offset != 0:
+                chunk["graph_event_id"] = chunk["graph_event_id"] + int(row_offset)
 
             num_graphs = int(chunk["num_graphs"])
             if num_graphs <= 0:

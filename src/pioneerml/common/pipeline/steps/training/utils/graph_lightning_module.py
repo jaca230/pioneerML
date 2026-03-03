@@ -16,20 +16,25 @@ import torch.nn as nn
 import torch.optim as optim
 from torch_geometric.data import Batch
 
-from pioneerml.common.models.base import GraphModel
+from pioneerml.common.models.graph import BaseGraphModel
 
 
 class GraphLightningModule(pl.LightningModule):
     """
-    Generic LightningModule wrapper for GraphModel instances.
+    Generic LightningModule wrapper for BaseGraphModel instances.
 
-    Handles common training/validation loops for classification and regression
-    tasks while delegating the forward pass to the underlying graph model.
+    Handles common training/validation loops while delegating the forward pass
+    to the underlying graph model.
+
+    Loss contract:
+      - Preferred: ``loss_fn(predictions, batch) -> loss`` or
+        ``loss_fn(predictions, batch) -> (loss, terms_dict)``
+      - Backward compatible: ``loss_fn(preds_tensor, target_tensor) -> loss``
     """
 
     def __init__(
         self,
-        model: GraphModel,
+        model: BaseGraphModel,
         *,
         task: str = "classification",
         loss_fn: Optional[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = None,
@@ -59,9 +64,6 @@ class GraphLightningModule(pl.LightningModule):
         self._train_loss_count: int = 0
         self._val_loss_sum: float = 0.0
         self._val_loss_count: int = 0
-        self._train_confusion: Optional[torch.Tensor] = None
-        self._val_confusion: Optional[torch.Tensor] = None
-
         if loss_fn is not None:
             self.loss_fn = loss_fn
         elif task == "classification":
@@ -73,28 +75,28 @@ class GraphLightningModule(pl.LightningModule):
         return self._model_forward(batch)
 
     def training_step(self, batch: Batch, batch_idx: int) -> torch.Tensor:
-        preds, target = self._shared_step(batch)
-        loss = self.loss_fn(preds, target)
+        raw_preds = self._model_forward(batch)
+        loss, terms = self.compute_loss(raw_preds, batch)
         bs = self._get_batch_size(batch)
         self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True, batch_size=bs)
-
-        metrics = self._compute_metrics(preds, target, prefix="train")
-        self.log_dict(metrics, on_step=False, on_epoch=True, prog_bar=False, batch_size=bs)
-        self._update_confusion(preds, target, is_train=True)
+        for key, value in terms.items():
+            if key == "loss":
+                continue
+            self.log(f"train_{key}", value, on_step=False, on_epoch=True, prog_bar=False, batch_size=bs)
         self.train_loss_history.append(loss.detach().cpu().item())
         self._train_loss_sum += loss.detach().cpu().item() * bs
         self._train_loss_count += bs
         return loss
 
     def validation_step(self, batch: Batch, batch_idx: int) -> None:
-        preds, target = self._shared_step(batch)
-        loss = self.loss_fn(preds, target)
+        raw_preds = self._model_forward(batch)
+        loss, terms = self.compute_loss(raw_preds, batch)
         bs = self._get_batch_size(batch)
         self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True, batch_size=bs)
-
-        metrics = self._compute_metrics(preds, target, prefix="val")
-        self.log_dict(metrics, on_step=False, on_epoch=True, prog_bar=False, batch_size=bs)
-        self._update_confusion(preds, target, is_train=False)
+        for key, value in terms.items():
+            if key == "loss":
+                continue
+            self.log(f"val_{key}", value, on_step=False, on_epoch=True, prog_bar=False, batch_size=bs)
         self.val_loss_history.append(loss.detach().cpu().item())
         self._val_loss_sum += loss.detach().cpu().item() * bs
         self._val_loss_count += bs
@@ -104,16 +106,12 @@ class GraphLightningModule(pl.LightningModule):
             self.train_epoch_loss_history.append(self._train_loss_sum / self._train_loss_count)
         self._train_loss_sum = 0.0
         self._train_loss_count = 0
-        self._log_confusion("train", self._train_confusion)
-        self._train_confusion = None
 
     def on_validation_epoch_end(self) -> None:
         if self._val_loss_count > 0:
             self.val_epoch_loss_history.append(self._val_loss_sum / self._val_loss_count)
         self._val_loss_sum = 0.0
         self._val_loss_count = 0
-        self._log_confusion("val", self._val_confusion)
-        self._val_confusion = None
 
     def predict_step(self, batch: Batch, batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
         return self(batch)
@@ -129,18 +127,61 @@ class GraphLightningModule(pl.LightningModule):
         )
         return {"optimizer": optimizer, "lr_scheduler": scheduler}
 
-    def _shared_step(self, batch: Batch) -> tuple[torch.Tensor, torch.Tensor]:
-        if not hasattr(batch, "y"):
-            raise AttributeError("Batch is missing target attribute 'y' required for training.")
-        raw_preds = self._model_forward(batch)
-        # If the model returns multiple outputs, use the first for loss/metrics
+    @staticmethod
+    def primary_predictions(raw_preds: Any) -> torch.Tensor:
         preds = raw_preds[0] if isinstance(raw_preds, (tuple, list)) else raw_preds
-        target = batch.y
+        if not isinstance(preds, torch.Tensor):
+            raise TypeError("Primary predictions must be a torch.Tensor for this operation.")
+        return preds
+
+    @staticmethod
+    def primary_target(batch: Batch, preds: torch.Tensor) -> torch.Tensor:
+        candidate_fields = ("y_graph", "y_node", "y_edge", "y")
+        target = None
+        for field in candidate_fields:
+            value = getattr(batch, field, None)
+            if isinstance(value, torch.Tensor) and value.numel() > 0:
+                if value.dim() >= 1 and preds.dim() >= 1 and int(value.shape[0]) == int(preds.shape[0]):
+                    target = value
+                    break
+                if field == "y" and target is None:
+                    target = value
+        if target is None:
+            raise AttributeError("Batch is missing usable target tensor (expected one of y_graph/y_node/y_edge/y).")
 
         # Ensure target shape matches preds for BCE/CE losses
         if target.dim() == 1 and preds.dim() == 2 and target.numel() % preds.shape[-1] == 0:
             target = target.view(-1, preds.shape[-1])
-        return preds, target
+        return target
+
+    @staticmethod
+    def _normalize_loss_output(loss_output: Any) -> tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+        if isinstance(loss_output, tuple) and len(loss_output) == 2 and isinstance(loss_output[1], dict):
+            loss = loss_output[0]
+            terms = dict(loss_output[1])
+        else:
+            loss = loss_output
+            terms = {}
+        if not isinstance(loss, torch.Tensor):
+            raise TypeError("loss_fn must return a torch.Tensor loss.")
+        if "loss" not in terms:
+            terms["loss"] = loss
+        return loss, terms
+
+    def compute_loss(self, raw_preds: Any, batch: Batch) -> tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+        # Preferred contract: loss_fn(predictions, batch)
+        if not isinstance(self.loss_fn, nn.Module):
+            try:
+                out = self.loss_fn(raw_preds, batch)
+                return self._normalize_loss_output(out)
+            except TypeError:
+                pass
+
+        # Backward-compatible contract: loss_fn(preds_tensor, target_tensor)
+        preds = self.primary_predictions(raw_preds)
+        target = self.primary_target(batch, preds)
+        out = self.loss_fn(preds, target)
+        return self._normalize_loss_output(out)
 
     @staticmethod
     def _get_batch_size(batch: Batch) -> int:
@@ -148,89 +189,13 @@ class GraphLightningModule(pl.LightningModule):
             return int(batch.num_groups)
         if hasattr(batch, "num_graphs"):
             return int(batch.num_graphs)
+        if hasattr(batch, "node_graph_id"):
+            node_graph_id = getattr(batch, "node_graph_id")
+            if node_graph_id is not None and int(node_graph_id.numel()) > 0:
+                return int(node_graph_id.max().item() + 1)
         if hasattr(batch, "batch"):
             return int(batch.batch.max().item() + 1)
         return 1
 
-    def _compute_metrics(self, preds: torch.Tensor, target: torch.Tensor, prefix: str) -> Dict[str, float]:
-        metrics: Dict[str, float] = {}
-
-        if self.task == "classification":
-            probs = torch.sigmoid(preds)
-            preds_binary = (probs >= self.threshold).float()
-            metrics[f"{prefix}_accuracy"] = (preds_binary == target.float()).float().mean().item()
-            if preds_binary.numel() > 0:
-                metrics[f"{prefix}_exact_match"] = (preds_binary == target.float()).all(dim=1).float().mean().item()
-        else:
-            metrics[f"{prefix}_mae"] = torch.abs(preds - target).mean().item()
-
-        return metrics
-
-    def _update_confusion(self, preds: torch.Tensor, target: torch.Tensor, *, is_train: bool) -> None:
-        if self.task != "classification":
-            return
-        probs = torch.sigmoid(preds)
-        preds_binary = (probs >= self.threshold).int()
-        target_int = target.int()
-        num_classes = target_int.shape[-1]
-        if is_train:
-            if self._train_confusion is None:
-                self._train_confusion = torch.zeros((num_classes, 2, 2), dtype=torch.int64)
-            confusion = self._train_confusion
-        else:
-            if self._val_confusion is None:
-                self._val_confusion = torch.zeros((num_classes, 2, 2), dtype=torch.int64)
-            confusion = self._val_confusion
-        for cls_idx in range(num_classes):
-            truth = target_int[:, cls_idx]
-            pred = preds_binary[:, cls_idx]
-            tn = ((truth == 0) & (pred == 0)).sum().item()
-            fp = ((truth == 0) & (pred == 1)).sum().item()
-            fn = ((truth == 1) & (pred == 0)).sum().item()
-            tp = ((truth == 1) & (pred == 1)).sum().item()
-            confusion[cls_idx, 0, 0] += int(tn)
-            confusion[cls_idx, 0, 1] += int(fp)
-            confusion[cls_idx, 1, 0] += int(fn)
-            confusion[cls_idx, 1, 1] += int(tp)
-
-    def _log_confusion(self, prefix: str, confusion: Optional[torch.Tensor]) -> None:
-        if confusion is None:
-            return
-        num_classes = confusion.shape[0]
-        for cls_idx in range(num_classes):
-            tn, fp = confusion[cls_idx, 0].tolist()
-            fn, tp = confusion[cls_idx, 1].tolist()
-            total = float(tp + fp + fn)
-            if total <= 0:
-                continue
-            self.log(f"{prefix}_tp_{cls_idx}", tp / total, on_step=False, on_epoch=True, prog_bar=False)
-            self.log(f"{prefix}_fp_{cls_idx}", fp / total, on_step=False, on_epoch=True, prog_bar=False)
-            self.log(f"{prefix}_fn_{cls_idx}", fn / total, on_step=False, on_epoch=True, prog_bar=False)
-
     def _model_forward(self, batch: Batch) -> torch.Tensor:
-        try:
-            return self.model(batch)
-        except TypeError:
-            pass
-        if not hasattr(batch, "x") or not hasattr(batch, "edge_index") or not hasattr(batch, "edge_attr"):
-            raise TypeError("Batch is missing required graph tensors for tensor-only model forward.")
-        x = batch.x
-        edge_index = batch.edge_index
-        edge_attr = batch.edge_attr
-        batch_idx = getattr(batch, "batch", None)
-        if batch_idx is None:
-            batch_idx = torch.zeros(x.size(0), dtype=torch.long, device=x.device)
-        group_ptr = getattr(batch, "group_ptr", None)
-        if group_ptr is None:
-            raise AttributeError("Batch is missing group_ptr for group-level classification.")
-        time_group_ids = getattr(batch, "time_group_ids", None)
-        if time_group_ids is None:
-            raise AttributeError("Batch is missing time_group_ids for group-level classification.")
-        return self.model(
-            x,
-            edge_index,
-            edge_attr,
-            batch_idx,
-            group_ptr,
-            time_group_ids,
-        )
+        return self.model(batch)

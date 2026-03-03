@@ -8,6 +8,9 @@ from typing import Any
 
 import pyarrow.parquet as pq
 
+from pioneerml.common.loader.config import DataFlowConfig
+from pioneerml.common.parquet import ParquetInputSet
+
 from ..base_pipeline_step import BasePipelineStep
 
 LOGGER = logging.getLogger(__name__)
@@ -29,6 +32,24 @@ class BaseLoaderStep(BasePipelineStep):
             raise RuntimeError("No parquet paths provided.")
         return resolved
 
+    @classmethod
+    def resolve_parquet_input_set(cls, parquet_input_set: dict | ParquetInputSet) -> ParquetInputSet:
+        if isinstance(parquet_input_set, ParquetInputSet):
+            return parquet_input_set
+        payload = dict(parquet_input_set or {})
+        main_paths = payload.get("main_paths")
+        optional_paths_by_name = payload.get("optional_paths_by_name")
+        if not isinstance(main_paths, list):
+            raise RuntimeError("parquet_input_set must include a list field 'main_paths'.")
+        if optional_paths_by_name is not None and not isinstance(optional_paths_by_name, dict):
+            raise RuntimeError("parquet_input_set.optional_paths_by_name must be a dict when provided.")
+        return ParquetInputSet(
+            main_paths=[str(p) for p in main_paths],
+            optional_paths_by_name=(
+                {str(k): v for k, v in optional_paths_by_name.items()} if optional_paths_by_name is not None else None
+            ),
+        )
+
     @staticmethod
     def count_parquet_rows(parquet_paths: list[str]) -> int:
         total = 0
@@ -45,7 +66,7 @@ class BaseLoaderStep(BasePipelineStep):
         allowed_modes: tuple[str, ...] = ("inference", "train"),
         default_batch_size: int = 64,
         default_chunk_row_groups: int = 4,
-    ) -> tuple[str, int, int, int]:
+    ) -> tuple[str, DataFlowConfig]:
         mode = str(config_json.get("mode", default_mode)).strip().lower()
         if mode not in set(allowed_modes):
             raise ValueError(f"Unsupported loader mode: {mode}. Expected one of {allowed_modes}.")
@@ -57,7 +78,11 @@ class BaseLoaderStep(BasePipelineStep):
             num_workers = cls.default_chunk_workers()
         else:
             num_workers = max(0, int(config_json.get("chunk_workers", config_json.get("num_workers", 0))))
-        return mode, batch_size, row_groups_per_chunk, num_workers
+        return mode, DataFlowConfig(
+            batch_size=batch_size,
+            row_groups_per_chunk=row_groups_per_chunk,
+            num_workers=num_workers,
+        )
 
     @staticmethod
     def ensure_loader_factory(dataset: Any, *, expected_type: type | None = None):

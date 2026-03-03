@@ -37,12 +37,10 @@ class SimpleRegressionEvaluator(BaseRegressionEvaluator):
         with torch.no_grad():
             for batch in loader:
                 batch = batch.to(device)
-                preds = module(batch)
-                preds = preds[0] if isinstance(preds, (tuple, list)) else preds
-                target = batch.y
-                if target.dim() == 1 and preds.dim() == 2 and target.numel() % preds.shape[-1] == 0:
-                    target = target.view(-1, preds.shape[-1])
-                loss = module.loss_fn(preds, target)
+                raw_preds = module(batch)
+                loss, _ = module.compute_loss(raw_preds, batch)
+                preds = module.primary_predictions(raw_preds)
+                target = module.primary_target(batch, preds)
                 mae = torch.abs(preds - target).mean()
                 bs = int(target.shape[0])
                 total_loss += float(loss.detach().cpu().item()) * bs
@@ -67,4 +65,3 @@ class SimpleRegressionEvaluator(BaseRegressionEvaluator):
             "val_loss_history_total_points": val_total,
             "loss_plot_path": plot_path,
         }
-

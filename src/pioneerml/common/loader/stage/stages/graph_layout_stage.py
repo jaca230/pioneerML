@@ -14,7 +14,7 @@ class GraphLayoutStage(BaseStage):
 
     name = "build_layout"
     requires = ("n_rows",)
-    provides = ("layout", "row_ids_graph", "local_gid", "graph_event_ids", "graph_group_ids")
+    provides = ("layout", "row_ids_graph", "local_gid", "graph_event_id", "graph_time_group_id")
 
     def __init__(
         self,
@@ -129,9 +129,9 @@ class GraphLayoutStage(BaseStage):
         graph_ids = np.arange(total_graphs, dtype=np.int64)
         row_ids_graph = np.repeat(np.arange(n_rows, dtype=np.int64), row_group_counts)
         local_gid = graph_ids - row_group_base[row_ids_graph]
-        graph_event_ids = row_ids_graph.copy()
-        graph_group_ids = local_gid.copy()
-        return row_ids_graph, local_gid, graph_event_ids, graph_group_ids
+        graph_event_id = row_ids_graph.copy()
+        graph_time_group_id = local_gid.copy()
+        return row_ids_graph, local_gid, graph_event_id, graph_time_group_id
 
     def _row_group_count_candidates(self, *, state: MutableMapping[str, Any]) -> list[np.ndarray]:
         out: list[np.ndarray] = []
@@ -164,7 +164,7 @@ class GraphLayoutStage(BaseStage):
             hits_time_group_values=chunk_in.values(self.hits_time_group_field),
             row_group_count_candidates=self._row_group_count_candidates(state=state),
         )
-        row_ids_graph, local_gid, graph_event_ids, graph_group_ids = self._build_graph_index_mapping(
+        row_ids_graph, local_gid, graph_event_id, graph_time_group_id = self._build_graph_index_mapping(
             total_graphs=int(layout["total_graphs"]),
             n_rows=n_rows,
             row_group_counts=layout["row_group_counts"],
@@ -173,5 +173,5 @@ class GraphLayoutStage(BaseStage):
         state["layout"] = layout
         state["row_ids_graph"] = row_ids_graph
         state["local_gid"] = local_gid
-        state["graph_event_ids"] = graph_event_ids
-        state["graph_group_ids"] = graph_group_ids
+        state["graph_event_id"] = graph_event_id
+        state["graph_time_group_id"] = graph_time_group_id

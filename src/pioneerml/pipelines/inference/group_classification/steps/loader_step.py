@@ -13,26 +13,32 @@ class GroupClassifierInferenceInputsStep(BaseLoaderStep):
     def execute(
         self,
         *,
-        parquet_paths: list[str],
+        parquet_input_set: dict,
     ) -> dict:
         cfg = self.get_config()
         config_json = dict(cfg.get("config_json") or {})
-        mode, batch_size, row_groups_per_chunk, num_workers = self.resolve_parquet_runtime(
+        mode, data_flow_config = self.resolve_parquet_runtime(
             config_json,
             default_mode="inference",
             allowed_modes=("inference", "train"),
             default_batch_size=64,
             default_chunk_row_groups=4,
         )
-        resolved = self.resolve_parquet_paths(parquet_paths)
+        parquet_inputs = self.resolve_parquet_input_set(parquet_input_set)
+        resolved = list(parquet_inputs.main_paths)
 
         return {
             "input_mode": "graph_loader_inference_v1",
             "mode": mode,
             "parquet_paths": resolved,
-            "batch_size": int(batch_size),
-            "row_groups_per_chunk": int(row_groups_per_chunk),
-            "num_workers": int(num_workers),
+            "data_flow_config": {
+                "batch_size": int(data_flow_config.batch_size),
+                "row_groups_per_chunk": int(data_flow_config.row_groups_per_chunk),
+                "num_workers": int(data_flow_config.num_workers),
+            },
+            "batch_size": int(data_flow_config.batch_size),
+            "row_groups_per_chunk": int(data_flow_config.row_groups_per_chunk),
+            "num_workers": int(data_flow_config.num_workers),
             "num_rows": int(self.count_parquet_rows(resolved)),
             "validated_files": list(resolved),
         }
@@ -40,7 +46,9 @@ class GroupClassifierInferenceInputsStep(BaseLoaderStep):
 
 @step(name="load_group_classifier_inference_inputs", enable_cache=False)
 def load_group_classifier_inference_inputs_step(
-    parquet_paths: list[str],
+    parquet_input_set: dict,
     pipeline_config: dict | None = None,
 ) -> dict:
-    return GroupClassifierInferenceInputsStep(pipeline_config=pipeline_config).execute(parquet_paths=parquet_paths)
+    return GroupClassifierInferenceInputsStep(pipeline_config=pipeline_config).execute(
+        parquet_input_set=parquet_input_set
+    )

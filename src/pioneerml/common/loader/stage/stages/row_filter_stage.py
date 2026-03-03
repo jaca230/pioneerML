@@ -6,6 +6,7 @@ from typing import Any
 import numpy as np
 import pyarrow as pa
 
+from ...config import SplitSampleConfig
 from ...utils.hashing import SAMPLE_STREAM_DOMAIN_SEED, keyed_uniform01
 from .base_stage import BaseStage
 
@@ -21,30 +22,15 @@ class RowFilterStage(BaseStage):
         self,
         *,
         event_id_column: str = "event_id",
-        split: str | None = None,
-        train_fraction: float = 0.9,
-        val_fraction: float = 0.05,
-        split_seed: int = 0,
-        sample_fraction: float | None = None,
+        split_config: SplitSampleConfig | None = None,
     ) -> None:
         self.event_id_column = str(event_id_column)
-        split_norm = None if split is None else str(split).strip().lower()
-        if split_norm is not None and split_norm not in {"train", "val", "test"}:
-            raise ValueError(f"Unsupported split: {split}. Expected one of: 'train', 'val', 'test'.")
-        self.split = split_norm
-        self.train_fraction = float(train_fraction)
-        self.val_fraction = float(val_fraction)
-        self.split_seed = int(split_seed)
-        self.sample_fraction = None if sample_fraction is None else float(sample_fraction)
-        if self.sample_fraction is not None and not (0.0 < self.sample_fraction <= 1.0):
-            raise ValueError(f"sample_fraction must be in (0, 1], got: {self.sample_fraction}")
-        if self.split is not None:
-            total = self.train_fraction + self.val_fraction
-            if total <= 0.0 or total > 1.0:
-                # test fraction is implicit remainder; keep sanity check explicit.
-                raise ValueError(
-                    "train_fraction + val_fraction must be in (0, 1] when split filtering is enabled."
-                )
+        cfg = split_config if split_config is not None else SplitSampleConfig()
+        self.split = cfg.split
+        self.train_fraction = float(cfg.train_fraction)
+        self.val_fraction = float(cfg.val_fraction)
+        self.split_seed = int(cfg.split_seed if cfg.split_seed is not None else 0)
+        self.sample_fraction = cfg.sample_fraction
 
     @classmethod
     def _row_mask(

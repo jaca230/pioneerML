@@ -1,7 +1,7 @@
 
 from zenml import step
 
-from pioneerml.common.loader import GroupClassifierGraphLoaderFactory, TrainingBatchBundle
+from pioneerml.common.loader import GroupClassifierGraphLoaderFactory, BatchBundle
 from pioneerml.common.pipeline.steps import BaseHPOStep, BaseLoaderStep
 
 from ..objective import GroupClassifierObjectiveAdapter
@@ -10,7 +10,7 @@ from ..objective import GroupClassifierObjectiveAdapter
 class GroupClassifierHPOStep(BaseHPOStep):
     step_key = "hpo"
 
-    def __init__(self, *, dataset: TrainingBatchBundle, pipeline_config: dict | None = None) -> None:
+    def __init__(self, *, dataset: BatchBundle, pipeline_config: dict | None = None) -> None:
         super().__init__(pipeline_config=pipeline_config)
         self.dataset = dataset
         self.loader_factory = BaseLoaderStep.ensure_loader_factory(dataset, expected_type=GroupClassifierGraphLoaderFactory)
@@ -78,7 +78,7 @@ class GroupClassifierHPOStep(BaseHPOStep):
 
 @step(name="tune_group_classifier")
 def tune_group_classifier_step(
-    dataset: TrainingBatchBundle,
+    dataset: BatchBundle,
     pipeline_config: dict | None = None,
 ) -> dict:
     return GroupClassifierHPOStep(dataset=dataset, pipeline_config=pipeline_config).execute()

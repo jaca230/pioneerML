@@ -16,8 +16,8 @@ from pioneerml.data.datasets.graph_group import GraphRecord
 from pioneerml.common.models.graph.transformer.classifiers.group_classifier import GroupClassifier
 from pioneerml.common.training.datamodules import GroupClassificationDataModule
 from pioneerml.common.training.lightning import GraphLightningModule
-from pioneerml.common.zenml.materializers import TorchTensorMaterializer
-from pioneerml.common.zenml.utils import detect_available_accelerator
+from pioneerml.common.integration.zenml.materializers import TorchTensorMaterializer
+from pioneerml.common.integration.zenml.utils import detect_available_accelerator
 
 
 def _make_dummy_record(

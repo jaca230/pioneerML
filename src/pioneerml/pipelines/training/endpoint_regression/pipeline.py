@@ -23,10 +23,10 @@ _RUNNER = TrainingPipelineRunner(
 
 @pipeline
 def endpoint_regression_pipeline(
-    parquet_input_set: dict,
+    input_source_set: dict,
     pipeline_config: dict | None = None,
 ):
     return _RUNNER.run(
-        loader_kwargs={"parquet_input_set": parquet_input_set},
+        loader_kwargs={"input_source_set": input_source_set},
         pipeline_config=pipeline_config,
     )

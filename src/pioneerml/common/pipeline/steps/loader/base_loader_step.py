@@ -3,13 +3,11 @@ from __future__ import annotations
 import json
 import logging
 import os
-from pathlib import Path
 from typing import Any
 
-import pyarrow.parquet as pq
-
-from pioneerml.common.loader.config import DataFlowConfig
-from pioneerml.common.parquet import ParquetInputSet
+from pioneerml.common.data_loader.config import DataFlowConfig
+from pioneerml.common.data_loader.factory import LoaderFactory
+from pioneerml.common.data_loader.input_source import InputSourceSet, create_input_backend
 
 from ..base_pipeline_step import BasePipelineStep
 
@@ -26,39 +24,36 @@ class BaseLoaderStep(BasePipelineStep):
         return max(1, cpu - 1)
 
     @staticmethod
-    def resolve_parquet_paths(parquet_paths: list[str]) -> list[str]:
-        resolved = [str(Path(p).expanduser().resolve()) for p in parquet_paths]
-        if not resolved:
-            raise RuntimeError("No parquet paths provided.")
-        return resolved
-
-    @classmethod
-    def resolve_parquet_input_set(cls, parquet_input_set: dict | ParquetInputSet) -> ParquetInputSet:
-        if isinstance(parquet_input_set, ParquetInputSet):
-            return parquet_input_set
-        payload = dict(parquet_input_set or {})
-        main_paths = payload.get("main_paths")
-        optional_paths_by_name = payload.get("optional_paths_by_name")
-        if not isinstance(main_paths, list):
-            raise RuntimeError("parquet_input_set must include a list field 'main_paths'.")
-        if optional_paths_by_name is not None and not isinstance(optional_paths_by_name, dict):
-            raise RuntimeError("parquet_input_set.optional_paths_by_name must be a dict when provided.")
-        return ParquetInputSet(
-            main_paths=[str(p) for p in main_paths],
-            optional_paths_by_name=(
-                {str(k): v for k, v in optional_paths_by_name.items()} if optional_paths_by_name is not None else None
+    def resolve_input_source_set(input_source_set: dict | InputSourceSet) -> InputSourceSet:
+        if isinstance(input_source_set, InputSourceSet):
+            return input_source_set
+        payload = dict(input_source_set or {})
+        main_sources = payload.get("main_sources")
+        optional_sources_by_name = payload.get("optional_sources_by_name")
+        if not isinstance(main_sources, list):
+            raise RuntimeError("input_source_set must include a list field 'main_sources'.")
+        if optional_sources_by_name is not None and not isinstance(optional_sources_by_name, dict):
+            raise RuntimeError("input_source_set.optional_sources_by_name must be a dict when provided.")
+        return InputSourceSet(
+            main_sources=[str(p) for p in main_sources],
+            optional_sources_by_name=(
+                {str(k): v for k, v in optional_sources_by_name.items()} if optional_sources_by_name is not None else None
             ),
         )
 
     @staticmethod
-    def count_parquet_rows(parquet_paths: list[str]) -> int:
-        total = 0
-        for p in parquet_paths:
-            total += int(pq.ParquetFile(p).metadata.num_rows)
-        return total
+    def count_source_rows(*, input_sources: InputSourceSet, input_backend_name: str = "parquet") -> int:
+        backend = create_input_backend(str(input_backend_name))
+        counts = backend.count_rows_per_source(sources=input_sources.main_sources)
+        return int(sum(int(v) for v in counts))
+
+    @staticmethod
+    def count_source_rows_per_file(*, input_sources: InputSourceSet, input_backend_name: str = "parquet") -> list[int]:
+        backend = create_input_backend(str(input_backend_name))
+        return [int(v) for v in backend.count_rows_per_source(sources=input_sources.main_sources)]
 
     @classmethod
-    def resolve_parquet_runtime(
+    def resolve_loader_runtime(
         cls,
         config_json: dict,
         *,
@@ -91,6 +86,10 @@ class BaseLoaderStep(BasePipelineStep):
             raise RuntimeError(f"Dataset loader_factory has type {type(factory).__name__}; expected {expected_type.__name__}.")
         if factory is None:
             raise RuntimeError("Dataset is missing loader_factory/loader.")
+        if not isinstance(factory, LoaderFactory):
+            raise RuntimeError(
+                f"Dataset loader_factory has type {type(factory).__name__}; expected LoaderFactory-compatible instance."
+            )
         return factory
 
     @classmethod

@@ -19,7 +19,7 @@ from zenml import pipeline, step
 from pioneerml.common.models.graph.transformer.classifiers.group_classifier import GroupClassifier
 from pioneerml.common.training.lightning import GraphLightningModule
 from pioneerml.common.training.datamodules import GroupClassificationDataModule
-from pioneerml.common.zenml.utils import detect_available_accelerator
+from pioneerml.common.integration.zenml.utils import detect_available_accelerator
 from pioneerml.pipelines.tutorial_examples.dummy_particle_grouping_pipeline import (
     build_dummy_datamodule,
     collect_dummy_predictions,

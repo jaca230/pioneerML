@@ -1,6 +1,6 @@
 from zenml import step
 
-from pioneerml.common.loader import EndpointRegressionGraphLoaderFactory, BatchBundle
+from pioneerml.common.data_loader import LoaderFactory, BatchBundle
 from pioneerml.common.pipeline.steps import BaseHPOStep, BaseLoaderStep
 
 from ..objective import EndpointRegressorObjectiveAdapter
@@ -14,7 +14,7 @@ class EndpointRegressorHPOStep(BaseHPOStep):
         self.dataset = dataset
         self.loader_factory = BaseLoaderStep.ensure_loader_factory(
             dataset,
-            expected_type=EndpointRegressionGraphLoaderFactory,
+            expected_type=LoaderFactory,
         )
         self.objective_adapter = EndpointRegressorObjectiveAdapter()
 

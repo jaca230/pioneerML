@@ -3,7 +3,7 @@ from typing import Any
 
 from zenml import step
 
-from pioneerml.common.loader import EndpointRegressionGraphLoaderFactory, BatchBundle
+from pioneerml.common.data_loader import LoaderFactory, BatchBundle
 from pioneerml.common.pipeline.steps import BaseExportStep, BaseLoaderStep
 
 
@@ -24,7 +24,7 @@ class EndpointRegressorExportStep(BaseExportStep):
         self.dataset = dataset
         self.loader_factory = BaseLoaderStep.ensure_loader_factory(
             dataset,
-            expected_type=EndpointRegressionGraphLoaderFactory,
+            expected_type=LoaderFactory,
         )
         self.hpo_params = hpo_params
         self.metrics = metrics
@@ -82,7 +82,7 @@ class EndpointRegressorExportStep(BaseExportStep):
         )
         loader = self.loader_factory.build_loader(loader_params=params)
         data = loader.empty_data()
-        data.source_parquet_paths = list(loader.parquet_paths)
+        data.source_main_sources = list(loader.input_sources.main_sources)
 
         dataset_for_export = SimpleNamespace(data=data)
         return self.export_torchscript(

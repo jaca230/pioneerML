@@ -12,8 +12,8 @@ from torch import nn
 from torch.utils.data import DataLoader, TensorDataset, random_split
 from zenml import pipeline, step
 
-from pioneerml.common.zenml.materializers import TorchTensorMaterializer
-from pioneerml.common.zenml.utils import detect_available_accelerator
+from pioneerml.common.integration.zenml.materializers import TorchTensorMaterializer
+from pioneerml.common.integration.zenml.utils import detect_available_accelerator
 
 
 @dataclass

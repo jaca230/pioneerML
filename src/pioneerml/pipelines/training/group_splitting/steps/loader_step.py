@@ -1,9 +1,9 @@
 
 from zenml import step
 
-from pioneerml.common.loader import GroupSplitterGraphLoaderFactory, BatchBundle
+from pioneerml.common.data_loader import LoaderFactory, BatchBundle
 from pioneerml.common.pipeline.steps import BaseLoaderStep
-from pioneerml.common.zenml.materializers import BatchBundleMaterializer
+from pioneerml.common.integration.zenml.materializers import BatchBundleMaterializer
 
 
 class GroupSplitterLoaderStep(BaseLoaderStep):
@@ -15,21 +15,22 @@ class GroupSplitterLoaderStep(BaseLoaderStep):
     def execute(
         self,
         *,
-        parquet_input_set: dict,
+        input_source_set: dict,
     ) -> BatchBundle:
         cfg = self.get_config()
         config_json = dict(cfg.get("config_json") or {})
-        parquet_inputs = self.resolve_parquet_input_set(parquet_input_set)
-        loader_factory = GroupSplitterGraphLoaderFactory(
-            parquet_inputs=parquet_inputs,
+        input_sources = self.resolve_input_source_set(input_source_set)
+        loader_factory = LoaderFactory(
+            loader_name="group_splitter",
+            input_sources=input_sources,
         )
         loader = loader_factory.build_loader(loader_params=dict(config_json))
         data = loader.empty_data()
-        data.source_parquet_paths = list(loader.parquet_paths)
+        data.source_main_sources = list(loader.input_sources.main_sources)
         return BatchBundle(
             data=data,
             loader_factory=loader_factory,
-            loader=loader_factory,
+            loader=loader,
         )
 
 
@@ -39,9 +40,9 @@ class GroupSplitterLoaderStep(BaseLoaderStep):
     output_materializers=BatchBundleMaterializer,
 )
 def load_group_splitter_dataset_step(
-    parquet_input_set: dict,
+    input_source_set: dict,
     pipeline_config: dict | None = None,
 ) -> BatchBundle:
     return GroupSplitterLoaderStep(pipeline_config=pipeline_config).execute(
-        parquet_input_set=parquet_input_set,
+        input_source_set=input_source_set,
     )

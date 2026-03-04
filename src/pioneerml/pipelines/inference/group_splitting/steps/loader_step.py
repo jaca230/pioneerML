@@ -13,27 +13,33 @@ class GroupSplitterInferenceInputsStep(BaseLoaderStep):
     def execute(
         self,
         *,
-        parquet_input_set: dict,
+        input_source_set: dict,
     ) -> dict:
         cfg = self.get_config()
         config_json = dict(cfg.get("config_json") or {})
-        mode, data_flow_config = self.resolve_parquet_runtime(
+        mode, data_flow_config = self.resolve_loader_runtime(
             config_json,
             default_mode="inference",
             allowed_modes=("inference", "train"),
             default_batch_size=64,
             default_chunk_row_groups=4,
         )
-        parquet_inputs = self.resolve_parquet_input_set(parquet_input_set)
-        resolved = list(parquet_inputs.main_paths)
-        group_probs_paths = parquet_inputs.source_paths("group_probs")
+        input_sources = self.resolve_input_source_set(input_source_set)
+        resolved = list(input_sources.main_sources)
+        input_backend_name = str(config_json.get("input_backend_name", "parquet"))
+        validated_file_rows = self.count_source_rows_per_file(
+            input_sources=input_sources,
+            input_backend_name=input_backend_name,
+        )
+        group_probs_paths = input_sources.source_entries("group_probs")
         resolved_group_probs = list(group_probs_paths) if group_probs_paths is not None else None
 
         return {
             "input_mode": "graph_loader_inference_v1",
             "mode": mode,
-            "parquet_paths": resolved,
-            "group_probs_parquet_paths": resolved_group_probs,
+            "input_backend_name": input_backend_name,
+            "main_sources": resolved,
+            "group_probs_sources": resolved_group_probs,
             "data_flow_config": {
                 "batch_size": int(data_flow_config.batch_size),
                 "row_groups_per_chunk": int(data_flow_config.row_groups_per_chunk),
@@ -42,16 +48,17 @@ class GroupSplitterInferenceInputsStep(BaseLoaderStep):
             "batch_size": int(data_flow_config.batch_size),
             "row_groups_per_chunk": int(data_flow_config.row_groups_per_chunk),
             "num_workers": int(data_flow_config.num_workers),
-            "num_rows": int(self.count_parquet_rows(resolved)),
+            "num_rows": int(sum(validated_file_rows)),
+            "validated_file_rows": validated_file_rows,
             "validated_files": list(resolved),
         }
 
 
 @step(name="load_group_splitter_inference_inputs", enable_cache=False)
 def load_group_splitter_inference_inputs_step(
-    parquet_input_set: dict,
+    input_source_set: dict,
     pipeline_config: dict | None = None,
 ) -> dict:
     return GroupSplitterInferenceInputsStep(pipeline_config=pipeline_config).execute(
-        parquet_input_set=parquet_input_set,
+        input_source_set=input_source_set,
     )

@@ -4,7 +4,7 @@ from abc import abstractmethod
 
 import optuna
 
-from pioneerml.common.optuna.manager import OptunaStudyManager
+from pioneerml.common.integration.optuna.manager import OptunaStudyManager
 
 from ..base_training_step import BaseTrainingStep
 from .utils import build_hpo_trainer_kwargs, resolve_batch_size_search

@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 
 from ..base_pipeline_step import BasePipelineStep
-from pioneerml.common.zenml.utils import detect_available_accelerator
+from pioneerml.common.integration.zenml.utils import detect_available_accelerator
 from .utils import GraphLightningModule, LightningWarningFilter, RelativeEarlyStopping
 
 

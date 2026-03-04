@@ -4,7 +4,7 @@ import torch
 from zenml import step
 
 from pioneerml.common.evaluation.evaluators import SimpleRegressionEvaluator
-from pioneerml.common.loader import EndpointRegressionGraphLoaderFactory, BatchBundle
+from pioneerml.common.data_loader import LoaderFactory, BatchBundle
 from pioneerml.common.pipeline.steps import BaseEvaluationStep, BaseLoaderStep
 
 
@@ -17,7 +17,7 @@ class EndpointRegressorEvaluateStep(BaseEvaluationStep):
         self.dataset = dataset
         self.loader_factory = BaseLoaderStep.ensure_loader_factory(
             dataset,
-            expected_type=EndpointRegressionGraphLoaderFactory,
+            expected_type=LoaderFactory,
         )
         self.evaluator = SimpleRegressionEvaluator()
 

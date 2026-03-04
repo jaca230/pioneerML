@@ -5,7 +5,7 @@ import torch
 from zenml import step
 
 from pioneerml.common.evaluation.evaluators import SimpleClassificationEvaluator
-from pioneerml.common.loader import GroupClassifierGraphLoaderFactory, BatchBundle
+from pioneerml.common.data_loader import LoaderFactory, BatchBundle
 from pioneerml.common.pipeline.steps import BaseEvaluationStep, BaseLoaderStep
 
 
@@ -16,7 +16,7 @@ class GroupClassifierEvaluateStep(BaseEvaluationStep):
         super().__init__(pipeline_config=pipeline_config)
         self.module = module
         self.dataset = dataset
-        self.loader_factory = BaseLoaderStep.ensure_loader_factory(dataset, expected_type=GroupClassifierGraphLoaderFactory)
+        self.loader_factory = BaseLoaderStep.ensure_loader_factory(dataset, expected_type=LoaderFactory)
         self.evaluator = SimpleClassificationEvaluator()
 
     def default_config(self) -> dict:

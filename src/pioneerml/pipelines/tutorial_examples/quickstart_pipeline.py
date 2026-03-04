@@ -7,8 +7,8 @@ from zenml import pipeline, step
 
 from pioneerml.common.models import GroupClassifier
 from pioneerml.common.pipeline.steps.training.utils import GraphLightningModule
-from pioneerml.common.zenml.materializers import TorchTensorMaterializer
-from pioneerml.common.zenml.utils import detect_available_accelerator
+from pioneerml.common.integration.zenml.materializers import TorchTensorMaterializer
+from pioneerml.common.integration.zenml.utils import detect_available_accelerator
 from pioneerml.pipelines.tutorial_examples.graph_datamodule import GraphDataModule
 
 

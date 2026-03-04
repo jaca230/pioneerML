@@ -2,10 +2,8 @@
 
 __all__ = [
     "evaluation",
+    "integration",
     "loader",
     "models",
-    "optuna",
-    "parquet",
     "training",
-    "zenml",
 ]

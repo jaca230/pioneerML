@@ -1,8 +1,8 @@
 from zenml import step
 
-from pioneerml.common.loader import EndpointRegressionGraphLoaderFactory, BatchBundle
+from pioneerml.common.data_loader import LoaderFactory, BatchBundle
 from pioneerml.common.pipeline.steps import BaseLoaderStep
-from pioneerml.common.zenml.materializers import BatchBundleMaterializer
+from pioneerml.common.integration.zenml.materializers import BatchBundleMaterializer
 
 
 class EndpointRegressorLoaderStep(BaseLoaderStep):
@@ -14,27 +14,28 @@ class EndpointRegressorLoaderStep(BaseLoaderStep):
     def execute(
         self,
         *,
-        parquet_input_set: dict,
+        input_source_set: dict,
     ) -> BatchBundle:
         cfg = self.get_config()
         config_json = dict(cfg.get("config_json") or {})
-        parquet_inputs = self.resolve_parquet_input_set(parquet_input_set)
-        loader_factory = EndpointRegressionGraphLoaderFactory(
-            parquet_inputs=parquet_inputs,
+        input_sources = self.resolve_input_source_set(input_source_set)
+        loader_factory = LoaderFactory(
+            loader_name="endpoint_regression",
+            input_sources=input_sources,
         )
         loader = loader_factory.build_loader(loader_params=dict(config_json))
         data = loader.empty_data()
-        data.source_parquet_paths = list(loader.parquet_paths)
-        group_probs_paths = parquet_inputs.source_paths("group_probs")
+        data.source_main_sources = list(loader.input_sources.main_sources)
+        group_probs_paths = input_sources.source_entries("group_probs")
         if group_probs_paths is not None:
-            data.group_probs_parquet_paths = list(group_probs_paths)
-        group_splitter_paths = parquet_inputs.source_paths("group_splitter")
+            data.group_probs_sources = list(group_probs_paths)
+        group_splitter_paths = input_sources.source_entries("group_splitter")
         if group_splitter_paths is not None:
-            data.group_splitter_parquet_paths = list(group_splitter_paths)
+            data.group_splitter_sources = list(group_splitter_paths)
         return BatchBundle(
             data=data,
             loader_factory=loader_factory,
-            loader=loader_factory,
+            loader=loader,
         )
 
 
@@ -44,9 +45,9 @@ class EndpointRegressorLoaderStep(BaseLoaderStep):
     output_materializers=BatchBundleMaterializer,
 )
 def load_endpoint_regressor_dataset_step(
-    parquet_input_set: dict,
+    input_source_set: dict,
     pipeline_config: dict | None = None,
 ) -> BatchBundle:
     return EndpointRegressorLoaderStep(pipeline_config=pipeline_config).execute(
-        parquet_input_set=parquet_input_set,
+        input_source_set=input_source_set,
     )

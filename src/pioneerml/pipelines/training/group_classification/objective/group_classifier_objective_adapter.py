@@ -3,7 +3,7 @@ from __future__ import annotations
 import optuna
 import torch.nn as nn
 
-from pioneerml.common.loader import GroupClassifierGraphLoader
+from pioneerml.common.data_loader import GroupClassifierGraphLoader
 from pioneerml.common.models.graph.transformer.classifiers import GroupClassifier
 from pioneerml.common.pipeline.objective.base import BaseObjectiveAdapter
 from pioneerml.common.pipeline.steps import suggest_range

@@ -3,10 +3,10 @@ from typing import Any
 
 from zenml import step
 
-from pioneerml.common.loader import GroupClassifierGraphLoaderFactory, BatchBundle
+from pioneerml.common.data_loader import LoaderFactory, BatchBundle
 from pioneerml.common.pipeline.steps import BaseLoaderStep, BaseTrainingStep
 from pioneerml.common.pipeline.steps.training.utils import GraphLightningModule
-from pioneerml.common.zenml.materializers import GraphLightningModuleMaterializer
+from pioneerml.common.integration.zenml.materializers import GraphLightningModuleMaterializer
 
 from ..objective import GroupClassifierObjectiveAdapter
 
@@ -24,7 +24,7 @@ class GroupClassifierTrainStep(BaseTrainingStep):
         super().__init__(pipeline_config=pipeline_config)
         self.dataset = dataset
         self.hpo_params = dict(hpo_params or {})
-        self.loader_factory = BaseLoaderStep.ensure_loader_factory(dataset, expected_type=GroupClassifierGraphLoaderFactory)
+        self.loader_factory = BaseLoaderStep.ensure_loader_factory(dataset, expected_type=LoaderFactory)
         self.objective_adapter = GroupClassifierObjectiveAdapter()
 
     def default_config(self) -> dict:

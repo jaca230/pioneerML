@@ -6,11 +6,27 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterator
 from collections.abc import Callable
+from typing import Any
 
 from .backends import OutputBackend, create_output_backend
 
 
 class BaseDataWriter:
+    @classmethod
+    def from_factory(
+        cls,
+        *,
+        output_backend_name: str,
+        run_config: Any | None = None,
+        writer_params: dict[str, Any] | None = None,
+    ):
+        _ = run_config
+        params = dict(writer_params or {})
+        output_backend = params.get("output_backend")
+        if output_backend is not None:
+            return cls(output_backend=output_backend)
+        return cls(output_backend_name=output_backend_name)
+
     def __init__(
         self,
         *,

@@ -4,7 +4,7 @@ from typing import Any
 from zenml import step
 
 from pioneerml.common.data_loader import LoaderFactory, BatchBundle
-from pioneerml.common.pipeline.steps import BaseExportStep, BaseLoaderStep
+from pioneerml.common.pipeline.steps import BaseExportStep, BaseLoaderFactoryInitStep
 
 
 class EndpointRegressorExportStep(BaseExportStep):
@@ -22,7 +22,7 @@ class EndpointRegressorExportStep(BaseExportStep):
         super().__init__(pipeline_config=pipeline_config)
         self.module = module
         self.dataset = dataset
-        self.loader_factory = BaseLoaderStep.ensure_loader_factory(
+        self.loader_factory = LoaderFactory._ensure_loader_factory(
             dataset,
             expected_type=LoaderFactory,
         )
@@ -68,9 +68,9 @@ class EndpointRegressorExportStep(BaseExportStep):
                 return self._to_export_example(batch)
         return None
 
-    def execute(self) -> dict:
-        cfg = self.get_config()
-        params = BaseLoaderStep.resolve_loader_params(
+    def run(self) -> dict:
+        cfg = self.config_json
+        params = LoaderFactory._resolve_loader_params(
             {
                 "batch_size": 1,
                 "chunk_row_groups": 1,

@@ -5,19 +5,12 @@ import torch
 from zenml import step
 
 from pioneerml.common.evaluation.evaluators import SimpleClassificationEvaluator
-from pioneerml.common.data_loader import LoaderFactory, BatchBundle
-from pioneerml.common.pipeline.steps import BaseEvaluationStep, BaseLoaderStep
+from pioneerml.common.data_loader import BatchBundle
+from pioneerml.common.pipeline.steps import BaseEvaluationStep
 
 
 class GroupClassifierEvaluateStep(BaseEvaluationStep):
     step_key = "evaluate"
-
-    def __init__(self, *, module: Any, dataset: BatchBundle, pipeline_config: dict | None = None) -> None:
-        super().__init__(pipeline_config=pipeline_config)
-        self.module = module
-        self.dataset = dataset
-        self.loader_factory = BaseLoaderStep.ensure_loader_factory(dataset, expected_type=LoaderFactory)
-        self.evaluator = SimpleClassificationEvaluator()
 
     def default_config(self) -> dict:
         return {
@@ -29,21 +22,25 @@ class GroupClassifierEvaluateStep(BaseEvaluationStep):
             "chunk_workers": None,
         }
 
-    def _evaluate_from_loader(self, *, loader, threshold: float, plot_config: dict | None) -> dict:
-        self.module.eval()
-        device = next(self.module.parameters()).device
+    def build_evaluator(self):
+        return SimpleClassificationEvaluator()
+
+    def evaluate_from_loader(self, *, loader, cfg: dict[str, Any], module, evaluator) -> dict[str, Any]:
+        module.eval()
+        device = next(module.parameters()).device
         total_loss = 0.0
         total_samples = 0
         preds_all: list[torch.Tensor] = []
         targets_all: list[torch.Tensor] = []
+        threshold = float(cfg.get("threshold", 0.5))
 
         with torch.no_grad():
             for batch in loader:
                 batch = batch.to(device, non_blocking=True)
-                logits = self.module(batch)
-                loss, _ = self.module.compute_loss(logits, batch)
-                preds = self.module.primary_predictions(logits)
-                target = self.module.primary_target(batch, preds)
+                logits = module(batch)
+                loss, _ = module.compute_loss(logits, batch)
+                preds = module.primary_predictions(logits)
+                target = module.primary_target(batch, preds)
                 bs = int(target.shape[0])
                 total_loss += float(loss.detach().cpu().item()) * bs
                 total_samples += bs
@@ -60,21 +57,21 @@ class GroupClassifierEvaluateStep(BaseEvaluationStep):
         target_float = targets_cat.float()
         loss = float(total_loss / total_samples)
 
-        plot_path = self.evaluator.resolve_plot_path(plot_config)
+        plot_path = evaluator.resolve_plot_path(cfg)
         plot_outputs = self.apply_registered_plots(
             context={
                 "plot_kwargs_by_name": {
                     "loss_curves": {
-                        "train_losses": self.module,
+                        "train_losses": module,
                         "save_path": plot_path,
                         "show": False,
                     }
                 }
             },
-            plot_names=self.resolve_plot_names(plot_config),
+            plot_names=self.resolve_plot_names(cfg),
         )
-        train_history, train_total = self.evaluator.concise_history(list(self.module.train_epoch_loss_history))
-        val_history, val_total = self.evaluator.concise_history(list(self.module.val_epoch_loss_history))
+        train_history, train_total = evaluator.concise_history(list(module.train_epoch_loss_history))
+        val_history, val_total = evaluator.concise_history(list(module.val_epoch_loss_history))
         metrics = {
             "loss": loss,
             "threshold": float(threshold),
@@ -90,27 +87,9 @@ class GroupClassifierEvaluateStep(BaseEvaluationStep):
                 "preds_binary": preds_binary,
                 "targets": target_float,
             },
-            metric_names=self.resolve_metric_names(plot_config),
+            metric_names=self.resolve_metric_names(cfg),
         )
         return metrics
-
-    def execute(self) -> dict:
-        cfg = self.get_config()
-        params = BaseLoaderStep.resolve_loader_params(cfg, purpose="evaluate")
-        raw_loader_cfg = cfg.get("loader_config")
-        if isinstance(raw_loader_cfg, dict):
-            if not isinstance(raw_loader_cfg.get("evaluate"), dict) and isinstance(raw_loader_cfg.get("val"), dict):
-                params = BaseLoaderStep.resolve_loader_params(cfg, purpose="val")
-        provider = self.loader_factory.build_loader(loader_params=params)
-        if not provider.include_targets:
-            raise RuntimeError("GroupClassifierGraphLoader must run in train mode for evaluation.")
-        loader = provider.make_dataloader(shuffle_batches=False)
-        metrics = self._evaluate_from_loader(loader=loader, threshold=float(cfg.get("threshold", 0.5)), plot_config=cfg)
-        diag = BaseLoaderStep.log_loader_diagnostics(label="evaluate", loader_provider=provider)
-        if diag:
-            metrics["loader_diagnostics"] = diag
-        return metrics
-
 
 @step(name="evaluate_group_classifier")
 def evaluate_group_classifier_step(
@@ -118,4 +97,6 @@ def evaluate_group_classifier_step(
     dataset: BatchBundle,
     pipeline_config: dict | None = None,
 ) -> dict:
-    return GroupClassifierEvaluateStep(module=module, dataset=dataset, pipeline_config=pipeline_config).execute()
+    return GroupClassifierEvaluateStep(pipeline_config=pipeline_config).execute(
+        payloads={"module": module, "loader": dataset}
+    )

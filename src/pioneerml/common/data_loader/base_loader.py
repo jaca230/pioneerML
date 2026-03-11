@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
+from typing import Any
 
 from torch.utils.data import DataLoader, IterableDataset
 
-from .config import DataFlowConfig
+from .config import DataFlowConfig, SplitSampleConfig
+from .input_source import InputBackend, InputSourceSet, ParquetInputBackend, create_input_backend
 
 
 class BaseLoader(ABC):
@@ -14,10 +16,51 @@ class BaseLoader(ABC):
     MODE_TRAIN = "train"
     MODE_INFERENCE = "inference"
 
-    def __init__(self, *, data_flow_config: DataFlowConfig | None = None, mode: str | None = None) -> None:
+    @classmethod
+    def from_factory(
+        cls,
+        *,
+        input_sources: InputSourceSet,
+        input_backend_name: str,
+        mode: str,
+        data_flow_config: DataFlowConfig,
+        split_config: SplitSampleConfig,
+        loader_params: dict[str, Any] | None = None,
+    ):
+        _ = loader_params
+        return cls(
+            input_sources=input_sources,
+            mode=mode,
+            data_flow_config=data_flow_config,
+            split_config=split_config,
+            input_backend=create_input_backend(input_backend_name),
+        )
+
+    def __init__(
+        self,
+        *,
+        input_sources: InputSourceSet,
+        mode: str | None = None,
+        data_flow_config: DataFlowConfig | None = None,
+        split_config: SplitSampleConfig | None = None,
+        input_backend: InputBackend | None = None,
+    ) -> None:
+        self.input_sources = input_sources
+        self.input_backend = input_backend if input_backend is not None else ParquetInputBackend()
+
         self.data_flow_config = data_flow_config if data_flow_config is not None else DataFlowConfig()
         self.batch_size = int(self.data_flow_config.batch_size)
         self.num_workers = int(self.data_flow_config.num_workers)
+        self.row_groups_per_chunk = int(self.data_flow_config.row_groups_per_chunk)
+
+        self.split_config = split_config if split_config is not None else SplitSampleConfig()
+        self.split = self.split_config.split
+        self.train_fraction = float(self.split_config.train_fraction)
+        self.val_fraction = float(self.split_config.val_fraction)
+        self.test_fraction = float(self.split_config.test_fraction)
+        self.split_seed = None if self.split_config.split_seed is None else int(self.split_config.split_seed)
+        self.sample_fraction = self.split_config.sample_fraction
+
         mode_default = getattr(self, "mode", self.MODE_TRAIN) if mode is None else mode
         mode_norm = str(mode_default).strip().lower()
         if mode_norm not in {self.MODE_TRAIN, self.MODE_INFERENCE}:

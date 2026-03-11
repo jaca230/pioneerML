@@ -8,33 +8,25 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict
 
-from .base import BasePlot
-from .confusion import ConfusionMatrixPlot
+from .base_plot import BasePlot
+from .classification import (
+    ConfidenceAnalysisPlot,
+    ConfusionMatrixPlot,
+    EmbeddingSpacePlot,
+    PrecisionRecallPlot,
+    ProbabilityDistributionsPlot,
+    RocCurvesPlot,
+)
 from .loss import LossCurvesPlot
-from .precision_recall import PrecisionRecallPlot
-from .roc import RocCurvesPlot
 from .regression import (
     RegressionDiagnosticsPlot,
     EuclideanErrorHistogramPlot,
     ErrorEmbeddingSpacePlot,
 )
-from .embedding import EmbeddingSpacePlot
-from .probability import ProbabilityDistributionsPlot
-from .confidence import ConfidenceAnalysisPlot
+from .registry import STEP_PLOT_REGISTRY, create_step_plot, render_step_plots
 
-# Friendly aliases for discoverability
-PLOT_CLASSES: Dict[str, type[BasePlot]] = {
-    ConfusionMatrixPlot.name: ConfusionMatrixPlot,
-    RocCurvesPlot.name: RocCurvesPlot,
-    PrecisionRecallPlot.name: PrecisionRecallPlot,
-    LossCurvesPlot.name: LossCurvesPlot,
-    RegressionDiagnosticsPlot.name: RegressionDiagnosticsPlot,
-    EuclideanErrorHistogramPlot.name: EuclideanErrorHistogramPlot,
-    ErrorEmbeddingSpacePlot.name: ErrorEmbeddingSpacePlot,
-    EmbeddingSpacePlot.name: EmbeddingSpacePlot,
-    ProbabilityDistributionsPlot.name: ProbabilityDistributionsPlot,
-    ConfidenceAnalysisPlot.name: ConfidenceAnalysisPlot,
-}
+# Back-compatible alias names.
+PLOT_CLASSES: Dict[str, type[BasePlot]] = STEP_PLOT_REGISTRY
 
 
 def _wrap(cls: type[BasePlot]) -> Callable[..., Any]:
@@ -60,6 +52,9 @@ plot_confidence_analysis = _wrap(ConfidenceAnalysisPlot)
 
 __all__ = [
     "BasePlot",
+    "STEP_PLOT_REGISTRY",
+    "create_step_plot",
+    "render_step_plots",
     "PLOT_CLASSES",
     "PLOT_REGISTRY",
     "plot_multilabel_confusion_matrix",

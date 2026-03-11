@@ -1,6 +1,7 @@
 from .base_stage import BaseStage
 from .base_stage import BaseLoaderStage
 from .batch_pack_stage import BatchPackStage
+from .distributed_shard_stage import DistributedShardStage
 from .edge_feature_stage import EdgeFeatureStage
 from .edge_target_stage import EdgeTargetStage
 from .extract_features_stage import ExtractFeaturesStage
@@ -16,6 +17,7 @@ __all__ = [
     "BaseLoaderStage",
     "BaseStage",
     "BatchPackStage",
+    "DistributedShardStage",
     "EdgeFeatureStage",
     "EdgeTargetStage",
     "ExtractFeaturesStage",

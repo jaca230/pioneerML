@@ -17,12 +17,12 @@ class EndpointRegressorInferenceModelLoaderStep(BaseModelLoaderStep):
             repo_parents_up=8,
         )
 
-    def execute(
+    def run(
         self,
         *,
         model_path: str | None = None,
     ) -> dict:
-        cfg = self.get_config()
+        cfg = self.config_json
         selected = model_path or cfg.get("model_path")
         resolved = self.resolve_model_path(
             selected_path=selected,

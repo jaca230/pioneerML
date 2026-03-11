@@ -7,7 +7,7 @@ class GroupSplittingWriterStep(BaseWriterStep):
     step_key = "writer"
     writer_name = "group_splitting"
 
-    def execute(
+    def run(
         self,
         *,
         inputs: dict,

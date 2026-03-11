@@ -10,6 +10,7 @@ from pioneerml.common.data_loader.structured.graph.time_group.time_group_graph_l
 from pioneerml.common.data_loader.stage.stages import (
     BaseStage,
     BatchPackStage,
+    DistributedShardStage,
     EdgeFeatureStage,
     ExtractFeaturesStage,
     GraphLayoutStage,
@@ -101,6 +102,7 @@ class GroupClassifierGraphLoader(TimeGroupGraphLoader):
     def default_stage_order(self) -> list[str]:
         return [
             "row_filter",
+            "distributed_shard",
             "row_join",
             "extract_features",
             "build_layout",
@@ -116,6 +118,7 @@ class GroupClassifierGraphLoader(TimeGroupGraphLoader):
                 event_id_column="event_id",
                 split_config=self.split_config,
             ),
+            "distributed_shard": DistributedShardStage(event_id_column="event_id"),
             "row_join": RowJoinStage(),
             "extract_features": ExtractFeaturesStage(
                 column_specs=self.schema.to_column_specs(include_targets=True),

@@ -16,6 +16,8 @@ from pioneerml.common.evaluation.metrics import (
 from pioneerml.common.evaluation.plots import (
     PLOT_CLASSES,
     PLOT_REGISTRY,
+    STEP_PLOT_REGISTRY,
+    create_step_plot,
     plot_embedding_space,
     plot_multilabel_confusion_matrix,
     plot_probability_distributions,
@@ -38,6 +40,8 @@ __all__ = [
     "BaseMetric",
     "PLOT_CLASSES",
     "PLOT_REGISTRY",
+    "STEP_PLOT_REGISTRY",
+    "create_step_plot",
     "MetricCollection",
     "compute_step_metrics",
     "create_step_metric",

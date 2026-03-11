@@ -36,6 +36,26 @@ class WriterPhaseStages:
 class StructuredDataWriter(BaseDataWriter, ABC):
     """Writer base for structured outputs with staged-run configuration."""
 
+    @classmethod
+    def from_factory(
+        cls,
+        *,
+        output_backend_name: str,
+        run_config: WriterRunConfig | None = None,
+        writer_params: dict[str, Any] | None = None,
+    ):
+        if run_config is None:
+            raise RuntimeError(f"{cls.__name__}.from_factory requires run_config.")
+        params = dict(writer_params or {})
+        return cls(
+            output_backend=params.get("output_backend"),
+            output_backend_name=output_backend_name,
+            run_config=run_config,
+            stage_overrides=params.get("stage_overrides"),
+            stage_observer=params.get("stage_observer"),
+            profiling=dict(params.get("profiling") or {}),
+        )
+
     def __init__(
         self,
         *args,

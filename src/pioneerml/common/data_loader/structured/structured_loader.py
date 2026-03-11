@@ -10,7 +10,7 @@ from pioneerml.common.data_loader.array_store.ndarray_store import NDArrayColumn
 from pioneerml.common.data_loader.array_store.schemas import LoaderSchema
 from pioneerml.common.data_loader.base_loader import BaseLoader
 from pioneerml.common.data_loader.config import DataFlowConfig, SplitSampleConfig
-from pioneerml.common.data_loader.input_source import InputBackend, InputSourceSet, ParquetInputBackend
+from pioneerml.common.data_loader.input_source import InputBackend, InputSourceSet
 from pioneerml.common.data_loader.stage.loader_diagnostics import LoaderDiagnostics
 from pioneerml.common.data_loader.stage.loader_stage_context import LoaderStageContext
 from pioneerml.common.staged_runtime import PhaseRunner, StageRunner
@@ -27,6 +27,33 @@ from pioneerml.common.data_loader.stage.stages import BaseStage
 class StructuredLoader(BaseLoader):
     """Structured staged loader using an input backend contract."""
 
+    @classmethod
+    def from_factory(
+        cls,
+        *,
+        input_sources: InputSourceSet,
+        input_backend_name: str,
+        mode: str,
+        data_flow_config: DataFlowConfig,
+        split_config: SplitSampleConfig,
+        loader_params: dict[str, Any] | None = None,
+    ):
+        params = dict(loader_params or {})
+        stage_overrides = params.get("stage_overrides")
+        stage_observer = params.get("stage_observer")
+        profiling = dict(params.get("profiling") or {})
+        return cls(
+            input_sources=input_sources,
+            mode=mode,
+            data_flow_config=data_flow_config,
+            split_config=split_config,
+            input_backend=params.get("input_backend"),
+            input_backend_name=input_backend_name,
+            stage_overrides=stage_overrides if isinstance(stage_overrides, dict) else None,
+            stage_observer=stage_observer if isinstance(stage_observer, StageObserver) else None,
+            profiling=profiling,
+        )
+
     def __init__(
         self,
         *,
@@ -40,9 +67,13 @@ class StructuredLoader(BaseLoader):
         stage_observer: StageObserver | None = None,
         profiling: dict[str, Any] | None = None,
     ) -> None:
-        super().__init__(data_flow_config=data_flow_config, mode=mode)
-        self.input_sources = input_sources
-        self.input_backend = input_backend if input_backend is not None else ParquetInputBackend()
+        super().__init__(
+            input_sources=input_sources,
+            mode=mode,
+            data_flow_config=data_flow_config,
+            split_config=split_config,
+            input_backend=input_backend,
+        )
         self.resolved_field_specs = tuple(resolved_field_specs if resolved_field_specs is not None else ())
 
         self.input_fields = self.input_backend.fields_from_specs(
@@ -65,14 +96,6 @@ class StructuredLoader(BaseLoader):
             source="main",
         )
 
-        self.row_groups_per_chunk = int(self.data_flow_config.row_groups_per_chunk)
-        self.split_config = split_config if split_config is not None else SplitSampleConfig()
-        self.split = self.split_config.split
-        self.train_fraction = float(self.split_config.train_fraction)
-        self.val_fraction = float(self.split_config.val_fraction)
-        self.test_fraction = float(self.split_config.test_fraction)
-        self.split_seed = int(self.split_config.split_seed if self.split_config.split_seed is not None else 0)
-        self.sample_fraction = self.split_config.sample_fraction
         self.edge_populate_graph_block = 512
 
         self.stage_overrides = dict(stage_overrides or {})

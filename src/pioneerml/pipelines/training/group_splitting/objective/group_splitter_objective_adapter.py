@@ -7,7 +7,7 @@ from pioneerml.common.data_loader import GroupSplitterGraphLoader
 from pioneerml.common.models.graph.transformer.classifiers import GroupSplitter
 from pioneerml.common.pipeline.objective.base import BaseObjectiveAdapter
 from pioneerml.common.pipeline.steps import suggest_range
-from pioneerml.common.pipeline.steps.training.utils import GraphLightningModule
+from pioneerml.common.pipeline.steps.step_types.training.utils import GraphLightningModule
 
 
 class GroupSplitterObjectiveAdapter(BaseObjectiveAdapter):

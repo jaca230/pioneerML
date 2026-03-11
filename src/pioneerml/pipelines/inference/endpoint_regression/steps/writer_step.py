@@ -7,7 +7,7 @@ class EndpointRegressionWriterStep(BaseWriterStep):
     step_key = "writer"
     writer_name = "endpoint_regression"
 
-    def execute(
+    def run(
         self,
         *,
         inputs: dict,

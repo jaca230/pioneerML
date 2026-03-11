@@ -2,22 +2,22 @@
 from zenml import step
 
 from pioneerml.common.data_loader import LoaderFactory, BatchBundle
-from pioneerml.common.pipeline.steps import BaseLoaderStep
+from pioneerml.common.pipeline.steps import BaseLoaderFactoryInitStep
 from pioneerml.common.integration.zenml.materializers import BatchBundleMaterializer
 
 
-class GroupSplitterLoaderStep(BaseLoaderStep):
+class GroupSplitterLoaderStep(BaseLoaderFactoryInitStep):
     step_key = "loader"
 
     def default_config(self) -> dict:
         return {"config_json": {}}
 
-    def execute(
+    def run(
         self,
         *,
         input_source_set: dict,
     ) -> BatchBundle:
-        cfg = self.get_config()
+        cfg = self.config_json
         config_json = dict(cfg.get("config_json") or {})
         input_sources = self.resolve_input_source_set(input_source_set)
         loader_factory = LoaderFactory(

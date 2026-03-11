@@ -7,7 +7,7 @@ class GroupClassificationWriterStep(BaseWriterStep):
     step_key = "writer"
     writer_name = "group_classification"
 
-    def execute(
+    def run(
         self,
         *,
         inputs: dict,

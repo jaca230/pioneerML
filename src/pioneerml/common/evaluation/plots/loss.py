@@ -5,7 +5,8 @@ from typing import Iterable, Optional
 
 import matplotlib.pyplot as plt
 
-from .base import BasePlot
+from .base_plot import BasePlot
+from .registry import register_step_plot
 
 try:
     from IPython.display import display  # type: ignore
@@ -36,6 +37,7 @@ def _resolve_histories(train_losses, val_losses=None):
     return train_hist, val_hist
 
 
+@register_step_plot("loss_curves")
 class LossCurvesPlot(BasePlot):
     name = "loss_curves"
 

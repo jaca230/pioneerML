@@ -6,7 +6,7 @@ from typing import Any, Sequence
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ..registry import register_step_plot
+from ..registry import register_plot
 from .base_classification_plot import ClassificationPlotBase
 
 try:
@@ -15,7 +15,7 @@ except Exception:  # pragma: no cover
     display = None
 
 
-@register_step_plot("probability_distributions")
+@register_plot("probability_distributions")
 class ProbabilityDistributionsPlot(ClassificationPlotBase):
     name = "probability_distributions"
 

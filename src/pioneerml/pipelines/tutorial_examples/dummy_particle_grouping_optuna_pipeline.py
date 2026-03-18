@@ -16,8 +16,8 @@ import torch
 import torch.nn as nn
 from zenml import pipeline, step
 
-from pioneerml.common.models.graph.transformer.classifiers.group_classifier import GroupClassifier
-from pioneerml.common.training.lightning import GraphLightningModule
+from pioneerml.common.integration.pytorch.models.architectures.graph.transformer.classifiers.group_classifier import GroupClassifier
+from pioneerml.common.integration.pytorch.modules import GraphLightningModule
 from pioneerml.common.training.datamodules import GroupClassificationDataModule
 from pioneerml.common.integration.zenml.utils import detect_available_accelerator
 from pioneerml.pipelines.tutorial_examples.dummy_particle_grouping_pipeline import (
@@ -103,7 +103,6 @@ def run_dummy_hparam_search(
         )
         lightning_module = GraphLightningModule(
             model,
-            task="classification",
             lr=lr,
             weight_decay=weight_decay,
             loss_fn=nn.BCEWithLogitsLoss(pos_weight=pos_weight),
@@ -174,7 +173,6 @@ def train_best_dummy_model(
     )
     lightning_module = GraphLightningModule(
         model,
-        task="classification",
         lr=float(best_params.get("lr", 1e-3)),
         weight_decay=float(best_params.get("weight_decay", 1e-3)),
         loss_fn=nn.BCEWithLogitsLoss(pos_weight=_compute_pos_weight(datamodule)),

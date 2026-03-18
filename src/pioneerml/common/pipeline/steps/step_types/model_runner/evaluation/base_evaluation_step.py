@@ -1,104 +1,30 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any
-
-from pioneerml.common.evaluation.metrics import compute_step_metrics
-from pioneerml.common.evaluation.plots import STEP_PLOT_REGISTRY, create_step_plot
+from pioneerml.common.evaluation.evaluators import BaseEvaluator, EvaluatorFactory
 from .payloads import EvaluationStepPayload
 from .resolvers import EvaluationRuntimeConfigResolver, EvaluationRuntimeStateResolver
-from .utils import build_evaluation_loader_bundle
+from ..utils import build_loader_bundle, merge_nested_dicts
 
-from ..base_pipeline_step import BasePipelineStep
+from ..base_model_runner_step import BaseModelRunnerStep
 from pioneerml.common.data_loader import LoaderFactory
 
 
-class BaseEvaluationStep(BasePipelineStep):
-    DEFAULT_CONFIG = {
-        "metrics": [],
-        "plots": [],
-        "loader_config": {
-            "base": {
-                "batch_size": 1,
-                "mode": "train",
-                "chunk_row_groups": 4,
-                "chunk_workers": None,
-                "sample_fraction": 1.0,
-                "train_fraction": 0.80,
-                "val_fraction": 0.10,
-                "test_fraction": 0.10,
-                "split_seed": None,
+class BaseEvaluationStep(BaseModelRunnerStep):
+    DEFAULT_CONFIG = merge_nested_dicts(
+        base=BaseModelRunnerStep.DEFAULT_CONFIG,
+        override={
+            "evaluator_name": None,
+            "evaluator_config": {},
+            "metrics": [],
+            "plots": [],
+            "loader_config": {
+                "base": {"batch_size": 1},
+                "test": {"mode": "train", "split": "test", "shuffle_batches": False, "log_diagnostics": False},
             },
-            "evaluate": {"mode": "train", "shuffle_batches": False, "log_diagnostics": False},
-            "val": {"mode": "train", "shuffle_batches": False, "log_diagnostics": False},
         },
-    }
-    config_resolver_classes = (EvaluationRuntimeConfigResolver,)
-    payload_resolver_classes = (EvaluationRuntimeStateResolver,)
-
-    def default_metric_names(self) -> list[str]:
-        return []
-
-    def resolve_metric_names(self, cfg: Mapping[str, Any] | None = None) -> list[str]:
-        src = dict(cfg or self.config_json)
-        names = src.get("metric_names")
-        if isinstance(names, list):
-            return [str(v) for v in names]
-        return []
-
-    def apply_registered_metrics(
-        self,
-        *,
-        metrics: dict[str, Any],
-        context: Mapping[str, Any],
-        metric_names: list[str] | None = None,
-    ) -> dict[str, Any]:
-        selected = list(metric_names) if metric_names is not None else list(self.config_json.get("metric_names") or [])
-        if not selected:
-            return metrics
-        metric_values = compute_step_metrics(metric_names=selected, context=context)
-        metrics.update(metric_values)
-        return metrics
-
-    def default_plot_names(self) -> list[str]:
-        return []
-
-    def resolve_plot_names(self, cfg: Mapping[str, Any] | None = None) -> list[str]:
-        src = dict(cfg or self.config_json)
-        names = src.get("plot_names")
-        if isinstance(names, list):
-            return [str(v) for v in names]
-        return []
-
-    def apply_registered_plots(
-        self,
-        *,
-        context: Mapping[str, Any],
-        plot_names: list[str] | None = None,
-    ) -> dict[str, Any]:
-        selected = list(plot_names) if plot_names is not None else list(self.config_json.get("plot_names") or [])
-        if not selected:
-            return {}
-
-        plot_outputs: dict[str, Any] = {}
-        for plot_name in selected:
-            if plot_name not in STEP_PLOT_REGISTRY:
-                available = ", ".join(sorted(STEP_PLOT_REGISTRY))
-                raise KeyError(f"Unknown plot '{plot_name}'. Available plots: [{available}]")
-            kwargs = EvaluationRuntimeConfigResolver.merge_plot_kwargs(context=context, plot_name=plot_name)
-
-            result = create_step_plot(plot_name).render(**kwargs)
-            if result is not None:
-                key = f"{plot_name}_path" if isinstance(result, str) else f"{plot_name}_result"
-                plot_outputs[key] = result
-
-        return plot_outputs
-
-    def build_evaluator(self):
-        return None
-
-    def evaluate_from_loader(self, *, loader, cfg: dict[str, Any], module, evaluator) -> dict[str, Any]:
-        raise NotImplementedError(f"{self.__class__.__name__} must implement evaluate_from_loader(...).")
+    )
+    config_resolver_classes = BaseModelRunnerStep.config_resolver_classes + (EvaluationRuntimeConfigResolver,)
+    payload_resolver_classes = BaseModelRunnerStep.payload_resolver_classes + (EvaluationRuntimeStateResolver,)
 
     def _execute(self) -> EvaluationStepPayload:
         module = self.runtime_state.get("module")
@@ -109,17 +35,24 @@ class BaseEvaluationStep(BasePipelineStep):
             raise RuntimeError(f"{self.__class__.__name__} runtime_state missing valid 'loader_factory'.")
 
         cfg = dict(self.config_json)
-        provider, loader_params, loader = build_evaluation_loader_bundle(loader_factory=loader_factory, cfg=cfg)
+        provider, loader_params, loader = build_loader_bundle(
+            loader_factory=loader_factory,
+            cfg=cfg,
+            purpose="test",
+            default_shuffle=False,
+        )
         if not provider.include_targets:
             raise RuntimeError(f"{self.__class__.__name__} expects evaluation loader with targets enabled.")
 
-        evaluator = self.build_evaluator()
-        metrics = self.evaluate_from_loader(
-            loader=loader,
-            cfg=cfg,
-            module=module,
-            evaluator=evaluator,
-        )
+        evaluator_factory = EvaluatorFactory(evaluator_name=str(cfg["evaluator_name"]))
+        evaluator = evaluator_factory.build_evaluator(evaluator_params=dict(cfg.get("evaluator_config") or {}))
+        if not isinstance(evaluator, BaseEvaluator):
+            raise RuntimeError(f"{self.__class__.__name__} evaluator_factory must build BaseEvaluator.")
+        evaluator_cfg = dict(cfg)
+        evaluator_cfg.update(dict(cfg.get("evaluator_config") or {}))
+        metrics = evaluator.evaluate(module=module, loader=loader, config=evaluator_cfg)
+        if not isinstance(metrics, dict):
+            raise RuntimeError(f"{self.__class__.__name__} evaluator must return dict metrics.")
 
         if bool(loader_params.get("log_diagnostics", False)):
             diag = LoaderFactory.log_diagnostics(label="evaluate", loader_provider=provider)

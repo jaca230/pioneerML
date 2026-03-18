@@ -100,6 +100,12 @@ def with_trial_loader_split_seed(
     cfg: Mapping[str, Any],
     trial_number: int,
 ) -> dict[str, Any]:
+    mode = str(cfg.get("loader_split_seed_mode", "fixed")).strip().lower()
+    if mode not in {"fixed", "per_trial", "random"}:
+        raise ValueError(
+            "loader_split_seed_mode must be one of: ['fixed', 'per_trial', 'random'] "
+            f"(got '{mode}')."
+        )
     split_seed = resolve_loader_split_seed_for_trial(
         cfg=cfg,
         trial_number=trial_number,
@@ -110,15 +116,15 @@ def with_trial_loader_split_seed(
 
     if has_scoped:
         base_cfg = dict(raw_loader_cfg.get("base") or {})
-        if split_seed is None:
+        if split_seed is None and mode == "random":
             base_cfg.pop("split_seed", None)
-        else:
+        elif split_seed is not None:
             base_cfg["split_seed"] = int(split_seed)
         raw_loader_cfg["base"] = base_cfg
     else:
-        if split_seed is None:
+        if split_seed is None and mode == "random":
             raw_loader_cfg.pop("split_seed", None)
-        else:
+        elif split_seed is not None:
             raw_loader_cfg["split_seed"] = int(split_seed)
     out["loader_config"] = raw_loader_cfg
     return out

@@ -9,7 +9,7 @@ import numpy as np
 import seaborn as sns
 from sklearn.metrics import confusion_matrix
 
-from ..registry import register_step_plot
+from ..registry import register_plot
 from .base_classification_plot import ClassificationPlotBase
 
 try:
@@ -26,7 +26,7 @@ def _row_normalize(cm: np.ndarray) -> np.ndarray:
     return cm.astype(float) / row_sums
 
 
-@register_step_plot("multilabel_confusion")
+@register_plot("multilabel_confusion")
 class ConfusionMatrixPlot(ClassificationPlotBase):
     name = "multilabel_confusion"
 

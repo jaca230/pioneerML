@@ -8,7 +8,7 @@ import numpy as np
 import seaborn as sns
 
 from ..base_plot import _to_numpy
-from ..registry import register_step_plot
+from ..registry import register_plot
 from .base_regression_plot import RegressionPlotBase
 
 try:
@@ -17,7 +17,7 @@ except Exception:  # pragma: no cover
     display = None
 
 
-@register_step_plot("regression_diagnostics")
+@register_plot("regression_diagnostics")
 class RegressionDiagnosticsPlot(RegressionPlotBase):
     name = "regression_diagnostics"
 
@@ -105,7 +105,7 @@ class RegressionDiagnosticsPlot(RegressionPlotBase):
         return save_path
 
 
-@register_step_plot("euclidean_error_histogram")
+@register_plot("euclidean_error_histogram")
 class EuclideanErrorHistogramPlot(RegressionPlotBase):
     name = "euclidean_error_histogram"
 
@@ -208,7 +208,7 @@ class EuclideanErrorHistogramPlot(RegressionPlotBase):
         return save_path
 
 
-@register_step_plot("error_embedding_space")
+@register_plot("error_embedding_space")
 class ErrorEmbeddingSpacePlot(RegressionPlotBase):
     name = "error_embedding_space"
 

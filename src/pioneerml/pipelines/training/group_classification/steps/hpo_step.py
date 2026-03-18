@@ -1,7 +1,7 @@
+from typing import Any
 
 from zenml import step
 
-from pioneerml.common.data_loader import BatchBundle
 from pioneerml.common.pipeline.steps import BaseHPOStep
 
 from ..objective import GroupClassifierObjectiveAdapter
@@ -17,17 +17,18 @@ class GroupClassifierHPOStep(BaseHPOStep):
             "grad_clip": 2.0,
             "trainer_kwargs": {"enable_progress_bar": True},
             "batch_size": {"min_exp": 5, "max_exp": 7},
-            "chunk_row_groups": 4,
-            "chunk_workers": None,
-            "max_train_batches": None,
-            "max_val_batches": None,
             "early_stopping": {
                 "enabled": False,
-                "monitor": "val_loss",
-                "mode": "min",
-                "patience": 3,
-                "min_delta": 0.0,
-                "min_delta_mode": "absolute",
+                "type": "relative",
+                "config": {
+                    "monitor": "val_loss",
+                    "mode": "min",
+                    "patience": 3,
+                    "min_delta": 0.0,
+                    "strict": True,
+                    "check_finite": True,
+                    "verbose": False,
+                },
             },
             "compile": {"enabled": False, "mode": "default"},
             "direction": "minimize",
@@ -55,11 +56,9 @@ class GroupClassifierHPOStep(BaseHPOStep):
         return GroupClassifierObjectiveAdapter()
 
 
-@step(name="tune_group_classifier")
+@step(name="tune_group_classifier", enable_cache=False)
 def tune_group_classifier_step(
-    dataset: BatchBundle,
+    dataset,
     pipeline_config: dict | None = None,
-) -> dict:
-    return GroupClassifierHPOStep(pipeline_config=pipeline_config).execute(
-        payloads={"loader": dataset}
-    )
+) -> Any:
+    return GroupClassifierHPOStep(pipeline_config=pipeline_config).execute(payloads={"loader": dataset})

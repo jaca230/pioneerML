@@ -1,33 +1,25 @@
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Mapping
 
 import torch
 
-from pioneerml.common.evaluation.plots.loss import LossCurvesPlot
-
 from .base_regression_evaluator import BaseRegressionEvaluator
+from ..factory import register_evaluator
 
 
+@register_evaluator("simple_regression")
 class SimpleRegressionEvaluator(BaseRegressionEvaluator):
-    def evaluate(
+    default_plot_names = ("loss_curves",)
+
+    def build_context(
         self,
         *,
         module,
-        graphs: list,
-        batch_size: int,
-        loader_cls,
-        collate_fn: Callable | None = None,
-        plot_config: dict | None = None,
-    ) -> dict:
-        if not graphs:
-            raise RuntimeError("No graphs available for evaluation.")
-
+        loader,
+        config: Mapping[str, object],
+    ) -> dict[str, object]:
         module.eval()
-        loader_kwargs = {"batch_size": int(batch_size), "shuffle": False}
-        if collate_fn is not None:
-            loader_kwargs["collate_fn"] = collate_fn
-        loader = loader_cls(graphs, **loader_kwargs)
 
         device = next(module.parameters()).device
         total_loss = 0.0
@@ -50,18 +42,35 @@ class SimpleRegressionEvaluator(BaseRegressionEvaluator):
         if total_samples == 0:
             raise RuntimeError("No samples available for evaluation.")
 
-        plot_path = self.resolve_plot_path(plot_config)
-        if plot_path is not None:
-            LossCurvesPlot().render(module, save_path=plot_path, show=False)
-
-        train_history, train_total = self.concise_history(list(module.train_epoch_loss_history))
-        val_history, val_total = self.concise_history(list(module.val_epoch_loss_history))
+        plot_path = self.resolve_plot_path(dict(config))
+        train_history = list(module.train_epoch_loss_history)
+        val_history = list(module.val_epoch_loss_history)
+        train_total = len(train_history)
+        val_total = len(val_history)
         return {
-            "loss": total_loss / total_samples,
-            "mae": total_mae / total_samples,
-            "train_loss_history": train_history,
-            "train_loss_history_total_points": train_total,
-            "val_loss_history": val_history,
-            "val_loss_history_total_points": val_total,
-            "loss_plot_path": plot_path,
+            "plot_kwargs_by_name": {
+                "loss_curves": {"train_losses": module, "save_path": plot_path, "show": False},
+            },
+            "base_metrics": {
+                "loss": total_loss / total_samples,
+                "mae": total_mae / total_samples,
+                "train_loss_history": train_history,
+                "train_loss_history_total_points": train_total,
+                "val_loss_history": val_history,
+                "val_loss_history_total_points": val_total,
+            },
         }
+
+    def finalize_results(
+        self,
+        *,
+        results: dict[str, object],
+        context: Mapping[str, object],
+        config: Mapping[str, object],
+    ) -> dict[str, object]:
+        _ = context
+        _ = config
+        loss_plot_path = results.get("loss_curves_path")
+        if isinstance(loss_plot_path, str):
+            results["loss_plot_path"] = loss_plot_path
+        return results

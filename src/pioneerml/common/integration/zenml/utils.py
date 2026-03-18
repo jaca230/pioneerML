@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import builtins
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -106,6 +107,21 @@ def setup_zenml_for_notebook(
     if root_path is None:
         root_path = find_project_root()
     root_path = Path(root_path).resolve()
+
+    # Ensure both `pioneerml.*` and historical `pipelines.*` import paths work
+    # in notebook-launched ZenML subprocesses.
+    src_root = root_path / "src"
+    src_pkg_root = src_root / "pioneerml"
+    path_entries = [str(src_root), str(src_pkg_root)]
+    for entry in path_entries:
+        if entry not in sys.path:
+            sys.path.insert(0, entry)
+    env_pythonpath = os.environ.get("PYTHONPATH", "")
+    env_parts = [p for p in env_pythonpath.split(os.pathsep) if p]
+    for entry in reversed(path_entries):
+        if entry not in env_parts:
+            env_parts.insert(0, entry)
+    os.environ["PYTHONPATH"] = os.pathsep.join(env_parts)
 
     print(
         f"Using ZenML repository root: {root_path}\n"

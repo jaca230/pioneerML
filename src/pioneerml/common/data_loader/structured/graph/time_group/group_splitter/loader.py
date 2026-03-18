@@ -23,6 +23,7 @@ from pioneerml.common.data_loader.input_source import (
     InputSourceSet,
     create_input_backend,
 )
+from pioneerml.common.staged_runtime.stage_observers import StageObserver
 
 from .stages import GroupFeatureStage, NodeTargetStage
 
@@ -46,6 +47,7 @@ class GroupSplitterGraphLoader(TimeGroupGraphLoader):
         split_config: SplitSampleConfig | None = None,
         graph_dims: GraphTensorDims | None = None,
         stage_overrides: dict[str, BaseStage] | None = None,
+        stage_observer: StageObserver | None = None,
         profiling: dict | None = None,
     ) -> None:
         self._resolved_field_specs: tuple[NDArrayColumnSpec, ...] = ()
@@ -75,6 +77,7 @@ class GroupSplitterGraphLoader(TimeGroupGraphLoader):
             data_flow_config=data_flow_config,
             split_config=split_config,
             stage_overrides=stage_overrides,
+            stage_observer=stage_observer,
             profiling=profiling,
         )
 

@@ -1,44 +1,37 @@
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Mapping
 
 import torch
 
-from pioneerml.common.evaluation.plots.loss import LossCurvesPlot
-
 from .base_classification_evaluator import BaseClassificationEvaluator
+from ..factory import register_evaluator
 
 
+@register_evaluator("simple_classification")
 class SimpleClassificationEvaluator(BaseClassificationEvaluator):
-    def evaluate(
+    default_metric_names = ("binary_classification_from_tensors",)
+    default_plot_names = ("loss_curves",)
+
+    def build_context(
         self,
         *,
         module,
-        graphs: list,
-        threshold: float,
-        batch_size: int,
-        loader_cls,
-        collate_fn: Callable | None = None,
-        plot_config: dict | None = None,
-    ) -> dict:
-        if not graphs:
-            raise RuntimeError("No graphs available for evaluation.")
+        loader,
+        config: Mapping[str, object],
+    ) -> dict[str, object]:
         module.eval()
-
-        loader_kwargs = {"batch_size": int(batch_size), "shuffle": False}
-        if collate_fn is not None:
-            loader_kwargs["collate_fn"] = collate_fn
-        loader = loader_cls(graphs, **loader_kwargs)
 
         device = next(module.parameters()).device
         total_loss = 0.0
         total_samples = 0
-        preds_all = []
-        targets_all = []
+        preds_all: list[torch.Tensor] = []
+        targets_all: list[torch.Tensor] = []
+        threshold = float(config.get("threshold", 0.5))
 
         with torch.no_grad():
             for batch in loader:
-                batch = batch.to(device)
+                batch = batch.to(device, non_blocking=True)
                 logits = module(batch)
                 loss, _ = module.compute_loss(logits, batch)
                 preds = module.primary_predictions(logits)
@@ -84,21 +77,41 @@ class SimpleClassificationEvaluator(BaseClassificationEvaluator):
             total = float(tp + fp + fn)
             confusion_metrics.append({"tp": tp / total, "fp": fp / total, "fn": fn / total} if total > 0 else {"tp": 0.0, "fp": 0.0, "fn": 0.0})
 
-        plot_path = self.resolve_plot_path(plot_config)
-        if plot_path is not None:
-            LossCurvesPlot().render(module, save_path=plot_path, show=False)
-
-        train_history, train_total = self.concise_history(list(module.train_epoch_loss_history))
-        val_history, val_total = self.concise_history(list(module.val_epoch_loss_history))
+        plot_path = self.resolve_plot_path(dict(config))
+        train_history = list(module.train_epoch_loss_history)
+        val_history = list(module.val_epoch_loss_history)
+        train_total = len(train_history)
+        val_total = len(val_history)
         return {
-            "loss": float(loss),
-            "accuracy": float(accuracy),
-            "exact_match": float(exact_match),
-            "confusion": confusion_metrics,
-            "threshold": float(threshold),
-            "train_loss_history": train_history,
-            "train_loss_history_total_points": train_total,
-            "val_loss_history": val_history,
-            "val_loss_history_total_points": val_total,
-            "loss_plot_path": plot_path,
+            "metric_context": {
+                "preds_binary": preds_binary,
+                "targets": targets_cat.float(),
+            },
+            "plot_kwargs_by_name": {
+                "loss_curves": {"train_losses": module, "save_path": plot_path, "show": False},
+            },
+            "base_metrics": {
+                "loss": float(loss),
+                "accuracy": float(accuracy),
+                "exact_match": float(exact_match),
+                "confusion": confusion_metrics,
+                "threshold": float(threshold),
+                "train_loss_history": train_history,
+                "train_loss_history_total_points": train_total,
+                "val_loss_history": val_history,
+                "val_loss_history_total_points": val_total,
+            },
         }
+
+    def finalize_results(
+        self,
+        *,
+        results: dict[str, object],
+        context: Mapping[str, object],
+        config: Mapping[str, object],
+    ) -> dict[str, object]:
+        _ = config
+        loss_plot_path = results.get("loss_curves_path")
+        if isinstance(loss_plot_path, str):
+            results["loss_plot_path"] = loss_plot_path
+        return results

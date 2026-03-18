@@ -2,11 +2,12 @@
 
 import pytorch_lightning as pl
 import torch
+import torch.nn as nn
 from torch_geometric.data import Data
 from zenml import pipeline, step
 
-from pioneerml.common.models import GroupClassifier
-from pioneerml.common.pipeline.steps.step_types.training.utils import GraphLightningModule
+from pioneerml.common.integration.pytorch.models import GroupClassifier
+from pioneerml.common.integration.pytorch.modules import GraphLightningModule
 from pioneerml.common.integration.zenml.materializers import TorchTensorMaterializer
 from pioneerml.common.integration.zenml.utils import detect_available_accelerator
 from pioneerml.pipelines.tutorial_examples.graph_datamodule import GraphDataModule
@@ -52,7 +53,7 @@ def build_module(num_classes: int = 3, lr: float = 5e-4) -> GraphLightningModule
         dropout=0.1,
         num_classes=num_classes,
     )
-    return GraphLightningModule(model, task="classification", lr=lr)
+    return GraphLightningModule(model, loss_fn=nn.BCEWithLogitsLoss(), lr=lr)
 
 
 @step

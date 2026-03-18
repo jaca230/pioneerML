@@ -23,10 +23,9 @@ _RUNNER = TrainingPipelineRunner(
 
 @pipeline
 def group_classification_pipeline(
-    input_source_set: dict,
     pipeline_config: dict | None = None,
 ):
     return _RUNNER.run(
-        loader_kwargs={"input_source_set": input_source_set},
+        loader_kwargs={},
         pipeline_config=pipeline_config,
     )

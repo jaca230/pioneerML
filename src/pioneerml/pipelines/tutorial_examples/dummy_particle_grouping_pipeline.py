@@ -9,13 +9,14 @@ resulting multi-label task.
 
 import numpy as np
 import torch
+import torch.nn as nn
 import pytorch_lightning as pl
 from zenml import pipeline, step
 
 from pioneerml.data.datasets.graph_group import GraphRecord
-from pioneerml.common.models.graph.transformer.classifiers.group_classifier import GroupClassifier
+from pioneerml.common.integration.pytorch.models.architectures.graph.transformer.classifiers.group_classifier import GroupClassifier
 from pioneerml.common.training.datamodules import GroupClassificationDataModule
-from pioneerml.common.training.lightning import GraphLightningModule
+from pioneerml.common.integration.pytorch.modules import GraphLightningModule
 from pioneerml.common.integration.zenml.materializers import TorchTensorMaterializer
 from pioneerml.common.integration.zenml.utils import detect_available_accelerator
 
@@ -107,7 +108,12 @@ def build_dummy_module(
         dropout=dropout,
         num_classes=num_classes,
     )
-    return GraphLightningModule(model=model, task="classification", lr=lr, weight_decay=weight_decay)
+    return GraphLightningModule(
+        model=model,
+        loss_fn=nn.BCEWithLogitsLoss(),
+        lr=lr,
+        weight_decay=weight_decay,
+    )
 
 
 @step

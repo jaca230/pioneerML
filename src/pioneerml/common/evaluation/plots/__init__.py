@@ -1,12 +1,4 @@
-"""
-Plot utilities organized as one class per plot type.
-
-Backwards-compatible function wrappers are provided to ease migration.
-"""
-
-from __future__ import annotations
-
-from typing import Any, Callable, Dict
+from typing import Any, Callable
 
 from .base_plot import BasePlot
 from .classification import (
@@ -18,15 +10,10 @@ from .classification import (
     RocCurvesPlot,
 )
 from .loss import LossCurvesPlot
-from .regression import (
-    RegressionDiagnosticsPlot,
-    EuclideanErrorHistogramPlot,
-    ErrorEmbeddingSpacePlot,
-)
-from .registry import STEP_PLOT_REGISTRY, create_step_plot, render_step_plots
+from .regression import ErrorEmbeddingSpacePlot, EuclideanErrorHistogramPlot, RegressionDiagnosticsPlot
+from .registry import PLOT_REGISTRY, create_plot, register_plot, render_plots
 
-# Back-compatible alias names.
-PLOT_CLASSES: Dict[str, type[BasePlot]] = STEP_PLOT_REGISTRY
+PLOT_CLASSES = PLOT_REGISTRY
 
 
 def _wrap(cls: type[BasePlot]) -> Callable[..., Any]:
@@ -35,9 +22,6 @@ def _wrap(cls: type[BasePlot]) -> Callable[..., Any]:
 
     return _fn
 
-
-# Back-compat registry and function aliases
-PLOT_REGISTRY: Dict[str, Callable[..., Any]] = {name: _wrap(cls) for name, cls in PLOT_CLASSES.items()}
 
 plot_multilabel_confusion_matrix = _wrap(ConfusionMatrixPlot)
 plot_roc_curves = _wrap(RocCurvesPlot)
@@ -52,11 +36,11 @@ plot_confidence_analysis = _wrap(ConfidenceAnalysisPlot)
 
 __all__ = [
     "BasePlot",
-    "STEP_PLOT_REGISTRY",
-    "create_step_plot",
-    "render_step_plots",
-    "PLOT_CLASSES",
     "PLOT_REGISTRY",
+    "PLOT_CLASSES",
+    "register_plot",
+    "create_plot",
+    "render_plots",
     "plot_multilabel_confusion_matrix",
     "plot_roc_curves",
     "plot_precision_recall_curves",
@@ -78,3 +62,4 @@ __all__ = [
     "ProbabilityDistributionsPlot",
     "ConfidenceAnalysisPlot",
 ]
+

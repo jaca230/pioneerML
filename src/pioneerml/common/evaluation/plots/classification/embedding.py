@@ -17,7 +17,7 @@ except ImportError:
     tqdm = None
 
 from ..base_plot import _to_numpy
-from ..registry import register_step_plot
+from ..registry import register_plot
 from .base_classification_plot import ClassificationPlotBase
 
 # Disable numba JIT for UMAP globally to avoid environment-specific compile issues
@@ -40,7 +40,7 @@ except Exception:  # pragma: no cover
     display = None
 
 
-@register_step_plot("embedding_space")
+@register_plot("embedding_space")
 class EmbeddingSpacePlot(ClassificationPlotBase):
     name = "embedding_space"
 

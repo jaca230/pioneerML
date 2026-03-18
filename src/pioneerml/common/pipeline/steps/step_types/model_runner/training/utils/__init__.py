@@ -1,4 +1,4 @@
-from .graph_lightning_module import GraphLightningModule
+from pioneerml.common.integration.pytorch.modules import GraphLightningModule
 from .earlystopping import RelativeEarlyStopping, build_early_stopping_callback
 from .lightning_warning_filter import LightningWarningFilter
 

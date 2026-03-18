@@ -4,6 +4,7 @@ __all__ = [
     "evaluation",
     "integration",
     "loader",
+    "plugins",
     "models",
     "training",
 ]

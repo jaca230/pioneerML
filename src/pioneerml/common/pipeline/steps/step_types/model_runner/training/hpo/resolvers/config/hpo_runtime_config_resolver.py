@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from pioneerml.common.integration.optuna.objective import BaseObjectiveAdapter
+
 from .......resolver import BaseConfigResolver
 
 
@@ -12,6 +14,19 @@ class HPORuntimeConfigResolver(BaseConfigResolver):
         missing = [k for k in required if k not in cfg]
         if missing:
             raise KeyError(f"training.hpo missing required keys: {missing}")
+
+        objective_adapter = self.step.build_objective_adapter()
+        if not isinstance(objective_adapter, BaseObjectiveAdapter):
+            raise RuntimeError(
+                f"{self.step.__class__.__name__}.build_objective_adapter() must return BaseObjectiveAdapter."
+            )
+        self.step.runtime_state["objective_adapter"] = objective_adapter
+        if "enabled" in cfg:
+            hpo_enabled = bool(cfg.get("enabled", True))
+        else:
+            hpo_enabled = bool(dict(cfg.get("hpo_config") or {}).get("enabled", True))
+        self.step.runtime_state["hpo_enabled"] = hpo_enabled
+        self.step.runtime_state["training_context"] = f"tune_{self.step.__class__.__name__.lower()}"
 
     @staticmethod
     def resolve_batch_size_search(cfg: Mapping, *, default_min_exp: int = 5, default_max_exp: int = 7):

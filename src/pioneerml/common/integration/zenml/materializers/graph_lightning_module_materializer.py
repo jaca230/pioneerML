@@ -6,7 +6,7 @@ import torch
 from zenml.enums import ArtifactType
 from zenml.materializers.base_materializer import BaseMaterializer
 
-from pioneerml.common.pipeline.steps.step_types.training.utils import GraphLightningModule
+from pioneerml.common.integration.pytorch.modules import GraphLightningModule
 
 
 class GraphLightningModuleMaterializer(BaseMaterializer):

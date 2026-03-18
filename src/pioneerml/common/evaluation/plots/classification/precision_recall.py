@@ -6,7 +6,7 @@ from typing import Any, Sequence
 import matplotlib.pyplot as plt
 from sklearn.metrics import average_precision_score, precision_recall_curve
 
-from ..registry import register_step_plot
+from ..registry import register_plot
 from .base_classification_plot import ClassificationPlotBase
 
 try:
@@ -15,7 +15,7 @@ except Exception:  # pragma: no cover
     display = None
 
 
-@register_step_plot("precision_recall")
+@register_plot("precision_recall")
 class PrecisionRecallPlot(ClassificationPlotBase):
     name = "precision_recall"
 

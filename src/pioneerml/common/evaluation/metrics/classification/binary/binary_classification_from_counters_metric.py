@@ -3,11 +3,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from ...registry import register_step_metric
+from ...registry import register_metric
 from .base_binary_classification_metric import BaseBinaryClassificationMetric
 
 
-@register_step_metric("binary_classification_from_counters")
+@register_metric("binary_classification_from_counters")
 class BinaryClassificationFromCountersMetric(BaseBinaryClassificationMetric):
     """Computes accuracy/exact/confusion from aggregated counters."""
 

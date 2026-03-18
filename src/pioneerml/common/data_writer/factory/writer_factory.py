@@ -16,6 +16,7 @@ class WriterFactory:
     output_backend_name: str = "parquet"
     run_config: WriterRunConfig | None = None
     writer_params: dict[str, Any] | None = None
+    output_path: str | None = None
 
     def _resolve_writer_class(self) -> type[BaseDataWriter]:
         if self.writer_cls is not None:

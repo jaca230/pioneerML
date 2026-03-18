@@ -5,10 +5,11 @@ from abc import abstractmethod
 import optuna
 
 from pioneerml.common.data_loader import LoaderFactory
+from pioneerml.common.integration.optuna.objective import BaseObjectiveAdapter
 
 from ..base_training_step import BaseTrainingStep
 from .payloads import HPOStepPayload
-from .resolvers import HPORuntimeConfigResolver, HPORuntimeStateResolver
+from .resolvers import HPORuntimeConfigResolver
 from .utils import (
     best_batch_size,
     build_hpo_trainer_kwargs,
@@ -21,7 +22,7 @@ from ..utils.training_runtime_utils import fit_module_with_loaders, maybe_compil
 
 class BaseHPOStep(BaseTrainingStep):
     config_resolver_classes = BaseTrainingStep.config_resolver_classes + (HPORuntimeConfigResolver,)
-    payload_resolver_classes = BaseTrainingStep.payload_resolver_classes + (HPORuntimeStateResolver,)
+    payload_resolver_classes = BaseTrainingStep.payload_resolver_classes
 
     def default_config(self) -> dict:
         overrides = {
@@ -47,7 +48,7 @@ class BaseHPOStep(BaseTrainingStep):
         return merge_nested_dicts(base=super().default_config(), override=overrides)
 
     @abstractmethod
-    def build_objective_adapter(self):
+    def build_objective_adapter(self) -> BaseObjectiveAdapter:
         raise NotImplementedError
 
     def _build_hpo_loaders(self, *, cfg: dict, batch_size: int):

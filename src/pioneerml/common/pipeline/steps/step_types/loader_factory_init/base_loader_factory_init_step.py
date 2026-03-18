@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from abc import abstractmethod
-
 from pioneerml.common.data_loader.factory import LoaderFactory
 from pioneerml.common.data_loader.input_source import InputSourceSet
 from .payloads import LoaderFactoryInitStepPayload
@@ -15,6 +13,7 @@ from ..base_pipeline_step import BasePipelineStep
 
 class BaseLoaderFactoryInitStep(BasePipelineStep):
     DEFAULT_CONFIG = {
+        "loader_name": None,
         "input_sources_spec": {
             "main_sources": [],
             "optional_sources_by_name": {},
@@ -24,10 +23,6 @@ class BaseLoaderFactoryInitStep(BasePipelineStep):
     }
     config_resolver_classes = (LoaderFactoryInitConfigResolver,)
     payload_resolver_classes = (LoaderFactoryInitPayloadResolver,)
-
-    @abstractmethod
-    def loader_name(self) -> str:
-        raise NotImplementedError
 
     def _build_payload(
         self,

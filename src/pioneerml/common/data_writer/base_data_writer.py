@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 from typing import Iterator
@@ -9,6 +10,7 @@ from collections.abc import Callable
 from typing import Any
 
 from .backends import OutputBackend, create_output_backend
+from .input_source import PredictionSet
 
 
 class BaseDataWriter:
@@ -88,6 +90,24 @@ class BaseDataWriter:
             self.write_timestamped_copy(pred_path, timestamped)
             ts_path = str(timestamped)
         return str(pred_path), ts_path
+
+    def build_prediction_set(
+        self,
+        *,
+        batch,
+        model_output: Any,
+        src_path: Path,
+        num_rows: int,
+        cfg: Mapping[str, Any] | None = None,
+    ) -> PredictionSet:
+        _ = batch
+        _ = model_output
+        _ = src_path
+        _ = num_rows
+        _ = cfg
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must implement build_prediction_set(...) for inference usage."
+        )
 
     def write_partitioned_tables(
         self,

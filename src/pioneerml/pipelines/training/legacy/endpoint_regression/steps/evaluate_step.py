@@ -1,12 +1,8 @@
 from typing import Any
 
-import torch
 from zenml import step
 
-from pioneerml.common.evaluation.evaluators import SimpleRegressionEvaluator
-from pioneerml.common.data_loader import BatchBundle
 from pioneerml.common.pipeline.steps import BaseEvaluationStep
-from pioneerml.common.pipeline.steps.step_types.model_runner.evaluation.utils import apply_registered_plots
 
 
 class EndpointRegressorEvaluateStep(BaseEvaluationStep):
@@ -14,74 +10,31 @@ class EndpointRegressorEvaluateStep(BaseEvaluationStep):
 
     def default_config(self) -> dict:
         return {
-            "evaluator_name": "simple_regression",
-            "plots": ["loss_curves"],
-            "batch_size": 64,
-            "chunk_row_groups": 4,
-            "chunk_workers": None,
-        }
-
-    def build_evaluator(self):
-        return SimpleRegressionEvaluator()
-
-    def evaluate_from_loader(self, *, loader, cfg: dict[str, Any], module, evaluator) -> dict[str, Any]:
-        module.eval()
-        device = next(module.parameters()).device
-        total_loss = 0.0
-        total_mae = 0.0
-        total_samples = 0
-
-        with torch.no_grad():
-            for batch in loader:
-                batch = batch.to(device, non_blocking=True)
-                preds = module(batch)
-                preds = preds[0] if isinstance(preds, (tuple, list)) else preds
-                target = batch.y_graph
-                if target.dim() == 1 and preds.dim() == 2 and target.numel() % preds.shape[-1] == 0:
-                    target = target.view(-1, preds.shape[-1])
-                loss = module.loss_fn(preds, target)
-                mae = torch.abs(preds - target).mean()
-                bs = int(target.shape[0])
-                total_loss += float(loss.detach().cpu().item()) * bs
-                total_mae += float(mae.detach().cpu().item()) * bs
-                total_samples += bs
-
-        if total_samples == 0:
-            raise RuntimeError("No samples available for evaluation.")
-
-        plot_outputs = apply_registered_plots(
-            plot_names=cfg.get("plot_names"),
-            default_plot_kwargs=cfg.get("default_plot_kwargs"),
-            plot_kwargs_by_name=cfg.get("plot_kwargs_by_name"),
-            context={
-                "plot_kwargs_by_name": {
-                    "loss_curves": {
-                        "train_losses": module,
-                        "save_path": evaluator.resolve_plot_path(cfg),
-                        "show": False,
-                    }
-                }
+            "evaluator": {
+                "type": "simple_regression",
+                "config": {},
             },
-        )
-        train_history, train_total = evaluator.concise_history(list(module.train_epoch_loss_history))
-        val_history, val_total = evaluator.concise_history(list(module.val_epoch_loss_history))
-        return {
-            "loss": total_loss / total_samples,
-            "mae": total_mae / total_samples,
-            "train_loss_history": train_history,
-            "train_loss_history_total_points": train_total,
-            "val_loss_history": val_history,
-            "val_loss_history_total_points": val_total,
-            "loss_plot_path": plot_outputs.get("loss_curves_path"),
+            "plots": ["loss_curves"],
+            "loader": {
+                "type": "endpoint_regression",
+                "config": {
+                    "base": {
+                        "batch_size": 64,
+                        "chunk_row_groups": 4,
+                        "chunk_workers": 0,
+                    },
+                    "test": {"mode": "train", "split": "test", "shuffle_batches": False, "log_diagnostics": False},
+                },
+            },
         }
 
 
-@step(name="evaluate_endpoint_regressor")
+@step(name="evaluate_endpoint_regressor", enable_cache=False)
 def evaluate_endpoint_regressor_step(
-    module: Any,
-    dataset: BatchBundle,
+    train_payload,
+    dataset,
     pipeline_config: dict | None = None,
-) -> dict:
+) -> Any:
     return EndpointRegressorEvaluateStep(pipeline_config=pipeline_config).execute(
-        payloads={"module": module, "loader": dataset}
+        payloads={"loader": dataset, "train": train_payload}
     )

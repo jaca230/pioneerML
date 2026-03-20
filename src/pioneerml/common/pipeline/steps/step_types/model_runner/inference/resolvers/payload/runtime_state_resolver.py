@@ -23,19 +23,15 @@ class InferenceStateResolver(BasePayloadResolver):
     ) -> None:
         if not isinstance(payloads, Mapping):
             raise RuntimeError(
-                f"{self.step.__class__.__name__} requires payloads containing "
-                "writer_factory_init and model_handle_builder outputs."
+                f"{self.step.__class__.__name__} requires payloads containing model_handle_builder output."
             )
 
-        writer_payload = payloads.get("writer_factory_init")
         model_payload = payloads.get("model_handle_builder")
 
-        if not isinstance(writer_payload, Mapping):
-            raise RuntimeError("Inference payloads missing mapping key 'writer_factory_init'.")
         if not isinstance(model_payload, Mapping):
             raise RuntimeError("Inference payloads missing mapping key 'model_handle_builder'.")
 
-        writer_factory = writer_payload.get("writer_factory")
+        writer_factory = runtime_state.get("writer_factory")
         model_handle = model_payload.get("model_handle")
         loader_manager = runtime_state.get("loader_manager")
 
@@ -45,7 +41,7 @@ class InferenceStateResolver(BasePayloadResolver):
                 "This should be resolved by ModelRunnerStateResolver."
             )
         if not isinstance(writer_factory, WriterFactory):
-            raise RuntimeError("Inference payloads missing valid 'writer_factory_init.writer_factory'.")
+            raise RuntimeError("Inference runtime_state missing valid 'writer_factory'.")
         if not isinstance(model_handle, BaseModelHandle):
             raise RuntimeError("Inference payloads missing valid 'model_handle_builder.model_handle'.")
 
@@ -65,10 +61,15 @@ class InferenceStateResolver(BasePayloadResolver):
         model_handle: BaseModelHandle,
     ) -> dict[str, Any]:
         writer = writer_factory.build()
+        if not hasattr(writer, "build_prediction_set"):
+            raise RuntimeError(
+                f"{writer.__class__.__name__} must implement build_prediction_set(...) for inference usage."
+            )
         loader_factory = loader_manager.loader_factory
 
-        use_cuda = bool(cfg.get("use_cuda", True))
-        device = torch.device("cuda" if use_cuda and torch.cuda.is_available() else "cpu")
+        runtime_cfg = dict(cfg.get("runtime") or {})
+        prefer_cuda = bool(runtime_cfg.get("prefer_cuda", True))
+        device = torch.device("cuda" if prefer_cuda and torch.cuda.is_available() else "cpu")
         model = model_handle.load(device=device)
 
         loader_params = loader_manager.resolve_loader_params(
@@ -92,6 +93,10 @@ class InferenceStateResolver(BasePayloadResolver):
                 source_index=int(source_ctx["source_idx"]),
                 loader_params=loader_params,
             )
+            if not hasattr(source_loader, "build_inference_model_input"):
+                raise RuntimeError(
+                    f"{source_loader.__class__.__name__} must implement build_inference_model_input(...) for inference usage."
+                )
             source_items.append(
                 {
                     "source_idx": int(source_ctx["source_idx"]),

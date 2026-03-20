@@ -1,53 +1,30 @@
 from zenml import step
 
-from pioneerml.common.data_loader import LoaderFactory, BatchBundle
 from pioneerml.common.pipeline.steps import BaseLoaderFactoryInitStep
-from pioneerml.common.integration.zenml.materializers import BatchBundleMaterializer
 
 
 class EndpointRegressorLoaderStep(BaseLoaderFactoryInitStep):
     step_key = "loader"
 
     def default_config(self) -> dict:
-        return {"config_json": {}, "loader_name": "endpoint_regression"}
-
-    def run(
-        self,
-        *,
-        input_source_set: dict,
-    ) -> BatchBundle:
-        cfg = self.config_json
-        config_json = dict(cfg.get("config_json") or {})
-        input_sources = self.resolve_input_source_set(input_source_set)
-        loader_factory = LoaderFactory(
-            loader_name="endpoint_regression",
-            config={"input_sources": input_sources, "input_backend_name": "parquet", "mode": "train"},
-        )
-        loader = loader_factory.build(config=dict(config_json))
-        data = loader.empty_data()
-        data.source_main_sources = list(loader.input_sources.main_sources)
-        group_probs_paths = input_sources.source_entries("group_probs")
-        if group_probs_paths is not None:
-            data.group_probs_sources = list(group_probs_paths)
-        group_splitter_paths = input_sources.source_entries("group_splitter")
-        if group_splitter_paths is not None:
-            data.group_splitter_sources = list(group_splitter_paths)
-        return BatchBundle(
-            data=data,
-            loader_factory=loader_factory,
-            loader=loader,
-        )
+        return {
+            "loader": {
+                "type": "endpoint_regression",
+                "config": {
+                    "input_sources_spec": {
+                        "main_sources": [],
+                        "optional_sources_by_name": {},
+                        "source_type": "file",
+                    },
+                    "input_backend_name": "parquet",
+                    "mode": "train",
+                },
+            }
+        }
 
 
-@step(
-    name="load_endpoint_regressor_dataset",
-    enable_cache=False,
-    output_materializers=BatchBundleMaterializer,
-)
+@step(name="load_endpoint_regressor_dataset", enable_cache=False)
 def load_endpoint_regressor_dataset_step(
-    input_source_set: dict,
     pipeline_config: dict | None = None,
-) -> BatchBundle:
-    return EndpointRegressorLoaderStep(pipeline_config=pipeline_config).execute(
-        input_source_set=input_source_set,
-    )
+):
+    return EndpointRegressorLoaderStep(pipeline_config=pipeline_config).execute()

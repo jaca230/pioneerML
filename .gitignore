@@ -140,6 +140,8 @@ deprecated/pioneerml_training_datamodules/**
 deprecated/pioneerml_zenml_pipelines_training/**
 deprecated/pioneerml_zenml_pipelines_tutorials/**
 deprecated/pioneerml_zenml_materializers/**
+!src/pioneerml/common/deprecated/
+!src/pioneerml/common/deprecated/**
 
 #custom
 .playground/

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import torch
 from torch_geometric.data import Data
 
@@ -139,3 +141,17 @@ class GraphLoader(StructuredLoader):
             **graph_meta,
         )
         return d
+
+    def build_inference_model_input(
+        self,
+        *,
+        batch,
+        device: torch.device,
+        cfg: dict[str, Any],
+    ) -> tuple[tuple[Any, ...], dict[str, Any]]:
+        _ = cfg
+        x = batch.x_node.to(device, non_blocking=(device.type == "cuda"))
+        edge_index = batch.edge_index.to(device, non_blocking=(device.type == "cuda"))
+        edge_attr = batch.x_edge.to(device, non_blocking=(device.type == "cuda"))
+        node_graph_id = batch.node_graph_id.to(device, non_blocking=(device.type == "cuda"))
+        return (x, edge_index, edge_attr, node_graph_id), {}

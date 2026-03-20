@@ -23,9 +23,10 @@ _RUNNER = TrainingPipelineRunner(
 
 @pipeline
 def group_splitting_pipeline(
+    input_source_set: dict,
     pipeline_config: dict | None = None,
 ):
     return _RUNNER.run(
-        loader_kwargs={},
+        loader_kwargs={"input_source_set": input_source_set},
         pipeline_config=pipeline_config,
     )

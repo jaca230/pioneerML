@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import numpy as np
 import pyarrow as pa
+import torch
 
 from pioneerml.common.data_writer.factory.registry import REGISTRY as WRITER_REGISTRY
+from pioneerml.common.data_writer.input_source import TimeGroupPredictionSet
 from pioneerml.common.data_writer.array_store import OutputColumnSpec, OutputSchema
 from pioneerml.common.data_writer.stage.stages import (
     AppendChunkStage,
@@ -87,4 +89,30 @@ class GroupSplittingDataWriter(TimeGroupGraphDataWriter):
                 "close_sinks": CloseSinksStage(),
                 "emit_run_outputs": EmitRunOutputsStage(),
             },
+        )
+
+    def build_prediction_set(
+        self,
+        *,
+        batch,
+        model_output,
+        src_path,
+        num_rows: int,
+        cfg: dict | None = None,
+    ) -> TimeGroupPredictionSet:
+        _ = cfg
+        logits = model_output[0] if isinstance(model_output, (tuple, list)) else model_output
+        probs_np = torch.sigmoid(logits).detach().cpu().to(torch.float32).numpy().astype("float32", copy=False)
+        node_event_ids_np = (
+            batch.graph_event_id[batch.node_graph_id].to(torch.int64).cpu().numpy().astype("int64", copy=False)
+        )
+        graph_event_ids_np = batch.graph_event_id.to(torch.int64).cpu().numpy().astype("int64", copy=False)
+        graph_time_group_ids_np = batch.graph_time_group_id.to(torch.int64).cpu().numpy().astype("int64", copy=False)
+        return TimeGroupPredictionSet(
+            src_path=src_path,
+            prediction_event_ids_np=node_event_ids_np,
+            model_outputs_by_name={"main": probs_np},
+            num_rows=int(num_rows),
+            time_group_event_ids_np=graph_event_ids_np,
+            time_group_ids_np=graph_time_group_ids_np,
         )

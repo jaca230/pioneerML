@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from typing import Any
 
+import torch
 from torch.utils.data import DataLoader, IterableDataset
 
 from .config import DataFlowConfig, SplitSampleConfig
@@ -84,6 +85,20 @@ class BaseLoader(ABC):
             kwargs["persistent_workers"] = True
             kwargs["prefetch_factor"] = 2
         return DataLoader(ds, **kwargs)
+
+    def build_inference_model_input(
+        self,
+        *,
+        batch,
+        device: torch.device,
+        cfg: dict[str, Any],
+    ) -> tuple[tuple[Any, ...], dict[str, Any]]:
+        _ = batch
+        _ = device
+        _ = cfg
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must implement build_inference_model_input(...) for inference usage."
+        )
 
     def record_batch(self, batch) -> None:
         _ = batch

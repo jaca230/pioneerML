@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from pioneerml.common.data_loader.loaders.input_source import SourceType
+
 from .....resolver import BaseConfigResolver
 
 
@@ -57,6 +59,16 @@ class ModelRunnerConfigResolver(BaseConfigResolver):
             raise TypeError("model_runner.loader_manager.config must be a mapping.")
         manager_cfg = dict(manager_cfg)
 
+        input_sources_spec = self._normalize_input_sources_spec(
+            value=manager_cfg.get("input_sources_spec"),
+            context="model_runner.loader_manager.config.input_sources_spec",
+        )
+        input_backend_name = manager_cfg.get("input_backend_name", "parquet")
+        if not isinstance(input_backend_name, str) or input_backend_name.strip() == "":
+            raise TypeError("model_runner.loader_manager.config.input_backend_name must be a non-empty string.")
+        manager_cfg["input_sources_spec"] = input_sources_spec
+        manager_cfg["input_backend_name"] = str(input_backend_name).strip()
+
         defaults_block = manager_cfg.get("defaults")
         if not isinstance(defaults_block, Mapping):
             raise TypeError("model_runner.loader_manager.config.defaults must be a mapping with keys ['type', 'config'].")
@@ -104,3 +116,37 @@ class ModelRunnerConfigResolver(BaseConfigResolver):
         manager_cfg["loaders"] = normalized_loaders
         manager_block["config"] = manager_cfg
         cfg["loader_manager"] = manager_block
+
+    @staticmethod
+    def _normalize_input_sources_spec(*, value: Any, context: str) -> dict[str, Any]:
+        if not isinstance(value, Mapping):
+            raise TypeError(f"{context} must be a mapping.")
+        spec = dict(value)
+        main_sources = spec.get("main_sources")
+        if main_sources is None:
+            main_sources = spec.get("main_paths")
+        optional_sources_by_name = spec.get("optional_sources_by_name")
+        if optional_sources_by_name is None:
+            optional_sources_by_name = spec.get("optional_paths_by_name")
+        source_type = SourceType.from_value(spec.get("source_type", "file"))
+
+        if not isinstance(main_sources, list):
+            raise TypeError(f"{context}.main_sources (or main_paths) must be a list[str].")
+        if optional_sources_by_name is None:
+            optional_sources_by_name = {}
+        if not isinstance(optional_sources_by_name, Mapping):
+            raise TypeError(
+                f"{context}.optional_sources_by_name (or optional_paths_by_name) must be a dict[str, list[str]|None]."
+            )
+        normalized_optional: dict[str, list[str] | None] = {}
+        for key, values in dict(optional_sources_by_name).items():
+            if not isinstance(key, str):
+                raise TypeError(f"{context}.optional_sources_by_name keys must be strings.")
+            if values is not None and not isinstance(values, list):
+                raise TypeError(f"{context}.optional_sources_by_name values must be list[str] | None.")
+            normalized_optional[str(key)] = (None if values is None else [str(v) for v in values])
+        return {
+            "main_sources": [str(v) for v in main_sources],
+            "optional_sources_by_name": normalized_optional,
+            "source_type": source_type.value,
+        }

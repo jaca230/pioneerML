@@ -3,7 +3,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from pioneerml.common.data_loader.loaders import DataFlowConfig, SplitSampleConfig
+from pioneerml.common.data_loader.loaders import DataFlowConfig, LoaderFactory, SplitSampleConfig
+from pioneerml.common.data_loader.loaders.input_source import InputSourceSet, SourceType
 
 from .base_loader_manager import BaseLoaderManager
 from .factory.registry import REGISTRY as LOADER_MANAGER_REGISTRY
@@ -21,6 +22,54 @@ class ConfigLoaderManager(BaseLoaderManager):
 
         cpu = int(os.cpu_count() or 1)
         return max(1, cpu - 1)
+
+    @property
+    def loader_factory(self) -> LoaderFactory:
+        existing = self.config.get("loader_factory")
+        if isinstance(existing, LoaderFactory):
+            return existing
+
+        defaults_block_raw = self.config.get("defaults")
+        if not isinstance(defaults_block_raw, Mapping):
+            raise TypeError("config.defaults must be a mapping with keys ['type', 'config'].")
+        defaults_block = dict(defaults_block_raw)
+        loader_name = defaults_block.get("type")
+        if not isinstance(loader_name, str) or loader_name.strip() == "":
+            raise TypeError("config.defaults.type must be a non-empty string.")
+
+        source_spec_raw = self.config.get("input_sources_spec")
+        if not isinstance(source_spec_raw, Mapping):
+            raise TypeError("config.input_sources_spec must be a mapping.")
+        source_spec = dict(source_spec_raw)
+        main_sources = source_spec.get("main_sources")
+        optional_sources_by_name = source_spec.get("optional_sources_by_name", {})
+        source_type = SourceType.from_value(source_spec.get("source_type", "file"))
+        if not isinstance(main_sources, list):
+            raise TypeError("config.input_sources_spec.main_sources must be a list[str].")
+        if optional_sources_by_name is None:
+            optional_sources_by_name = {}
+        if not isinstance(optional_sources_by_name, Mapping):
+            raise TypeError("config.input_sources_spec.optional_sources_by_name must be a mapping when provided.")
+
+        input_sources = InputSourceSet(
+            main_sources=[str(v) for v in main_sources],
+            optional_sources_by_name={str(k): v for k, v in dict(optional_sources_by_name).items()},
+            source_type=source_type,
+        )
+        input_backend_name = str(self.config.get("input_backend_name", "parquet")).strip() or "parquet"
+        defaults_cfg = dict(defaults_block.get("config") or {})
+        mode = str(defaults_cfg.get("mode", "train"))
+
+        built = LoaderFactory(
+            loader_name=str(loader_name).strip(),
+            config={
+                "input_sources": input_sources,
+                "input_backend_name": input_backend_name,
+                "mode": mode,
+            },
+        )
+        self.config["loader_factory"] = built
+        return built
 
     def resolve_loader_params(
         self,

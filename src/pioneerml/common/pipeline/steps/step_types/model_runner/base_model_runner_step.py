@@ -24,6 +24,12 @@ class BaseModelRunnerStep(BasePipelineStep):
         "loader_manager": {
             "type": "config",
             "config": {
+                "input_sources_spec": {
+                    "main_sources": [],
+                    "optional_sources_by_name": {},
+                    "source_type": "file",
+                },
+                "input_backend_name": "parquet",
                 "defaults": {
                     "type": "group_classifier",
                     "config": {

@@ -3,24 +3,28 @@ from __future__ import annotations
 from pioneerml.common.data_writer import WriterFactory
 
 from .payloads import WriterFactoryInitStepPayload
-from .resolvers.config import WriterRuntimeConfigResolver
+from .resolvers.config import WriterConfigResolver
 
 from ..base_pipeline_step import BasePipelineStep
 
 
 class BaseWriterFactoryInitStep(BasePipelineStep):
     DEFAULT_CONFIG = {
-        "writer_name": None,
-        "output_backend_name": "parquet",
-        "fallback_output_dir": "data/inference",
-        "output_dir": None,
-        "output_path": None,
-        "streaming": True,
-        "write_timestamped": False,
-        "timestamp": None,
-        "writer_params": {},
+        "writer": {
+            "type": "required",
+            "config": {
+                "output_backend_name": "parquet",
+                "fallback_output_dir": "data/inference",
+                "output_dir": None,
+                "output_path": None,
+                "streaming": True,
+                "write_timestamped": False,
+                "timestamp": None,
+                "writer_params": {},
+            },
+        },
     }
-    config_resolver_classes = (WriterRuntimeConfigResolver,)
+    config_resolver_classes = (WriterConfigResolver,)
     payload_resolver_classes = ()
 
     def _build_payload(self, *, writer_factory: WriterFactory) -> WriterFactoryInitStepPayload:
@@ -37,7 +41,7 @@ class BaseWriterFactoryInitStep(BasePipelineStep):
             raise RuntimeError(f"{self.__class__.__name__} runtime_state missing valid 'writer_factory'.")
 
         if output_dir is not None or output_path is not None:
-            writer_factory = WriterRuntimeConfigResolver.build_writer_factory(
+            writer_factory = WriterConfigResolver.build_writer_factory(
                 cfg=dict(self.config_json),
                 output_dir=output_dir,
                 output_path=output_path,

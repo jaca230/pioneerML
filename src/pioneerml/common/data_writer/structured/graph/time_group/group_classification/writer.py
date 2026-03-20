@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pyarrow as pa
 
-from pioneerml.common.data_writer.factory import register_writer
+from pioneerml.common.data_writer.factory.registry import REGISTRY as WRITER_REGISTRY
 from pioneerml.common.data_writer.array_store import OutputColumnSpec, OutputSchema
 from pioneerml.common.data_writer.stage.stages import (
     AppendChunkStage,
@@ -27,7 +27,7 @@ from pioneerml.common.data_writer.structured.structured_data_writer import (
 from ..time_group_graph_data_writer import TimeGroupGraphDataWriter
 
 
-@register_writer("group_classification")
+@WRITER_REGISTRY.register("group_classification")
 class GroupClassificationDataWriter(TimeGroupGraphDataWriter):
     """Writer implementation for group-classification inference outputs."""
 

@@ -5,17 +5,16 @@ from .classification import (
     BinaryClassificationFromCountersMetric,
     BinaryClassificationFromTensorsMetric,
 )
-from .registry import METRIC_REGISTRY, compute_metrics, create_metric, register_metric
+from .factory import MetricFactory
+from .registry import METRIC_REGISTRY, REGISTRY as METRIC_PLUGIN_REGISTRY
 
 __all__ = [
     "BaseMetric",
+    "MetricFactory",
+    "METRIC_PLUGIN_REGISTRY",
     "METRIC_REGISTRY",
-    "register_metric",
-    "create_metric",
-    "compute_metrics",
     "BaseClassificationMetric",
     "BaseBinaryClassificationMetric",
     "BinaryClassificationFromCountersMetric",
     "BinaryClassificationFromTensorsMetric",
 ]
-

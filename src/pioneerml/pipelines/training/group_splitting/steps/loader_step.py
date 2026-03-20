@@ -7,7 +7,20 @@ class GroupSplitterLoaderStep(BaseLoaderFactoryInitStep):
     step_key = "loader"
 
     def default_config(self) -> dict:
-        return {"loader_name": "group_splitter"}
+        return {
+            "loader": {
+                "type": "group_splitter",
+                "config": {
+                    "input_sources_spec": {
+                        "main_sources": [],
+                        "optional_sources_by_name": {},
+                        "source_type": "file",
+                    },
+                    "input_backend_name": "parquet",
+                    "mode": "train",
+                },
+            }
+        }
 
 
 @step(name="load_group_splitter_dataset", enable_cache=False)

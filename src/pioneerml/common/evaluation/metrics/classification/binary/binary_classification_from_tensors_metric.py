@@ -5,11 +5,11 @@ from typing import Any
 
 import torch
 
-from ...registry import register_metric
+from ...registry import REGISTRY as METRIC_REGISTRY
 from .base_binary_classification_metric import BaseBinaryClassificationMetric
 
 
-@register_metric("binary_classification_from_tensors")
+@METRIC_REGISTRY.register("binary_classification_from_tensors")
 class BinaryClassificationFromTensorsMetric(BaseBinaryClassificationMetric):
     """Computes accuracy/exact/confusion from prediction and target tensors."""
 

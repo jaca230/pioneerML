@@ -1,3 +1,3 @@
-from .model_runner_payload_resolver import ModelRunnerPayloadResolver
+from .runtime_state_resolver import ModelRunnerStateResolver
 
-__all__ = ["ModelRunnerPayloadResolver"]
+__all__ = ["ModelRunnerStateResolver"]

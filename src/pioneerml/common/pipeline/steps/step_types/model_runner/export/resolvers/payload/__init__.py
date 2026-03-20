@@ -1,3 +1,3 @@
-from .export_runtime_state_resolver import ExportRuntimeStateResolver
+from .runtime_state_resolver import ExportStateResolver
 
-__all__ = ["ExportRuntimeStateResolver"]
+__all__ = ["ExportStateResolver"]

@@ -5,10 +5,10 @@ from collections.abc import Mapping
 import torch
 
 from .base_regression_evaluator import BaseRegressionEvaluator
-from ..factory import register_evaluator
+from ..factory.registry import REGISTRY as EVALUATOR_REGISTRY
 
 
-@register_evaluator("simple_regression")
+@EVALUATOR_REGISTRY.register("simple_regression")
 class SimpleRegressionEvaluator(BaseRegressionEvaluator):
     default_plot_names = ("loss_curves",)
 

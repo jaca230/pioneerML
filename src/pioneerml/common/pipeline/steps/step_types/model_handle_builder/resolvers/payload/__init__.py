@@ -1,3 +1,3 @@
-from .model_handle_builder_runtime_state_resolver import ModelHandleBuilderRuntimeStateResolver
+from .runtime_state_resolver import ModelHandleBuilderStateResolver
 
-__all__ = ["ModelHandleBuilderRuntimeStateResolver"]
+__all__ = ["ModelHandleBuilderStateResolver"]

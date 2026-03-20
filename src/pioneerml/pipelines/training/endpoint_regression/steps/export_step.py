@@ -14,9 +14,12 @@ class EndpointRegressorExportStep(BaseExportStep):
             "export_dir": "trained_models/endpoint_regressor",
             "filename_prefix": "endpoint_regressor",
             "prefer_cuda": True,
-            "loader_config": {
-                "base": {"batch_size": 1, "chunk_row_groups": 1, "chunk_workers": 0},
-                "export": {"mode": "train", "shuffle_batches": False, "log_diagnostics": False},
+            "loader": {
+                "type": "endpoint_regression",
+                "config": {
+                    "base": {"batch_size": 1, "chunk_row_groups": 1, "chunk_workers": 0},
+                    "export": {"mode": "train", "shuffle_batches": False, "log_diagnostics": False},
+                },
             },
         }
 

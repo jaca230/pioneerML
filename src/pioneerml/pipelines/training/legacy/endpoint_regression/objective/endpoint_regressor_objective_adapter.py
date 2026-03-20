@@ -4,7 +4,9 @@ import optuna
 import torch.nn as nn
 
 from pioneerml.common.data_loader import EndpointRegressionGraphLoader
-from pioneerml.common.integration.pytorch.models.architectures.graph.transformer.regressors import EndpointRegressor
+from pioneerml.common.integration.pytorch.models.architectures.graph.transformer.regressors.endpoint_regressor import (
+    EndpointRegressor,
+)
 from pioneerml.common.integration.optuna.objective import BaseObjectiveAdapter
 from pioneerml.common.pipeline.steps import suggest_range
 from pioneerml.common.integration.pytorch.modules import GraphLightningModule

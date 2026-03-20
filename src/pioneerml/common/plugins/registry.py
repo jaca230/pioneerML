@@ -8,7 +8,7 @@ from typing import Generic, TypeVar
 T = TypeVar("T")
 
 
-def normalize_identifier(value: str, *, label: str) -> str:
+def _normalize_identifier(value: str, *, label: str) -> str:
     out = str(value).strip().lower()
     if out == "":
         raise ValueError(f"{label} must be non-empty.")
@@ -19,12 +19,12 @@ class PluginRegistry(Generic[T]):
     """Typed namespace-local plugin registry."""
 
     def __init__(self, *, namespace: str) -> None:
-        self.namespace = normalize_identifier(namespace, label="Plugin namespace")
+        self.namespace = _normalize_identifier(namespace, label="Plugin namespace")
         self._entries: dict[str, T] = {}
         self._lock = RLock()
 
     def register(self, name: str) -> Callable[[T], T]:
-        key = normalize_identifier(name, label=f"{self.namespace} plugin name")
+        key = _normalize_identifier(name, label=f"{self.namespace} plugin name")
 
         def _decorator(plugin: T) -> T:
             self.register_value(name=key, plugin=plugin)
@@ -33,7 +33,7 @@ class PluginRegistry(Generic[T]):
         return _decorator
 
     def register_value(self, *, name: str, plugin: T) -> None:
-        key = normalize_identifier(name, label=f"{self.namespace} plugin name")
+        key = _normalize_identifier(name, label=f"{self.namespace} plugin name")
         with self._lock:
             existing = self._entries.get(key)
             if existing is not None and existing is not plugin:
@@ -54,7 +54,7 @@ class PluginRegistry(Generic[T]):
             self._entries[key] = plugin
 
     def resolve(self, name: str) -> T:
-        key = normalize_identifier(name, label=f"{self.namespace} plugin name")
+        key = _normalize_identifier(name, label=f"{self.namespace} plugin name")
         with self._lock:
             plugin = self._entries.get(key)
             if plugin is None:

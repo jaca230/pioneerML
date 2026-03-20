@@ -9,9 +9,10 @@ from .classification import (
     ProbabilityDistributionsPlot,
     RocCurvesPlot,
 )
+from .factory import PlotFactory
 from .loss import LossCurvesPlot
 from .regression import ErrorEmbeddingSpacePlot, EuclideanErrorHistogramPlot, RegressionDiagnosticsPlot
-from .registry import PLOT_REGISTRY, create_plot, register_plot, render_plots
+from .registry import PLOT_REGISTRY, REGISTRY as PLOT_PLUGIN_REGISTRY
 
 PLOT_CLASSES = PLOT_REGISTRY
 
@@ -36,11 +37,10 @@ plot_confidence_analysis = _wrap(ConfidenceAnalysisPlot)
 
 __all__ = [
     "BasePlot",
+    "PlotFactory",
+    "PLOT_PLUGIN_REGISTRY",
     "PLOT_REGISTRY",
     "PLOT_CLASSES",
-    "register_plot",
-    "create_plot",
-    "render_plots",
     "plot_multilabel_confusion_matrix",
     "plot_roc_curves",
     "plot_precision_recall_curves",
@@ -62,4 +62,3 @@ __all__ = [
     "ProbabilityDistributionsPlot",
     "ConfidenceAnalysisPlot",
 ]
-

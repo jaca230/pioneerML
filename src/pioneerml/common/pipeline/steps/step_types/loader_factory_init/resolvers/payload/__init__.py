@@ -1,3 +1,3 @@
-from .loader_factory_init_payload_resolver import LoaderFactoryInitPayloadResolver
+from .runtime_state_resolver import LoaderFactoryInitStateResolver
 
-__all__ = ["LoaderFactoryInitPayloadResolver"]
+__all__ = ["LoaderFactoryInitStateResolver"]

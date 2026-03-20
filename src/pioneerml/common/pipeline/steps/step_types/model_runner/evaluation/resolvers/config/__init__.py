@@ -1,3 +1,3 @@
-from .evaluation_runtime_config_resolver import EvaluationRuntimeConfigResolver
+from .config_resolver import EvaluationConfigResolver
 
-__all__ = ["EvaluationRuntimeConfigResolver"]
+__all__ = ["EvaluationConfigResolver"]

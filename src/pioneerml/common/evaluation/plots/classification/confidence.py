@@ -6,7 +6,7 @@ from typing import Any, Sequence
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ..registry import register_plot
+from ..registry import REGISTRY as PLOT_REGISTRY_DEF
 from .base_classification_plot import ClassificationPlotBase
 
 try:
@@ -15,7 +15,7 @@ except Exception:  # pragma: no cover
     display = None
 
 
-@register_plot("confidence_analysis")
+@PLOT_REGISTRY_DEF.register("confidence_analysis")
 class ConfidenceAnalysisPlot(ClassificationPlotBase):
     name = "confidence_analysis"
 

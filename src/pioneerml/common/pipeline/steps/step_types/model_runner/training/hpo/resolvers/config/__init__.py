@@ -1,3 +1,3 @@
-from .hpo_runtime_config_resolver import HPORuntimeConfigResolver
+from .config_resolver import HPOConfigResolver
 
-__all__ = ["HPORuntimeConfigResolver"]
+__all__ = ["HPOConfigResolver"]

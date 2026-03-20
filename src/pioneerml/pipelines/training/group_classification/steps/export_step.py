@@ -14,9 +14,12 @@ class GroupClassifierExportStep(BaseExportStep):
             "export_dir": "trained_models/groupclassifier",
             "filename_prefix": "groupclassifier",
             "prefer_cuda": True,
-            "loader_config": {
-                "base": {"batch_size": 1, "chunk_row_groups": 1, "chunk_workers": 0},
-                "export": {"mode": "train", "shuffle_batches": False, "log_diagnostics": False},
+            "loader": {
+                "type": "group_classifier",
+                "config": {
+                    "base": {"batch_size": 1, "chunk_row_groups": 1, "chunk_workers": 0},
+                    "export": {"mode": "train", "shuffle_batches": False, "log_diagnostics": False},
+                },
             },
         }
 

@@ -1,3 +1,3 @@
-from .export_runtime_config_resolver import ExportRuntimeConfigResolver
+from .config_resolver import ExportConfigResolver
 
-__all__ = ["ExportRuntimeConfigResolver"]
+__all__ = ["ExportConfigResolver"]

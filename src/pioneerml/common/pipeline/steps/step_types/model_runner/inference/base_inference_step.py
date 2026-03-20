@@ -9,7 +9,7 @@ import torch
 from pioneerml.common.data_writer.input_source import PredictionSet
 
 from .payloads import InferenceStepPayload
-from .resolvers import InferenceRuntimeConfigResolver, InferenceRuntimeStateResolver
+from .resolvers import InferenceConfigResolver, InferenceStateResolver
 from ..base_model_runner_step import BaseModelRunnerStep
 from ..utils import merge_nested_dicts
 
@@ -21,25 +21,34 @@ class BaseInferenceStep(BaseModelRunnerStep):
         override={
             "threshold": 0.5,
             "use_cuda": True,
-            "loader_config": {
-                "base": {
-                    "mode": "inference",
-                    "batch_size": 64,
-                    "chunk_row_groups": 4,
-                    "chunk_workers": 0,
-                    "sample_fraction": 1.0,
-                    "split_seed": 0,
-                },
-                "inference": {
-                    "mode": "inference",
-                    "shuffle_batches": False,
-                    "log_diagnostics": False,
+            "loader_manager": {
+                "config": {
+                    "defaults": {
+                        "type": "group_classifier",
+                        "config": {
+                            "mode": "inference",
+                            "batch_size": 64,
+                            "chunk_row_groups": 4,
+                            "chunk_workers": 0,
+                            "sample_fraction": 1.0,
+                            "split_seed": 0,
+                        },
+                    },
+                    "loaders": {
+                        "inference_loader": {
+                            "config": {
+                                "mode": "inference",
+                                "shuffle_batches": False,
+                                "log_diagnostics": False,
+                            },
+                        },
+                    },
                 },
             },
         },
     )
-    config_resolver_classes = BaseModelRunnerStep.config_resolver_classes + (InferenceRuntimeConfigResolver,)
-    payload_resolver_classes = BaseModelRunnerStep.payload_resolver_classes + (InferenceRuntimeStateResolver,)
+    config_resolver_classes = BaseModelRunnerStep.config_resolver_classes + (InferenceConfigResolver,)
+    payload_resolver_classes = BaseModelRunnerStep.payload_resolver_classes + (InferenceStateResolver,)
 
     @abstractmethod
     def build_model_input(

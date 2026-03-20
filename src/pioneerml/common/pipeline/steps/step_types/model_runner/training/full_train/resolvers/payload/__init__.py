@@ -1,3 +1,3 @@
-from .full_train_runtime_state_resolver import FullTrainRuntimeStateResolver
+from .runtime_state_resolver import FullTrainStateResolver
 
-__all__ = ["FullTrainRuntimeStateResolver"]
+__all__ = ["FullTrainStateResolver"]

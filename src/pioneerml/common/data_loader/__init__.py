@@ -1,36 +1,47 @@
-from .array_store import NDArrayColumnSpec, NDArrayStore
-from .array_store.schemas import FeatureSchema, LoaderSchema, TargetSchema
-from .base_loader import BaseLoader
-from .bundles import BatchBundle
-from .config import DataFlowConfig, GraphTensorDims, SplitSampleConfig
-from .factory import LoaderFactory, list_registered_loaders, register_loader, resolve_loader
-from .input_source import (
+from .loaders import (
+    BaseLoader,
+    BatchBundle,
+    CompositeStageObserver,
+    DataFlowConfig,
+    EndpointRegressionGraphLoader,
+    FeatureSchema,
+    GraphLoader,
+    GraphTensorDims,
+    GroupClassifierGraphLoader,
+    GroupSplitterGraphLoader,
     InputBackend,
     InputSourceSet,
-    ParquetInputBackend,
-    create_input_backend,
-    list_input_backends,
-    register_input_backend,
-)
-from .structured import (
-    GraphLoader,
-    GroupClassifierGraphLoader,
-    EndpointRegressionGraphLoader,
-    GroupSplitterGraphLoader,
-    StructuredLoader,
-    TimeGroupGraphLoader,
-)
-from .stage import (
-    CompositeStageObserver,
     JsonlObserver,
-    LoaderStageContext,
+    LOADER_REGISTRY,
     LoaderDiagnostics,
+    LoaderFactory,
+    LoaderSchema,
+    LoaderStageContext,
     MemoryObserver,
+    NDArrayColumnSpec,
+    NDArrayStore,
+    ParquetInputBackend,
+    SAMPLE_STREAM_DOMAIN_SEED,
+    SplitSampleConfig,
     StageObserver,
     StageRunner,
+    StructuredLoader,
+    TargetSchema,
+    TimeGroupGraphLoader,
     TimingObserver,
+    create_input_backend,
+    keyed_uniform01,
+    list_input_backends,
+    register_input_backend,
+    splitmix64,
+    uniform01_from_u64,
 )
-from .utils import SAMPLE_STREAM_DOMAIN_SEED, keyed_uniform01, splitmix64, uniform01_from_u64
+from .manager import (
+    BaseLoaderManager,
+    ConfigLoaderManager,
+    LOADER_MANAGER_REGISTRY,
+    LoaderManagerFactory,
+)
 
 __all__ = [
     "BaseLoader",
@@ -51,9 +62,7 @@ __all__ = [
     "DataFlowConfig",
     "GraphTensorDims",
     "LoaderFactory",
-    "register_loader",
-    "resolve_loader",
-    "list_registered_loaders",
+    "LOADER_REGISTRY",
     "NDArrayStore",
     "NDArrayColumnSpec",
     "FeatureSchema",
@@ -71,4 +80,9 @@ __all__ = [
     "uniform01_from_u64",
     "keyed_uniform01",
     "SAMPLE_STREAM_DOMAIN_SEED",
+    "BaseLoaderManager",
+    "ConfigLoaderManager",
+    "LoaderManagerFactory",
+    "LOADER_MANAGER_REGISTRY",
 ]
+

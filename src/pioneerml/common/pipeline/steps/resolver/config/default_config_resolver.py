@@ -15,6 +15,16 @@ def _deep_fill_defaults(*, cfg: dict[str, Any], defaults: dict[str, Any]) -> Non
             _deep_fill_defaults(cfg=current, defaults=default_value)
 
 
+def _deep_merge_override(*, base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    out = dict(base)
+    for key, value in dict(override).items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = _deep_merge_override(base=dict(out[key]), override=value)
+        else:
+            out[key] = value
+    return out
+
+
 class DefaultConfigResolver(BaseConfigResolver):
     """Fill step config with step defaults for keys not set by user."""
 
@@ -24,5 +34,5 @@ class DefaultConfigResolver(BaseConfigResolver):
         if callable(default_fn):
             maybe = default_fn()
             if isinstance(maybe, dict):
-                _deep_fill_defaults(cfg=defaults, defaults=maybe)
+                defaults = _deep_merge_override(base=defaults, override=maybe)
         _deep_fill_defaults(cfg=cfg, defaults=defaults)

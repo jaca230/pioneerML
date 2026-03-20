@@ -10,15 +10,21 @@ class EndpointRegressorEvaluateStep(BaseEvaluationStep):
 
     def default_config(self) -> dict:
         return {
-            "evaluator_name": "simple_regression",
+            "evaluator": {
+                "type": "simple_regression",
+                "config": {},
+            },
             "plots": ["loss_curves"],
-            "loader_config": {
-                "base": {
-                    "batch_size": 64,
-                    "chunk_row_groups": 4,
-                    "chunk_workers": 0,
+            "loader": {
+                "type": "endpoint_regression",
+                "config": {
+                    "base": {
+                        "batch_size": 64,
+                        "chunk_row_groups": 4,
+                        "chunk_workers": 0,
+                    },
+                    "test": {"mode": "train", "split": "test", "shuffle_batches": False, "log_diagnostics": False},
                 },
-                "test": {"mode": "train", "split": "test", "shuffle_batches": False, "log_diagnostics": False},
             },
         }
 

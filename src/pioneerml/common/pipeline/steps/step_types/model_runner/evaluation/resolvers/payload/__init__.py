@@ -1,3 +1,3 @@
-from .evaluation_runtime_state_resolver import EvaluationRuntimeStateResolver
+from .runtime_state_resolver import EvaluationStateResolver
 
-__all__ = ["EvaluationRuntimeStateResolver"]
+__all__ = ["EvaluationStateResolver"]

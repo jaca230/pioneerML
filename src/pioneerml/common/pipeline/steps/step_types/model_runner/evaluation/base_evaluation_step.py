@@ -2,60 +2,67 @@ from __future__ import annotations
 
 from pioneerml.common.evaluation.evaluators import BaseEvaluator, EvaluatorFactory
 from .payloads import EvaluationStepPayload
-from .resolvers import EvaluationRuntimeConfigResolver, EvaluationRuntimeStateResolver
-from ..utils import build_loader_bundle, merge_nested_dicts
+from .resolvers import EvaluationConfigResolver, EvaluationStateResolver
+from ..utils import log_loader_diagnostics, merge_nested_dicts
 
 from ..base_model_runner_step import BaseModelRunnerStep
-from pioneerml.common.data_loader import LoaderFactory
 
 
 class BaseEvaluationStep(BaseModelRunnerStep):
     DEFAULT_CONFIG = merge_nested_dicts(
         base=BaseModelRunnerStep.DEFAULT_CONFIG,
         override={
-            "evaluator_name": None,
-            "evaluator_config": {},
-            "metrics": [],
-            "plots": [],
-            "loader_config": {
-                "base": {"batch_size": 1},
-                "test": {"mode": "train", "split": "test", "shuffle_batches": False, "log_diagnostics": False},
+            "evaluator": {"type": "required", "config": {}},
+            "loader_manager": {
+                "config": {
+                    "defaults": {"type": "group_classifier", "config": {"batch_size": 1}},
+                    "loaders": {
+                        "test_loader": {
+                            "config": {
+                                "mode": "train",
+                                "split": "test",
+                                "shuffle_batches": False,
+                                "log_diagnostics": False,
+                            },
+                        },
+                    },
+                },
             },
         },
     )
-    config_resolver_classes = BaseModelRunnerStep.config_resolver_classes + (EvaluationRuntimeConfigResolver,)
-    payload_resolver_classes = BaseModelRunnerStep.payload_resolver_classes + (EvaluationRuntimeStateResolver,)
+    config_resolver_classes = BaseModelRunnerStep.config_resolver_classes + (EvaluationConfigResolver,)
+    payload_resolver_classes = BaseModelRunnerStep.payload_resolver_classes + (EvaluationStateResolver,)
 
     def _execute(self) -> EvaluationStepPayload:
         module = self.runtime_state.get("module")
-        loader_factory = self.runtime_state.get("loader_factory")
+        provider = self.runtime_state.get("evaluation_provider")
+        loader_params = self.runtime_state.get("evaluation_loader_params")
+        loader = self.runtime_state.get("evaluation_loader")
         if module is None:
             raise RuntimeError(f"{self.__class__.__name__} runtime_state missing 'module'.")
-        if not isinstance(loader_factory, LoaderFactory):
-            raise RuntimeError(f"{self.__class__.__name__} runtime_state missing valid 'loader_factory'.")
+        if provider is None:
+            raise RuntimeError(f"{self.__class__.__name__} runtime_state missing 'evaluation_provider'.")
+        if not isinstance(loader_params, dict):
+            raise RuntimeError(f"{self.__class__.__name__} runtime_state missing 'evaluation_loader_params'.")
+        if loader is None:
+            raise RuntimeError(f"{self.__class__.__name__} runtime_state missing 'evaluation_loader'.")
 
         cfg = dict(self.config_json)
-        provider, loader_params, loader = build_loader_bundle(
-            loader_factory=loader_factory,
-            cfg=cfg,
-            purpose="test",
-            default_shuffle=False,
-        )
-        if not provider.include_targets:
-            raise RuntimeError(f"{self.__class__.__name__} expects evaluation loader with targets enabled.")
-
-        evaluator_factory = EvaluatorFactory(evaluator_name=str(cfg["evaluator_name"]))
-        evaluator = evaluator_factory.build_evaluator(evaluator_params=dict(cfg.get("evaluator_config") or {}))
+        evaluator_cfg = dict(cfg.get("evaluator") or {})
+        evaluator_type = str(evaluator_cfg["type"]).strip()
+        evaluator_config = dict(evaluator_cfg.get("config") or {})
+        evaluator_factory = EvaluatorFactory(evaluator_name=evaluator_type)
+        evaluator = evaluator_factory.build(config=evaluator_config)
         if not isinstance(evaluator, BaseEvaluator):
             raise RuntimeError(f"{self.__class__.__name__} evaluator_factory must build BaseEvaluator.")
-        evaluator_cfg = dict(cfg)
-        evaluator_cfg.update(dict(cfg.get("evaluator_config") or {}))
-        metrics = evaluator.evaluate(module=module, loader=loader, config=evaluator_cfg)
+        evaluator_run_cfg = dict(cfg)
+        evaluator_run_cfg.update(evaluator_config)
+        metrics = evaluator.evaluate(module=module, loader=loader, config=evaluator_run_cfg)
         if not isinstance(metrics, dict):
             raise RuntimeError(f"{self.__class__.__name__} evaluator must return dict metrics.")
 
         if bool(loader_params.get("log_diagnostics", False)):
-            diag = LoaderFactory.log_diagnostics(label="evaluate", loader_provider=provider)
+            diag = log_loader_diagnostics(label="evaluate", loader_provider=provider)
             if diag:
                 metrics["loader_diagnostics"] = diag
 

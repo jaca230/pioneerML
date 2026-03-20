@@ -1,6 +1,6 @@
 """PyTorch integration utilities."""
 
-from .model_handle import (
+from .model_handles import (
     BaseModelHandle,
     ModelHandleFactory,
     TorchExportModelHandle,
@@ -8,32 +8,56 @@ from .model_handle import (
     TorchTraceModelHandle,
 )
 from .models import (
+    ARCHITECTURE_REGISTRY,
     ArchitectureFactory,
-    list_registered_architectures,
-    register_architecture,
-    resolve_architecture,
 )
 from .modules import (
     GraphLightningModule,
+    MODULE_REGISTRY,
     ModuleFactory,
-    list_registered_modules,
-    register_module,
-    resolve_module,
+)
+from .trainers import (
+    TRAINER_REGISTRY,
+    TrainerFactory,
+    LightningModuleTrainer,
+)
+from .compilers import (
+    BaseCompiler,
+    CompilerFactory,
+    COMPILER_REGISTRY,
+    TorchCompileCompiler,
+)
+from .exporters import (
+    BaseExporter,
+    ExporterFactory,
+    EXPORTER_REGISTRY,
+    TorchScriptExporter,
+    TorchTraceExporter,
+    TorchExportProgramExporter,
 )
 
 __all__ = [
     "BaseModelHandle",
     "ModelHandleFactory",
-    "register_architecture",
-    "resolve_architecture",
-    "list_registered_architectures",
+    "ARCHITECTURE_REGISTRY",
     "ArchitectureFactory",
-    "register_module",
-    "resolve_module",
-    "list_registered_modules",
+    "TRAINER_REGISTRY",
+    "TrainerFactory",
+    "LightningModuleTrainer",
+    "MODULE_REGISTRY",
     "ModuleFactory",
     "GraphLightningModule",
     "TorchScriptModelHandle",
     "TorchTraceModelHandle",
     "TorchExportModelHandle",
+    "BaseCompiler",
+    "CompilerFactory",
+    "COMPILER_REGISTRY",
+    "TorchCompileCompiler",
+    "BaseExporter",
+    "ExporterFactory",
+    "EXPORTER_REGISTRY",
+    "TorchScriptExporter",
+    "TorchTraceExporter",
+    "TorchExportProgramExporter",
 ]

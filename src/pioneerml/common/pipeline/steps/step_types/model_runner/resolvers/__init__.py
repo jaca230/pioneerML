@@ -1,4 +1,4 @@
-from .config import ModelRunnerRuntimeConfigResolver
-from .payload import ModelRunnerPayloadResolver
+from .config import ModelRunnerConfigResolver
+from .payload import ModelRunnerStateResolver
 
-__all__ = ["ModelRunnerRuntimeConfigResolver", "ModelRunnerPayloadResolver"]
+__all__ = ["ModelRunnerConfigResolver", "ModelRunnerStateResolver"]

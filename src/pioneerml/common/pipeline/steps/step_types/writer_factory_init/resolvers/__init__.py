@@ -1,3 +1,3 @@
-from .config import WriterRuntimeConfigResolver
+from .config import WriterConfigResolver
 
-__all__ = ["WriterRuntimeConfigResolver"]
+__all__ = ["WriterConfigResolver"]

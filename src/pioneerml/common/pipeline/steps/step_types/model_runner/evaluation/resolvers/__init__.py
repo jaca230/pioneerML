@@ -1,4 +1,4 @@
-from .config.evaluation_runtime_config_resolver import EvaluationRuntimeConfigResolver
-from .payload.evaluation_runtime_state_resolver import EvaluationRuntimeStateResolver
+from .config.config_resolver import EvaluationConfigResolver
+from .payload.runtime_state_resolver import EvaluationStateResolver
 
-__all__ = ["EvaluationRuntimeConfigResolver", "EvaluationRuntimeStateResolver"]
+__all__ = ["EvaluationConfigResolver", "EvaluationStateResolver"]

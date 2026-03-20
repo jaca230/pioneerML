@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from pioneerml.common.evaluation.metrics import compute_metrics
-from pioneerml.common.evaluation.plots import PLOT_REGISTRY, create_plot
+from pioneerml.common.evaluation.metrics import MetricFactory
+from pioneerml.common.evaluation.plots import PLOT_REGISTRY, PlotFactory
 
 
 def apply_registered_metrics(
@@ -16,7 +16,12 @@ def apply_registered_metrics(
     selected = [str(name) for name in (metric_names or []) if str(name).strip()]
     if not selected:
         return metrics
-    metric_values = compute_metrics(metric_names=selected, context=context)
+    metric_values: dict[str, Any] = {}
+    for metric_name in selected:
+        metric = MetricFactory(metric_name=metric_name).build()
+        values = metric.compute(context=context)
+        for key, value in dict(values).items():
+            metric_values[str(key)] = value
     metrics.update(metric_values)
     return metrics
 
@@ -70,7 +75,7 @@ def apply_registered_plots(
             default_plot_kwargs=default_plot_kwargs,
             plot_kwargs_by_name=plot_kwargs_by_name,
         )
-        result = create_plot(plot_name).render(**kwargs)
+        result = PlotFactory(plot_name=plot_name).build().render(**kwargs)
         if result is not None:
             key = f"{plot_name}_path" if isinstance(result, str) else f"{plot_name}_result"
             plot_outputs[key] = result

@@ -12,10 +12,10 @@ import torch.optim as optim
 from torch_geometric.data import Batch
 
 from pioneerml.common.integration.pytorch.models.architectures.graph import BaseGraphModel
-from .factory import register_module
+from .factory.registry import REGISTRY as MODULE_REGISTRY
 
 
-@register_module("graph_lightning")
+@MODULE_REGISTRY.register("graph_lightning")
 class GraphLightningModule(pl.LightningModule):
     """
     Generic LightningModule wrapper for BaseGraphModel instances.
@@ -37,7 +37,6 @@ class GraphLightningModule(pl.LightningModule):
         lr: float = 1e-3,
         weight_decay: float = 1e-4,
         optimizer_cls: type[optim.Optimizer] = optim.AdamW,
-        threshold: float = 0.5,
         scheduler_step_size: int | None = None,
         scheduler_gamma: float = 0.5,
     ):
@@ -47,7 +46,6 @@ class GraphLightningModule(pl.LightningModule):
         self.lr = lr
         self.weight_decay = weight_decay
         self.optimizer_cls = optimizer_cls
-        self.threshold = threshold
         self.scheduler_step_size = scheduler_step_size
         self.scheduler_gamma = scheduler_gamma
 

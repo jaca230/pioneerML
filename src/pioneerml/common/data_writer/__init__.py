@@ -2,7 +2,7 @@ from .base_data_writer import BaseDataWriter
 from .input_source import PredictionSet, TimeGroupPredictionSet
 from .array_store import OutputColumnSpec, OutputSchema
 from .config import WriterRunConfig
-from .factory import WriterFactory, list_registered_writers, register_writer, resolve_writer
+from .factory import WriterFactory, REGISTRY as WRITER_REGISTRY
 from .backends import (
     OutputBackend,
     ParquetOutputBackend,
@@ -29,9 +29,7 @@ __all__ = [
     "OutputSchema",
     "WriterRunConfig",
     "WriterFactory",
-    "register_writer",
-    "resolve_writer",
-    "list_registered_writers",
+    "WRITER_REGISTRY",
     "OutputBackend",
     "ParquetOutputBackend",
     "register_output_backend",

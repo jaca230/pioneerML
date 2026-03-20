@@ -10,10 +10,10 @@ from torch_geometric.data import Data
 from torch_geometric.nn import JumpingKnowledge
 
 from pioneerml.common.integration.pytorch.models.architectures.graph.transformer.classifiers.base_graph_classifier_model import BaseGraphClassifierModel
-from pioneerml.common.integration.pytorch.models.architectures.factory import register_architecture
+from pioneerml.common.integration.pytorch.models.architectures.factory.registry import REGISTRY as ARCHITECTURE_REGISTRY
 
 
-@register_architecture("group_affinity")
+@ARCHITECTURE_REGISTRY.register("group_affinity")
 class GroupAffinityModel(BaseGraphClassifierModel):
     """
     Graph-level affinity scorer.

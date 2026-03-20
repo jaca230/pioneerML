@@ -1,4 +1,4 @@
-from .config import InferenceRuntimeConfigResolver
-from .payload import InferenceRuntimeStateResolver
+from .config import InferenceConfigResolver
+from .payload import InferenceStateResolver
 
-__all__ = ["InferenceRuntimeConfigResolver", "InferenceRuntimeStateResolver"]
+__all__ = ["InferenceConfigResolver", "InferenceStateResolver"]

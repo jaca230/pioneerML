@@ -1,36 +1,15 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from typing import Any
+from collections.abc import Mapping
+
+from pioneerml.common.plugins import NamespacedPluginRegistry
 
 from .base_metric import BaseMetric
 
-METRIC_REGISTRY: dict[str, type[BaseMetric]] = {}
+REGISTRY = NamespacedPluginRegistry[type[BaseMetric]](
+    namespace="metric",
+    expected_type=BaseMetric,
+    label="Metric plugin",
+)
 
-
-def register_metric(name: str):
-    """Decorator to register a metric class."""
-
-    def decorator(metric_cls: type[BaseMetric]) -> type[BaseMetric]:
-        METRIC_REGISTRY[str(name)] = metric_cls
-        return metric_cls
-
-    return decorator
-
-
-def create_metric(name: str) -> BaseMetric:
-    cls = METRIC_REGISTRY.get(str(name))
-    if cls is None:
-        available = ", ".join(sorted(METRIC_REGISTRY))
-        raise KeyError(f"Unknown metric '{name}'. Available metrics: [{available}]")
-    return cls()
-
-
-def compute_metrics(*, metric_names: Sequence[str], context: Mapping[str, Any]) -> dict[str, Any]:
-    out: dict[str, Any] = {}
-    for metric_name in metric_names:
-        metric = create_metric(metric_name)
-        metric_values = metric.compute(context=context)
-        for key, value in dict(metric_values).items():
-            out[str(key)] = value
-    return out
+METRIC_REGISTRY: Mapping[str, type[BaseMetric]] = REGISTRY.mapping_view()

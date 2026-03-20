@@ -21,9 +21,9 @@ class EndpointRegressorLoaderStep(BaseLoaderFactoryInitStep):
         input_sources = self.resolve_input_source_set(input_source_set)
         loader_factory = LoaderFactory(
             loader_name="endpoint_regression",
-            input_sources=input_sources,
+            config={"input_sources": input_sources, "input_backend_name": "parquet", "mode": "train"},
         )
-        loader = loader_factory.build_loader(loader_params=dict(config_json))
+        loader = loader_factory.build(config=dict(config_json))
         data = loader.empty_data()
         data.source_main_sources = list(loader.input_sources.main_sources)
         group_probs_paths = input_sources.source_entries("group_probs")

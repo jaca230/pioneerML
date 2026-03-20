@@ -1,3 +1,3 @@
-from .training_runtime_config_resolver import TrainingRuntimeConfigResolver
+from .config_resolver import TrainingConfigResolver
 
-__all__ = ["TrainingRuntimeConfigResolver"]
+__all__ = ["TrainingConfigResolver"]

@@ -4,7 +4,14 @@ from collections.abc import Callable
 from threading import RLock
 from typing import Any
 
-from .registry import PluginRegistry, normalize_identifier
+from .registry import PluginRegistry
+
+
+def _normalize_identifier(value: str, *, label: str) -> str:
+    out = str(value).strip().lower()
+    if out == "":
+        raise ValueError(f"{label} must be non-empty.")
+    return out
 
 
 class PluginManager:
@@ -15,7 +22,7 @@ class PluginManager:
         self._lock = RLock()
 
     def registry(self, *, namespace: str, create: bool = True) -> PluginRegistry[Any]:
-        ns = normalize_identifier(namespace, label="Plugin namespace")
+        ns = _normalize_identifier(namespace, label="Plugin namespace")
         with self._lock:
             reg = self._registries.get(ns)
             if reg is None:

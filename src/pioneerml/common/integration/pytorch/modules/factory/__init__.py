@@ -1,10 +1,4 @@
-from .module_factory import ModuleFactory
-from .registry import list_registered_modules, register_module, resolve_module
+from .factory import ModuleFactory
+from .registry import REGISTRY
 
-__all__ = [
-    "register_module",
-    "resolve_module",
-    "list_registered_modules",
-    "ModuleFactory",
-]
-
+__all__ = ["ModuleFactory", "REGISTRY"]

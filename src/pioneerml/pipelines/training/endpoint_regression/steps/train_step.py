@@ -1,35 +1,43 @@
 from typing import Any
 
+import torch.nn as nn
 from zenml import step
 
 from pioneerml.common.pipeline.steps import BaseFullTrainingStep
-
-from ..objective import EndpointRegressorObjectiveAdapter
 
 
 class EndpointRegressorTrainStep(BaseFullTrainingStep):
     step_key = "train"
 
-    def __init__(self, *, pipeline_config: dict | None = None) -> None:
-        super().__init__(pipeline_config=pipeline_config)
-        self.objective_adapter = EndpointRegressorObjectiveAdapter()
-
     def default_config(self) -> dict:
         return {
-            "lr": 1e-3,
-            "weight_decay": 1e-4,
-            "scheduler_step_size": 2,
-            "scheduler_gamma": 0.5,
-            "model": {
-                "node_dim": 7,
-                "graph_dim": 3,
-                "splitter_prob_dimension": 0,
-                "edge_dim": 4,
-                "hidden": 192,
-                "heads": 4,
-                "layers": 3,
-                "dropout": 0.1,
-                "output_dim": 18,
+            "loader": {
+                "type": "endpoint_regression",
+                "config": {},
+            },
+            "architecture": {
+                "type": "endpoint_regressor",
+                "config": {
+                    "node_dim": 7,
+                    "graph_dim": 3,
+                    "splitter_prob_dimension": 0,
+                    "edge_dim": 4,
+                    "hidden": 192,
+                    "heads": 4,
+                    "layers": 3,
+                    "dropout": 0.1,
+                    "output_dim": 18,
+                },
+            },
+            "module": {
+                "type": "graph_lightning",
+                "config": {
+                    "loss_fn": nn.MSELoss(),
+                    "lr": 1e-3,
+                    "weight_decay": 1e-4,
+                    "scheduler_step_size": 2,
+                    "scheduler_gamma": 0.5,
+                },
             },
         }
 

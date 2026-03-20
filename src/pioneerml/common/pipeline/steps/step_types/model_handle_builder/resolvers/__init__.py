@@ -1,4 +1,4 @@
 from .config import ModelHandleBuilderConfigResolver
-from .payload import ModelHandleBuilderRuntimeStateResolver
+from .payload import ModelHandleBuilderStateResolver
 
-__all__ = ["ModelHandleBuilderConfigResolver", "ModelHandleBuilderRuntimeStateResolver"]
+__all__ = ["ModelHandleBuilderConfigResolver", "ModelHandleBuilderStateResolver"]

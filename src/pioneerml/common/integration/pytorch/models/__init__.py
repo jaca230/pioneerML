@@ -8,6 +8,7 @@ Standard graph representation:
 """
 
 from pioneerml.common.integration.pytorch.models.architectures import (
+    ARCHITECTURE_REGISTRY,
     ArchitectureFactory,
     EventSplitter,
     GroupClassifier,
@@ -18,21 +19,15 @@ from pioneerml.common.integration.pytorch.models.architectures import (
     EndpointRegressor,
     OrthogonalEndpointRegressor,
     PositronAngleModel,
-    list_registered_architectures,
-    register_architecture,
-    resolve_architecture,
 )
 from pioneerml.common.integration.pytorch.models.primitives import (
     FullGraphTransformerBlock,
     QuantileOutputHead,
     ViewAwareEncoder,
 )
-from pioneerml.common.integration.pytorch.losses import AngularUnitVectorLoss, QuantileAngularLoss, QuantilePinballLoss
 
 __all__ = [
-    "register_architecture",
-    "resolve_architecture",
-    "list_registered_architectures",
+    "ARCHITECTURE_REGISTRY",
     "ArchitectureFactory",
     "FullGraphTransformerBlock",
     "ViewAwareEncoder",
@@ -46,7 +41,4 @@ __all__ = [
     "OrthogonalEndpointRegressor",
     "PositronAngleModel",
     "EventSplitter",
-    "AngularUnitVectorLoss",
-    "QuantileAngularLoss",
-    "QuantilePinballLoss",
 ]

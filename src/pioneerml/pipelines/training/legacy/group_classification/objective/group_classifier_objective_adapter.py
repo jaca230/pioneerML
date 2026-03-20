@@ -4,7 +4,9 @@ import optuna
 import torch.nn as nn
 
 from pioneerml.common.data_loader import GroupClassifierGraphLoader
-from pioneerml.common.integration.pytorch.models.architectures.graph.transformer.classifiers import GroupClassifier
+from pioneerml.common.integration.pytorch.models.architectures.graph.transformer.classifiers.group_classifier import (
+    GroupClassifier,
+)
 from pioneerml.common.integration.optuna.objective import BaseObjectiveAdapter
 from pioneerml.common.pipeline.steps import suggest_range
 from pioneerml.common.integration.pytorch.modules import GraphLightningModule

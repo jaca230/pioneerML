@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from pioneerml.common.evaluation.metrics import BaseMetric, compute_metrics
-from pioneerml.common.evaluation.plots import BasePlot, render_plots
+from pioneerml.common.evaluation.metrics import BaseMetric, MetricFactory
+from pioneerml.common.evaluation.plots import BasePlot, PlotFactory
 
 
 class BaseEvaluator(ABC):
@@ -127,11 +127,44 @@ class BaseEvaluator(ABC):
 
         metric_names = self.resolve_metric_names(config=cfg)
         if metric_names:
-            results.update(compute_metrics(metric_names=metric_names, context=self.metric_context(context=context, config=cfg)))
+            results.update(
+                self.compute_metrics(
+                    metric_names=metric_names,
+                    context=self.metric_context(context=context, config=cfg),
+                )
+            )
 
         plot_names = self.resolve_plot_names(config=cfg)
         if plot_names:
             context_by_plot = self.plot_context_by_name(context=context, config=cfg)
-            results.update(render_plots(plot_names=plot_names, context_by_plot=context_by_plot))
+            results.update(self.render_plots(plot_names=plot_names, context_by_plot=context_by_plot))
 
         return self.finalize_results(results=results, context=context, config=cfg)
+
+    @staticmethod
+    def compute_metrics(*, metric_names: Sequence[str], context: Mapping[str, Any]) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for metric_name in metric_names:
+            metric = MetricFactory(metric_name=str(metric_name)).build()
+            metric_values = metric.compute(context=context)
+            for key, value in dict(metric_values).items():
+                out[str(key)] = value
+        return out
+
+    @staticmethod
+    def render_plots(
+        *,
+        plot_names: Sequence[str],
+        context_by_plot: Mapping[str, Mapping[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        outputs: dict[str, Any] = {}
+        by_plot = dict(context_by_plot or {})
+        for name in plot_names:
+            plot = PlotFactory(plot_name=str(name)).build()
+            kwargs = dict(by_plot.get(str(name), {}))
+            result = plot.render(**kwargs)
+            if result is None:
+                continue
+            key = f"{name}_path" if isinstance(result, str) else f"{name}_result"
+            outputs[key] = result
+        return outputs

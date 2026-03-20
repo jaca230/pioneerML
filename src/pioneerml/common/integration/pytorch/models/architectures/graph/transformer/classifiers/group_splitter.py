@@ -9,10 +9,10 @@ import torch.nn as nn
 from torch_geometric.data import Data
 
 from pioneerml.common.integration.pytorch.models.architectures.graph.transformer.classifiers.base_graph_classifier_model import BaseGraphClassifierModel
-from pioneerml.common.integration.pytorch.models.architectures.factory import register_architecture
+from pioneerml.common.integration.pytorch.models.architectures.factory.registry import REGISTRY as ARCHITECTURE_REGISTRY
 
 
-@register_architecture("group_splitter")
+@ARCHITECTURE_REGISTRY.register("group_splitter")
 class GroupSplitter(BaseGraphClassifierModel):
     """
     Per-node classifier for multi-particle hit splitting.

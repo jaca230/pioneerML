@@ -1,3 +1,3 @@
-from .inference_runtime_config_resolver import InferenceRuntimeConfigResolver
+from .config_resolver import InferenceConfigResolver
 
-__all__ = ["InferenceRuntimeConfigResolver"]
+__all__ = ["InferenceConfigResolver"]

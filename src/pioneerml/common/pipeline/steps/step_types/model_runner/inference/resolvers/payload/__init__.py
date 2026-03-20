@@ -1,3 +1,3 @@
-from .inference_runtime_state_resolver import InferenceRuntimeStateResolver
+from .runtime_state_resolver import InferenceStateResolver
 
-__all__ = ["InferenceRuntimeStateResolver"]
+__all__ = ["InferenceStateResolver"]

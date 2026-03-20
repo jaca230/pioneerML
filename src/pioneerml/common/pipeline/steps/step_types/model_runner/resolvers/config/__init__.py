@@ -1,3 +1,3 @@
-from .model_runner_runtime_config_resolver import ModelRunnerRuntimeConfigResolver
+from .config_resolver import ModelRunnerConfigResolver
 
-__all__ = ["ModelRunnerRuntimeConfigResolver"]
+__all__ = ["ModelRunnerConfigResolver"]

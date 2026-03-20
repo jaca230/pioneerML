@@ -1,16 +1,24 @@
 from __future__ import annotations
 
 from .payloads import ModelHandleBuilderStepPayload
-from .resolvers import ModelHandleBuilderConfigResolver, ModelHandleBuilderRuntimeStateResolver
+from .resolvers import ModelHandleBuilderConfigResolver, ModelHandleBuilderStateResolver
 
 from ..base_pipeline_step import BasePipelineStep
 
 
 class BaseModelHandleBuilderStep(BasePipelineStep):
-    MODEL_REPO_PARENTS_UP = ModelHandleBuilderRuntimeStateResolver.MODEL_REPO_PARENTS_UP_DEFAULT
-    DEFAULT_CONFIG = {"model_path": None, "model_type": "script", "model_subdir": None}
+    MODEL_REPO_PARENTS_UP = ModelHandleBuilderStateResolver.MODEL_REPO_PARENTS_UP_DEFAULT
+    DEFAULT_CONFIG = {
+        "model_handle": {
+            "type": "script",
+            "config": {
+                "model_path": None,
+                "model_subdir": "required",
+            },
+        }
+    }
     config_resolver_classes = (ModelHandleBuilderConfigResolver,)
-    payload_resolver_classes = (ModelHandleBuilderRuntimeStateResolver,)
+    payload_resolver_classes = (ModelHandleBuilderStateResolver,)
 
     def _build_payload(
         self,

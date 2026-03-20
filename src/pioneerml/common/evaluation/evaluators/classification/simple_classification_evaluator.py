@@ -5,10 +5,10 @@ from collections.abc import Mapping
 import torch
 
 from .base_classification_evaluator import BaseClassificationEvaluator
-from ..factory import register_evaluator
+from ..factory.registry import REGISTRY as EVALUATOR_REGISTRY
 
 
-@register_evaluator("simple_classification")
+@EVALUATOR_REGISTRY.register("simple_classification")
 class SimpleClassificationEvaluator(BaseClassificationEvaluator):
     default_metric_names = ("binary_classification_from_tensors",)
     default_plot_names = ("loss_curves",)

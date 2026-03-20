@@ -1,15 +1,8 @@
 from .graph_lightning_module import GraphLightningModule
-from .factory import (
-    ModuleFactory,
-    list_registered_modules,
-    register_module,
-    resolve_module,
-)
+from .factory import ModuleFactory, REGISTRY as MODULE_REGISTRY
 
 __all__ = [
-    "register_module",
-    "resolve_module",
-    "list_registered_modules",
+    "MODULE_REGISTRY",
     "ModuleFactory",
     "GraphLightningModule",
 ]

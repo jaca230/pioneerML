@@ -10,17 +10,24 @@ class GroupClassifierEvaluateStep(BaseEvaluationStep):
 
     def default_config(self) -> dict:
         return {
-            "evaluator_name": "simple_classification",
-            "threshold": 0.5,
+            "evaluator": {
+                "type": "simple_classification",
+                "config": {
+                    "threshold": 0.5,
+                },
+            },
             "metrics": ["binary_classification_from_tensors"],
             "plots": ["loss_curves"],
-            "loader_config": {
-                "base": {
-                    "batch_size": 1,
-                    "chunk_row_groups": 4,
-                    "chunk_workers": 0,
+            "loader": {
+                "type": "group_classifier",
+                "config": {
+                    "base": {
+                        "batch_size": 1,
+                        "chunk_row_groups": 4,
+                        "chunk_workers": 0,
+                    },
+                    "test": {"mode": "train", "split": "test", "shuffle_batches": False, "log_diagnostics": False},
                 },
-                "test": {"mode": "train", "split": "test", "shuffle_batches": False, "log_diagnostics": False},
             },
         }
 

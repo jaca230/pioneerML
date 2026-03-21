@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import shutil
 import tempfile
 from typing import Any
@@ -71,13 +72,16 @@ class LightningModuleTrainer(pl.Trainer):
 
     def fit(self, model, train_dataloaders=None, val_dataloaders=None, dataloaders=None, ckpt_path=None):  # type: ignore[override]
         try:
-            out = super().fit(
-                model=model,
-                train_dataloaders=train_dataloaders,
-                val_dataloaders=val_dataloaders,
-                dataloaders=dataloaders,
-                ckpt_path=ckpt_path,
-            )
+            fit_sig = inspect.signature(super().fit)
+            fit_kwargs: dict[str, Any] = {
+                "model": model,
+                "train_dataloaders": train_dataloaders,
+                "val_dataloaders": val_dataloaders,
+                "dataloaders": dataloaders,
+                "ckpt_path": ckpt_path,
+            }
+            supported_kwargs = {k: v for k, v in fit_kwargs.items() if k in fit_sig.parameters}
+            out = super().fit(**supported_kwargs)
             best_model_path = str(getattr(self._checkpoint_callback, "best_model_path", "") or "")
             if best_model_path:
                 best_ckpt = torch.load(best_model_path, map_location="cpu")

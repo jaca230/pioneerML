@@ -4,13 +4,20 @@ Lightweight PyTorch Lightning utilities for graph models.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, Callable, Dict
 
 import pytorch_lightning as pl
 import torch
+import torch.nn as nn
 import torch.optim as optim
 from torch_geometric.data import Batch
 
+from pioneerml.common.integration.pytorch.losses import (
+    AngularUnitVectorLoss,
+    QuantileAngularLoss,
+    QuantilePinballLoss,
+)
 from pioneerml.common.integration.pytorch.models.architectures.graph import BaseGraphModel
 from .factory.registry import REGISTRY as MODULE_REGISTRY
 
@@ -58,6 +65,78 @@ class GraphLightningModule(pl.LightningModule):
         self._train_loss_count: int = 0
         self._val_loss_sum: float = 0.0
         self._val_loss_count: int = 0
+
+    @classmethod
+    def from_factory(cls, *, config: Mapping[str, Any] | None = None, **kwargs):
+        merged = {**dict(config or {}), **dict(kwargs)}
+        merged.pop("namespace", None)
+        merged.pop("name", None)
+        merged.pop("config", None)
+
+        if "model" not in merged:
+            raise ValueError("graph_lightning module config must include 'model'.")
+
+        loss_spec = merged.get("loss")
+        if loss_spec is None:
+            loss_spec = merged.get("loss_fn")
+        if loss_spec is None:
+            raise ValueError("graph_lightning module config must include 'loss' or 'loss_fn'.")
+        merged["loss_fn"] = cls._resolve_loss_fn(loss_spec)
+        merged.pop("loss", None)
+        return cls(**merged)
+
+    @staticmethod
+    def _resolve_loss_fn(spec: Any) -> Callable[..., Any]:
+        if callable(spec):
+            return spec
+
+        if isinstance(spec, str):
+            return GraphLightningModule._loss_from_type(loss_type=spec, config={})
+
+        if isinstance(spec, Mapping):
+            block = dict(spec)
+            if "type" in block:
+                loss_type = block.get("type")
+                if not isinstance(loss_type, str) or loss_type.strip() == "":
+                    raise ValueError("module.loss.type must be a non-empty string.")
+                loss_cfg = block.get("config", {})
+                if not isinstance(loss_cfg, Mapping):
+                    raise TypeError("module.loss.config must be a mapping when provided.")
+                return GraphLightningModule._loss_from_type(loss_type=loss_type, config=dict(loss_cfg))
+            return GraphLightningModule._loss_from_type(loss_type="fixed", config=dict(block))
+
+        raise TypeError("module.loss must be callable, string, or mapping with keys ['type', 'config'].")
+
+    @staticmethod
+    def _loss_from_type(*, loss_type: str, config: Mapping[str, Any]) -> Callable[..., Any]:
+        key = str(loss_type).strip().lower()
+        cfg = dict(config or {})
+
+        builtin: dict[str, type] = {
+            "bce_with_logits": nn.BCEWithLogitsLoss,
+            "bce": nn.BCEWithLogitsLoss,
+            "binary_cross_entropy_with_logits": nn.BCEWithLogitsLoss,
+            "mse": nn.MSELoss,
+            "mse_loss": nn.MSELoss,
+            "l1": nn.L1Loss,
+            "mae": nn.L1Loss,
+            "quantile_pinball": QuantilePinballLoss,
+            "quantile_pinball_loss": QuantilePinballLoss,
+            "angular_unit_vector": AngularUnitVectorLoss,
+            "angular_unit_vector_loss": AngularUnitVectorLoss,
+            "quantile_angular": QuantileAngularLoss,
+            "quantile_angular_loss": QuantileAngularLoss,
+        }
+        if key == "fixed":
+            value = cfg.get("value")
+            if callable(value):
+                return value
+            raise TypeError("module.loss fixed loss requires callable 'value'.")
+        loss_cls = builtin.get(key)
+        if loss_cls is None:
+            allowed = ", ".join(sorted(builtin.keys()))
+            raise ValueError(f"Unsupported module.loss.type '{loss_type}'. Allowed: [{allowed}]")
+        return loss_cls(**cfg)
 
     def forward(self, batch: Batch) -> torch.Tensor:
         return self._model_forward(batch)

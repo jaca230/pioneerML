@@ -16,10 +16,24 @@ class BinaryClassificationFromTensorsMetric(BaseBinaryClassificationMetric):
     def compute(self, *, context: Mapping[str, Any]) -> dict[str, Any]:
         preds_binary = context.get("preds_binary")
         targets = context.get("targets")
-        if preds_binary is None or targets is None:
-            return self.none_metrics()
-        if not torch.is_tensor(preds_binary) or not torch.is_tensor(targets):
-            return self.none_metrics()
+        if preds_binary is None or targets is None or not torch.is_tensor(preds_binary) or not torch.is_tensor(targets):
+            counters = context.get("counters")
+            if not isinstance(counters, Mapping) or not bool(counters.get("has_targets", False)):
+                return self.none_metrics()
+
+            label_total = int(counters.get("label_total", 0))
+            label_equal = int(counters.get("label_equal", 0))
+            graph_total = int(counters.get("graph_total", 0))
+            graph_exact = int(counters.get("graph_exact", 0))
+            tn = [int(v) for v in counters.get("tn", [])]
+            tp = [int(v) for v in counters.get("tp", [])]
+            fp = [int(v) for v in counters.get("fp", [])]
+            fn = [int(v) for v in counters.get("fn", [])]
+            return {
+                "accuracy": (float(label_equal) / float(label_total)) if label_total > 0 else None,
+                "exact_match": (float(graph_exact) / float(graph_total)) if graph_total > 0 else None,
+                "confusion": self.normalized_confusion(tn=tn, tp=tp, fp=fp, fn=fn),
+            }
         if targets.numel() == 0:
             return self.none_metrics()
 

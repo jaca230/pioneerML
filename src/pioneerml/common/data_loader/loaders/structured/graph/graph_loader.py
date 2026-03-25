@@ -12,6 +12,9 @@ from ..structured_loader import StructuredLoader
 class GraphLoader(StructuredLoader):
     """Structured loader for graph batches with overridable chunk slicing."""
 
+    EDGE_TEMPLATE_CACHE_ENABLED = False
+    EDGE_TEMPLATE_CACHE_MAX_ENTRIES: int | None = None
+
     def graph_dims_or_default(self) -> GraphTensorDims:
         dims = getattr(self, "graph_dims", None)
         if isinstance(dims, GraphTensorDims):

@@ -12,6 +12,7 @@ class BaseEvaluationStep(BaseModelRunnerStep):
     DEFAULT_CONFIG = merge_nested_dicts(
         base=BaseModelRunnerStep.DEFAULT_CONFIG,
         override={
+            "enabled": True,
             "evaluator": {"type": "required", "config": {}},
             "loader_manager": {
                 "config": {
@@ -34,6 +35,9 @@ class BaseEvaluationStep(BaseModelRunnerStep):
     payload_resolver_classes = BaseModelRunnerStep.payload_resolver_classes + (EvaluationStateResolver,)
 
     def _execute(self) -> EvaluationStepPayload:
+        if bool(self.runtime_state.get("evaluation_disabled", False)):
+            return self.build_payload(metrics={"skipped": True})
+
         module = self.runtime_state.get("module")
         provider = self.runtime_state.get("evaluation_provider")
         loader_params = self.runtime_state.get("evaluation_loader_params")

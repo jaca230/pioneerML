@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from collections.abc import Iterator, MutableMapping
+from collections.abc import Iterator, Mapping, MutableMapping
+import inspect
 from typing import Any
 
 import torch
@@ -27,6 +28,26 @@ from pioneerml.common.data_loader.loaders.stage.stages import BaseStage
 class StructuredLoader(BaseLoader):
     """Structured staged loader using an input backend contract."""
 
+    @staticmethod
+    def _normalize_optional_nonnegative_int(value: object) -> int | None:
+        if value in (None, "", "none", "None"):
+            return None
+        out = int(value)
+        return 0 if out <= 0 else out
+
+    @classmethod
+    def _apply_common_loader_params(cls, *, loader, loader_params: Mapping[str, Any] | None):
+        params = dict(loader_params or {})
+        if "edge_template_cache_enabled" in params:
+            setattr(loader, "edge_template_cache_enabled", bool(params.get("edge_template_cache_enabled")))
+        if "edge_template_cache_max_entries" in params:
+            setattr(
+                loader,
+                "edge_template_cache_max_entries",
+                cls._normalize_optional_nonnegative_int(params.get("edge_template_cache_max_entries")),
+            )
+        return loader
+
     @classmethod
     def from_factory(
         cls,
@@ -42,17 +63,22 @@ class StructuredLoader(BaseLoader):
         stage_overrides = params.get("stage_overrides")
         stage_observer = params.get("stage_observer")
         profiling = dict(params.get("profiling") or {})
-        return cls(
-            input_sources=input_sources,
-            mode=mode,
-            data_flow_config=data_flow_config,
-            split_config=split_config,
-            input_backend=params.get("input_backend"),
-            input_backend_name=input_backend_name,
-            stage_overrides=stage_overrides if isinstance(stage_overrides, dict) else None,
-            stage_observer=stage_observer if isinstance(stage_observer, StageObserver) else None,
-            profiling=profiling,
-        )
+        ctor_kwargs: dict[str, Any] = {
+            "input_sources": input_sources,
+            "mode": mode,
+            "data_flow_config": data_flow_config,
+            "split_config": split_config,
+            "input_backend": params.get("input_backend"),
+            "input_backend_name": input_backend_name,
+            "stage_overrides": stage_overrides if isinstance(stage_overrides, dict) else None,
+            "stage_observer": stage_observer if isinstance(stage_observer, StageObserver) else None,
+            "profiling": profiling,
+        }
+        allowed = set(inspect.signature(cls.__init__).parameters.keys())
+        allowed.discard("self")
+        filtered_kwargs = {k: v for k, v in ctor_kwargs.items() if k in allowed}
+        loader = cls(**filtered_kwargs)
+        return cls._apply_common_loader_params(loader=loader, loader_params=params)
 
     def __init__(
         self,
@@ -97,6 +123,20 @@ class StructuredLoader(BaseLoader):
         )
 
         self.edge_populate_graph_block = 512
+        self.edge_template_cache_enabled = bool(
+            getattr(
+                self,
+                "edge_template_cache_enabled",
+                getattr(self, "EDGE_TEMPLATE_CACHE_ENABLED", False),
+            )
+        )
+        self.edge_template_cache_max_entries = self._normalize_optional_nonnegative_int(
+            getattr(
+                self,
+                "edge_template_cache_max_entries",
+                getattr(self, "EDGE_TEMPLATE_CACHE_MAX_ENTRIES", None),
+            )
+        )
 
         self.stage_overrides = dict(stage_overrides or {})
         self.profiling = dict(profiling or {})

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from pioneerml.common.data_writer import BaseDataWriter, WriterFactory, WriterRunConfig
+from pioneerml.common.data_writer.backends import create_output_backend
 
 from ......resolver import BaseConfigResolver
 
@@ -29,10 +31,10 @@ class InferenceConfigResolver(BaseConfigResolver):
         if not isinstance(writer_cfg, dict):
             raise TypeError("inference.writer.config must be a dict.")
 
-        output_backend_name = writer_cfg.get("output_backend_name", "parquet")
-        if not isinstance(output_backend_name, str):
-            raise TypeError("inference.writer.config.output_backend_name must be a string.")
-        output_backend_name = str(output_backend_name).strip().lower() or "parquet"
+        output_backend = self._normalize_output_backend(
+            writer_cfg=writer_cfg,
+            context="inference.writer.config.output_backend",
+        )
 
         fallback_output_dir = writer_cfg.get("fallback_output_dir", "data/inference")
         if not isinstance(fallback_output_dir, str):
@@ -67,7 +69,7 @@ class InferenceConfigResolver(BaseConfigResolver):
         cfg["writer"] = {
             "type": str(writer_type).strip(),
             "config": {
-                "output_backend_name": output_backend_name,
+                "output_backend": output_backend,
                 "fallback_output_dir": fallback_output_dir,
                 "output_dir": output_dir,
                 "output_path": output_path,
@@ -92,6 +94,10 @@ class InferenceConfigResolver(BaseConfigResolver):
     ) -> WriterFactory:
         writer = dict(cfg["writer"])
         writer_cfg = dict(writer["config"])
+        output_backend_block = dict(writer_cfg.get("output_backend") or {})
+        output_backend_name = str(output_backend_block["type"]).strip().lower()
+        output_backend_cfg = dict(output_backend_block.get("config") or {})
+        output_backend = create_output_backend(output_backend_name, config=output_backend_cfg)
         resolved_output_dir = BaseDataWriter.ensure_output_dir(
             (output_dir if output_dir is not None else writer_cfg.get("output_dir")),
             str(writer_cfg["fallback_output_dir"]),
@@ -106,9 +112,41 @@ class InferenceConfigResolver(BaseConfigResolver):
         return WriterFactory(
             writer_name=str(writer["type"]),
             config={
-                "output_backend_name": str(writer_cfg["output_backend_name"]),
+                "output_backend_name": output_backend_name,
                 "run_config": run_config,
-                "writer_params": dict(writer_cfg.get("writer_params") or {}),
+                "writer_params": {
+                    **dict(writer_cfg.get("writer_params") or {}),
+                    "output_backend": output_backend,
+                },
                 "output_path": (output_path if output_path is not None else writer_cfg.get("output_path")),
             },
         )
+
+    @staticmethod
+    def _normalize_output_backend(*, writer_cfg: Mapping[str, Any], context: str) -> dict[str, Any]:
+        raw_backend = writer_cfg.get("output_backend")
+        if not isinstance(raw_backend, Mapping):
+            raise TypeError(f"{context} must be a mapping with keys ['type', 'config'].")
+        backend_block = dict(raw_backend)
+        backend_type = backend_block.get("type")
+        if not isinstance(backend_type, str) or backend_type.strip() == "":
+            raise TypeError(f"{context}.type must be a non-empty string.")
+        backend_cfg = backend_block.get("config")
+        if backend_cfg is None:
+            backend_cfg = {}
+        if not isinstance(backend_cfg, Mapping):
+            raise TypeError(f"{context}.config must be a mapping.")
+        backend_cfg = dict(backend_cfg)
+
+        target_row_group_rows = backend_cfg.get("target_row_group_rows", 1024)
+        if target_row_group_rows is None:
+            target_row_group_rows = 1024
+        target_row_group_rows = int(target_row_group_rows)
+        if target_row_group_rows <= 0:
+            raise ValueError(f"{context}.config.target_row_group_rows must be positive.")
+        backend_cfg["target_row_group_rows"] = target_row_group_rows
+
+        return {
+            "type": str(backend_type).strip().lower(),
+            "config": backend_cfg,
+        }

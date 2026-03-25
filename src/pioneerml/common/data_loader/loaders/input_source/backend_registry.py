@@ -1,30 +1,28 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Mapping
+from typing import Any
 
-from .backends import InputBackend, ParquetInputBackend
-
-_BackendFactory = Callable[[], InputBackend]
-_BACKEND_REGISTRY: dict[str, _BackendFactory] = {}
-
-
-def register_input_backend(name: str, factory: _BackendFactory) -> None:
-    key = str(name).strip().lower()
-    if not key:
-        raise ValueError("Backend name must be non-empty.")
-    _BACKEND_REGISTRY[key] = factory
+from .backends.base_backend import InputBackend
+from .backends.parquet_backend import ParquetInputBackend
+from .factory import InputBackendFactory, REGISTRY
 
 
-def create_input_backend(name: str) -> InputBackend:
-    key = str(name).strip().lower()
-    if key not in _BACKEND_REGISTRY:
-        available = sorted(_BACKEND_REGISTRY.keys())
-        raise ValueError(f"Unknown input backend '{name}'. Available backends: {available}")
-    return _BACKEND_REGISTRY[key]()
+def register_input_backend(name: str, backend_cls: type[InputBackend]) -> None:
+    REGISTRY.register(str(name))(backend_cls)
+
+
+def create_input_backend(name: str, *, config: Mapping[str, Any] | None = None) -> InputBackend:
+    return InputBackendFactory(
+        backend_name=str(name),
+        config=dict(config or {}),
+    ).build()
 
 
 def list_input_backends() -> list[str]:
-    return sorted(_BACKEND_REGISTRY.keys())
+    return list(REGISTRY.list())
 
 
-register_input_backend("parquet", ParquetInputBackend)
+# Keep import side-effect explicit for built-ins in this namespace.
+_ = ParquetInputBackend
+

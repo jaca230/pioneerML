@@ -10,7 +10,7 @@ from ..factory.registry import REGISTRY as EVALUATOR_REGISTRY
 
 @EVALUATOR_REGISTRY.register("simple_classification")
 class SimpleClassificationEvaluator(BaseClassificationEvaluator):
-    default_metric_names = ("binary_classification_from_tensors",)
+    default_metric_names = ("binary_classification_from_counters",)
     default_plot_names = ("loss_curves",)
 
     def build_context(
@@ -25,9 +25,16 @@ class SimpleClassificationEvaluator(BaseClassificationEvaluator):
         device = next(module.parameters()).device
         total_loss = 0.0
         total_samples = 0
-        preds_all: list[torch.Tensor] = []
-        targets_all: list[torch.Tensor] = []
         threshold = float(config.get("threshold", 0.5))
+        label_total = 0
+        label_equal = 0
+        graph_total = 0
+        graph_exact = 0
+        num_classes: int | None = None
+        tn: list[int] = []
+        fp: list[int] = []
+        fn: list[int] = []
+        tp: list[int] = []
 
         with torch.no_grad():
             for batch in loader:
@@ -39,43 +46,67 @@ class SimpleClassificationEvaluator(BaseClassificationEvaluator):
                 bs = int(target.shape[0])
                 total_loss += loss.detach().cpu().item() * bs
                 total_samples += bs
-                preds_all.append(preds.detach().cpu())
-                targets_all.append(target.detach().cpu())
+
+                probs = torch.sigmoid(preds.detach())
+                preds_binary = (probs >= float(threshold)).to(torch.int64)
+                targets = target.detach().to(torch.int64)
+                if preds_binary.ndim == 1:
+                    preds_binary = preds_binary.unsqueeze(1)
+                if targets.ndim == 1:
+                    targets = targets.unsqueeze(1)
+                if preds_binary.shape != targets.shape:
+                    raise RuntimeError(
+                        "simple_classification evaluator requires predictions and targets with matching shape. "
+                        f"Got {tuple(preds_binary.shape)} vs {tuple(targets.shape)}."
+                    )
+
+                current_num_classes = int(targets.shape[1])
+                if num_classes is None:
+                    num_classes = current_num_classes
+                    tn = [0 for _ in range(num_classes)]
+                    fp = [0 for _ in range(num_classes)]
+                    fn = [0 for _ in range(num_classes)]
+                    tp = [0 for _ in range(num_classes)]
+                elif int(num_classes) != int(current_num_classes):
+                    raise RuntimeError(
+                        "simple_classification evaluator saw varying class dimensions across batches. "
+                        f"Expected {num_classes}, got {current_num_classes}."
+                    )
+
+                equal = preds_binary == targets
+                label_total += int(equal.numel())
+                label_equal += int(equal.sum().item())
+                graph_total += int(equal.shape[0])
+                graph_exact += int(equal.all(dim=1).sum().item())
+
+                for cls_idx in range(current_num_classes):
+                    truth = targets[:, cls_idx]
+                    pred = preds_binary[:, cls_idx]
+                    tn[cls_idx] += int(((truth == 0) & (pred == 0)).sum().item())
+                    fp[cls_idx] += int(((truth == 0) & (pred == 1)).sum().item())
+                    fn[cls_idx] += int(((truth == 1) & (pred == 0)).sum().item())
+                    tp[cls_idx] += int(((truth == 1) & (pred == 1)).sum().item())
 
         if total_samples == 0:
             raise RuntimeError("No samples available for evaluation.")
+        if num_classes is None:
+            raise RuntimeError("No class targets were observed during evaluation.")
 
-        preds_cat = torch.cat(preds_all, dim=0)
-        targets_cat = torch.cat(targets_all, dim=0)
         loss = total_loss / total_samples
-
-        probs = torch.sigmoid(preds_cat)
-        preds_binary = (probs >= float(threshold)).float()
-        accuracy = (preds_binary == targets_cat.float()).float().mean().item()
-        exact_match = (preds_binary == targets_cat.float()).all(dim=1).float().mean().item()
-
-        target_int = targets_cat.int()
-        preds_int = preds_binary.int()
-        num_classes = target_int.shape[-1]
-        confusion = torch.zeros((num_classes, 2, 2), dtype=torch.int64)
-        for cls_idx in range(num_classes):
-            truth = target_int[:, cls_idx]
-            pred = preds_int[:, cls_idx]
-            tn = ((truth == 0) & (pred == 0)).sum().item()
-            fp = ((truth == 0) & (pred == 1)).sum().item()
-            fn = ((truth == 1) & (pred == 0)).sum().item()
-            tp = ((truth == 1) & (pred == 1)).sum().item()
-            confusion[cls_idx, 0, 0] += int(tn)
-            confusion[cls_idx, 0, 1] += int(fp)
-            confusion[cls_idx, 1, 0] += int(fn)
-            confusion[cls_idx, 1, 1] += int(tp)
-
+        accuracy = (float(label_equal) / float(label_total)) if label_total > 0 else 0.0
+        exact_match = (float(graph_exact) / float(graph_total)) if graph_total > 0 else 0.0
         confusion_metrics = []
         for cls_idx in range(num_classes):
-            _, fp = confusion[cls_idx, 0].tolist()
-            fn, tp = confusion[cls_idx, 1].tolist()
-            total = float(tp + fp + fn)
-            confusion_metrics.append({"tp": tp / total, "fp": fp / total, "fn": fn / total} if total > 0 else {"tp": 0.0, "fp": 0.0, "fn": 0.0})
+            total = float(tp[cls_idx] + fp[cls_idx] + fn[cls_idx])
+            confusion_metrics.append(
+                {
+                    "tp": float(tp[cls_idx]) / total,
+                    "fp": float(fp[cls_idx]) / total,
+                    "fn": float(fn[cls_idx]) / total,
+                }
+                if total > 0
+                else {"tp": 0.0, "fp": 0.0, "fn": 0.0}
+            )
 
         plot_path = self.resolve_plot_path(dict(config))
         train_history = list(module.train_epoch_loss_history)
@@ -84,8 +115,17 @@ class SimpleClassificationEvaluator(BaseClassificationEvaluator):
         val_total = len(val_history)
         return {
             "metric_context": {
-                "preds_binary": preds_binary,
-                "targets": targets_cat.float(),
+                "counters": {
+                    "has_targets": True,
+                    "label_total": int(label_total),
+                    "label_equal": int(label_equal),
+                    "graph_total": int(graph_total),
+                    "graph_exact": int(graph_exact),
+                    "tn": [int(v) for v in tn],
+                    "tp": [int(v) for v in tp],
+                    "fp": [int(v) for v in fp],
+                    "fn": [int(v) for v in fn],
+                }
             },
             "plot_kwargs_by_name": {
                 "loss_curves": {"train_losses": module, "save_path": plot_path, "show": False},

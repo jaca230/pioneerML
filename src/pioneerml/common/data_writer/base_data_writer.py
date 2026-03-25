@@ -25,9 +25,9 @@ class BaseDataWriter:
         _ = run_config
         params = dict(writer_params or {})
         output_backend = params.get("output_backend")
-        if output_backend is not None:
-            return cls(output_backend=output_backend)
-        return cls(output_backend_name=output_backend_name)
+        if output_backend is None:
+            output_backend = create_output_backend(output_backend_name, config={})
+        return cls(output_backend=output_backend)
 
     def __init__(
         self,

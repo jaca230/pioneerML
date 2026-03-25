@@ -37,5 +37,12 @@ class QuantilePinballLoss(nn.Module):
         err = t_base - p
         q = self.qvals.to(dtype=p.dtype, device=p.device)
         loss = torch.maximum(q * err, (q - 1.0) * err)
-        return loss.mean()
 
+        # Some datasets include sparse/null regression labels that arrive as NaN after
+        # array conversion. Ignore non-finite entries instead of poisoning the full
+        # batch loss.
+        valid = torch.isfinite(t_base.expand_as(loss)) & torch.isfinite(p)
+        valid_count = int(valid.sum().item())
+        if valid_count <= 0:
+            return p.sum() * 0.0
+        return loss[valid].mean()

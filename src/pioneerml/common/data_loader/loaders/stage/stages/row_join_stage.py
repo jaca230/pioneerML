@@ -49,6 +49,8 @@ class RowJoinStage(BaseStage):
             }
         self.row_groups_per_chunk = max(1, int(row_groups_per_chunk))
         self._source_iters: dict[str, Any] = {}
+        self._source_buffers: dict[str, pa.Table | None] = {}
+        self._source_buffer_offsets: dict[str, int] = {}
 
     @staticmethod
     def _merge_fields(dst: pa.Table, src: pa.Table, fields: tuple[str, ...]) -> pa.Table:
@@ -75,11 +77,15 @@ class RowJoinStage(BaseStage):
         input_backend = self._resolve_input_backend(owner=owner)
         if input_sources is None or input_backend is None:
             self._source_iters[source_name] = None
+            self._source_buffers[source_name] = None
+            self._source_buffer_offsets[source_name] = 0
             return
         source_paths = input_sources.source_entries(source_name)
         source_fields = self.source_fields_by_name.get(source_name, ())
         if not source_paths or not source_fields:
             self._source_iters[source_name] = None
+            self._source_buffers[source_name] = None
+            self._source_buffer_offsets[source_name] = 0
             return
         self._source_iters[source_name] = iter(
             input_backend.iter_tables(
@@ -88,6 +94,91 @@ class RowJoinStage(BaseStage):
                 row_groups_per_chunk=self.row_groups_per_chunk,
             )
         )
+        self._source_buffers[source_name] = None
+        self._source_buffer_offsets[source_name] = 0
+
+    @staticmethod
+    def _buffer_remaining_rows(*, buffer: pa.Table | None, offset: int) -> int:
+        if buffer is None:
+            return 0
+        return max(0, int(buffer.num_rows) - int(offset))
+
+    def _next_aligned_slice(
+        self,
+        *,
+        source_name: str,
+        target_rows: int,
+        owner,
+    ) -> pa.Table:
+        source_iter = self._source_iters.get(source_name)
+        if source_iter is None:
+            raise RuntimeError(f"{source_name} source iterator is not initialized.")
+
+        buffer = self._source_buffers.get(source_name)
+        offset = int(self._source_buffer_offsets.get(source_name, 0))
+        need = max(0, int(target_rows))
+
+        while self._buffer_remaining_rows(buffer=buffer, offset=offset) < need:
+            try:
+                next_table = next(source_iter)
+            except StopIteration as exc:
+                have = self._buffer_remaining_rows(buffer=buffer, offset=offset)
+                raise RuntimeError(
+                    f"{source_name} chunk stream ended before main stream "
+                    f"(needed {need} rows, buffered {have})."
+                ) from exc
+
+            if int(next_table.num_rows) == 0:
+                continue
+
+            if buffer is None:
+                buffer = next_table
+                offset = 0
+                continue
+
+            if offset > 0:
+                buffer = buffer.slice(offset)
+                offset = 0
+            buffer = pa.concat_tables([buffer, next_table], promote_options="none")
+
+        if buffer is None:
+            raise RuntimeError(f"{source_name} produced no rows while main stream has rows.")
+
+        out = buffer.slice(offset, need)
+        offset += need
+
+        if offset >= int(buffer.num_rows):
+            buffer = None
+            offset = 0
+
+        self._source_buffers[source_name] = buffer
+        self._source_buffer_offsets[source_name] = int(offset)
+        return out
+
+    def _assert_sources_exhausted(self) -> None:
+        for source_name, source_iter in self._source_iters.items():
+            if source_iter is None:
+                continue
+
+            buffered = self._buffer_remaining_rows(
+                buffer=self._source_buffers.get(source_name),
+                offset=int(self._source_buffer_offsets.get(source_name, 0)),
+            )
+            if buffered > 0:
+                raise RuntimeError(
+                    f"Optional source '{source_name}' has {buffered} buffered rows left after main stream ended."
+                )
+
+            while True:
+                try:
+                    trailing = next(source_iter)
+                except StopIteration:
+                    break
+                if int(trailing.num_rows) > 0:
+                    raise RuntimeError(
+                        f"Optional source '{source_name}' has trailing rows after main stream ended "
+                        f"(example trailing chunk rows={int(trailing.num_rows)})."
+                    )
 
     def join_table(self, *, table: pa.Table, state: MutableMapping[str, Any], owner) -> pa.Table | None:
         _ = state
@@ -99,21 +190,22 @@ class RowJoinStage(BaseStage):
             if source_iter is None:
                 continue
             try:
-                source_table = next(source_iter)
-            except StopIteration as exc:
-                raise RuntimeError(f"{source_name} chunk stream ended before main stream.") from exc
-
-            if int(source_table.num_rows) != int(merged.num_rows):
-                raise RuntimeError(
-                    f"Aligned chunk row mismatch between main and {source_name} tables: "
-                    f"{int(merged.num_rows)} vs {int(source_table.num_rows)}"
+                source_table = self._next_aligned_slice(
+                    source_name=source_name,
+                    target_rows=int(merged.num_rows),
+                    owner=owner,
                 )
+            except RuntimeError as exc:
+                raise RuntimeError(
+                    f"Aligned chunk row mismatch between main and {source_name} tables: {exc}"
+                ) from exc
             merged = self._merge_fields(merged, source_table, source_fields)
         return merged.combine_chunks()
 
     def run_loader(self, *, state: MutableMapping[str, Any], owner) -> None:
         table = state.get("table")
         if table is None:
+            self._assert_sources_exhausted()
             state["chunk_out"] = None
             state["stop_pipeline"] = True
             return

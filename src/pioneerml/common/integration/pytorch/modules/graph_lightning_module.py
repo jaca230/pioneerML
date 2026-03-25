@@ -46,6 +46,8 @@ class GraphLightningModule(pl.LightningModule):
         optimizer_cls: type[optim.Optimizer] = optim.AdamW,
         scheduler_step_size: int | None = None,
         scheduler_gamma: float = 0.5,
+        max_step_history: int | None = 2048,
+        max_epoch_history: int | None = 512,
     ):
         super().__init__()
         self.model = model
@@ -55,8 +57,10 @@ class GraphLightningModule(pl.LightningModule):
         self.optimizer_cls = optimizer_cls
         self.scheduler_step_size = scheduler_step_size
         self.scheduler_gamma = scheduler_gamma
+        self.max_step_history = self._resolve_history_limit(max_step_history)
+        self.max_epoch_history = self._resolve_history_limit(max_epoch_history)
 
-        # Simple histories for plotting later
+        # Loss histories (bounded by default to avoid unbounded RAM growth).
         self.train_loss_history: list[float] = []
         self.val_loss_history: list[float] = []
         self.train_epoch_loss_history: list[float] = []
@@ -150,7 +154,11 @@ class GraphLightningModule(pl.LightningModule):
             if key == "loss":
                 continue
             self.log(f"train_{key}", value, on_step=False, on_epoch=True, prog_bar=False, batch_size=bs)
-        self.train_loss_history.append(loss.detach().cpu().item())
+        self._append_history(
+            self.train_loss_history,
+            float(loss.detach().cpu().item()),
+            max_points=self.max_step_history,
+        )
         self._train_loss_sum += loss.detach().cpu().item() * bs
         self._train_loss_count += bs
         return loss
@@ -164,19 +172,31 @@ class GraphLightningModule(pl.LightningModule):
             if key == "loss":
                 continue
             self.log(f"val_{key}", value, on_step=False, on_epoch=True, prog_bar=False, batch_size=bs)
-        self.val_loss_history.append(loss.detach().cpu().item())
+        self._append_history(
+            self.val_loss_history,
+            float(loss.detach().cpu().item()),
+            max_points=self.max_step_history,
+        )
         self._val_loss_sum += loss.detach().cpu().item() * bs
         self._val_loss_count += bs
 
     def on_train_epoch_end(self) -> None:
         if self._train_loss_count > 0:
-            self.train_epoch_loss_history.append(self._train_loss_sum / self._train_loss_count)
+            self._append_history(
+                self.train_epoch_loss_history,
+                float(self._train_loss_sum / self._train_loss_count),
+                max_points=self.max_epoch_history,
+            )
         self._train_loss_sum = 0.0
         self._train_loss_count = 0
 
     def on_validation_epoch_end(self) -> None:
         if self._val_loss_count > 0:
-            self.val_epoch_loss_history.append(self._val_loss_sum / self._val_loss_count)
+            self._append_history(
+                self.val_epoch_loss_history,
+                float(self._val_loss_sum / self._val_loss_count),
+                max_points=self.max_epoch_history,
+            )
         self._val_loss_sum = 0.0
         self._val_loss_count = 0
 
@@ -263,6 +283,23 @@ class GraphLightningModule(pl.LightningModule):
         if hasattr(batch, "batch"):
             return int(batch.batch.max().item() + 1)
         return 1
+
+    @staticmethod
+    def _resolve_history_limit(value: int | None) -> int | None:
+        if value is None:
+            return None
+        out = int(value)
+        if out < 0:
+            raise ValueError("History limits must be >= 0 when provided.")
+        return out
+
+    @staticmethod
+    def _append_history(history: list[float], value: float, *, max_points: int | None) -> None:
+        if max_points == 0:
+            return
+        history.append(float(value))
+        if max_points is not None and len(history) > max_points:
+            del history[: len(history) - max_points]
 
     def _model_forward(self, batch: Batch) -> torch.Tensor:
         return self.model(batch)

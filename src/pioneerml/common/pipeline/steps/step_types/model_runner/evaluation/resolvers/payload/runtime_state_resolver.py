@@ -15,6 +15,10 @@ class EvaluationStateResolver(BasePayloadResolver):
         payloads: Mapping[str, Any] | None,
         runtime_state: dict[str, Any],
     ) -> None:
+        if not bool(dict(getattr(self.step, "config_json", {}) or {}).get("enabled", True)):
+            runtime_state["evaluation_disabled"] = True
+            return
+
         module = self._resolve_module(payloads=payloads)
         loader_manager = runtime_state.get("loader_manager")
         if not isinstance(loader_manager, BaseLoaderManager):

@@ -13,10 +13,13 @@ from .input_source import (
     register_input_backend,
 )
 from .structured import (
+    EventSplitterGraphLoader,
     GraphLoader,
     GroupClassifierGraphLoader,
     EndpointRegressionGraphLoader,
     GroupSplitterGraphLoader,
+    PionStopGraphLoader,
+    PositronAngleGraphLoader,
     StructuredLoader,
     TimeGroupGraphLoader,
 )
@@ -42,10 +45,13 @@ __all__ = [
     "list_input_backends",
     "StructuredLoader",
     "GraphLoader",
+    "EventSplitterGraphLoader",
     "TimeGroupGraphLoader",
     "GroupClassifierGraphLoader",
     "EndpointRegressionGraphLoader",
     "GroupSplitterGraphLoader",
+    "PionStopGraphLoader",
+    "PositronAngleGraphLoader",
     "BatchBundle",
     "SplitSampleConfig",
     "DataFlowConfig",

@@ -1,30 +1,28 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Mapping
+from typing import Any
 
+from .factory import OutputBackendFactory, REGISTRY
 from .base_output_backend import OutputBackend
 from .parquet_output_backend import ParquetOutputBackend
 
-_BackendFactory = Callable[[], OutputBackend]
-_REGISTRY: dict[str, _BackendFactory] = {}
+
+def register_output_backend(name: str, backend_cls: type[OutputBackend]) -> None:
+    REGISTRY.register(str(name))(backend_cls)
 
 
-def register_output_backend(name: str, factory: _BackendFactory) -> None:
-    key = str(name).strip().lower()
-    if not key:
-        raise ValueError("Backend name must be non-empty.")
-    _REGISTRY[key] = factory
-
-
-def create_output_backend(name: str) -> OutputBackend:
-    key = str(name).strip().lower()
-    if key not in _REGISTRY:
-        raise ValueError(f"Unknown output backend '{name}'. Available: {sorted(_REGISTRY.keys())}")
-    return _REGISTRY[key]()
+def create_output_backend(name: str, *, config: Mapping[str, Any] | None = None) -> OutputBackend:
+    return OutputBackendFactory(
+        backend_name=str(name),
+        config=dict(config or {}),
+    ).build()
 
 
 def list_output_backends() -> list[str]:
-    return sorted(_REGISTRY.keys())
+    return list(REGISTRY.list())
 
 
-register_output_backend("parquet", ParquetOutputBackend)
+# Keep import side-effect explicit for built-ins in this namespace.
+_ = ParquetOutputBackend
+

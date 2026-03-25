@@ -63,11 +63,10 @@ class ModelRunnerConfigResolver(BaseConfigResolver):
             value=manager_cfg.get("input_sources_spec"),
             context="model_runner.loader_manager.config.input_sources_spec",
         )
-        input_backend_name = manager_cfg.get("input_backend_name", "parquet")
-        if not isinstance(input_backend_name, str) or input_backend_name.strip() == "":
-            raise TypeError("model_runner.loader_manager.config.input_backend_name must be a non-empty string.")
         manager_cfg["input_sources_spec"] = input_sources_spec
-        manager_cfg["input_backend_name"] = str(input_backend_name).strip()
+        manager_cfg["input_backend"] = self._normalize_input_backend(
+            value=manager_cfg.get("input_backend"),
+        )
 
         defaults_block = manager_cfg.get("defaults")
         if not isinstance(defaults_block, Mapping):
@@ -116,6 +115,26 @@ class ModelRunnerConfigResolver(BaseConfigResolver):
         manager_cfg["loaders"] = normalized_loaders
         manager_block["config"] = manager_cfg
         cfg["loader_manager"] = manager_block
+
+    @staticmethod
+    def _normalize_input_backend(
+        *,
+        value: Any,
+    ) -> dict[str, Any]:
+        if not isinstance(value, Mapping):
+            raise TypeError(
+                "model_runner.loader_manager.config.input_backend must be a mapping with keys ['type', 'config']."
+            )
+        block = dict(value)
+        backend_type = block.get("type")
+        if not isinstance(backend_type, str) or backend_type.strip() == "":
+            raise TypeError("model_runner.loader_manager.config.input_backend.type must be a non-empty string.")
+        backend_cfg = block.get("config")
+        if backend_cfg is None:
+            backend_cfg = {}
+        if not isinstance(backend_cfg, Mapping):
+            raise TypeError("model_runner.loader_manager.config.input_backend.config must be a mapping.")
+        return {"type": str(backend_type).strip(), "config": dict(backend_cfg)}
 
     @staticmethod
     def _normalize_input_sources_spec(*, value: Any, context: str) -> dict[str, Any]:

@@ -8,6 +8,7 @@ from typing import Any
 from ..config import WriterRunConfig
 from ..base_data_writer import BaseDataWriter
 from ..array_store import OutputSchema
+from ..backends import create_output_backend
 from ..stage import WriterDiagnostics, WriterStageRunner
 from ..stage.stages import BaseWriterStage
 from pioneerml.common.staged_runtime.stage_observers import (
@@ -47,8 +48,11 @@ class StructuredDataWriter(BaseDataWriter, ABC):
         if run_config is None:
             raise RuntimeError(f"{cls.__name__}.from_factory requires run_config.")
         params = dict(writer_params or {})
+        output_backend = params.get("output_backend")
+        if output_backend is None:
+            output_backend = create_output_backend(output_backend_name, config={})
         return cls(
-            output_backend=params.get("output_backend"),
+            output_backend=output_backend,
             output_backend_name=output_backend_name,
             run_config=run_config,
             stage_overrides=params.get("stage_overrides"),

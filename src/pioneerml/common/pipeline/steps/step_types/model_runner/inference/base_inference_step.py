@@ -18,7 +18,12 @@ class BaseInferenceStep(BaseModelRunnerStep):
             "writer": {
                 "type": "required",
                 "config": {
-                    "output_backend_name": "parquet",
+                    "output_backend": {
+                        "type": "parquet",
+                        "config": {
+                            "target_row_group_rows": 1024,
+                        },
+                    },
                     "fallback_output_dir": "data/inference",
                     "output_dir": None,
                     "output_path": None,

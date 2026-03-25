@@ -8,8 +8,10 @@ import pyarrow.parquet as pq
 from pioneerml.common.integration.parquet import ParquetChunkReader, ParquetSourceBackend
 
 from .base_backend import InputBackend
+from ..factory.registry import REGISTRY as INPUT_BACKEND_REGISTRY
 
 
+@INPUT_BACKEND_REGISTRY.register("parquet")
 class ParquetInputBackend(InputBackend):
     """Parquet implementation of the input backend contract."""
 

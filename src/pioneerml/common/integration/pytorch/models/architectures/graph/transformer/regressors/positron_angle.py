@@ -13,6 +13,7 @@ from pioneerml.common.integration.pytorch.models.architectures.factory.registry 
 from pioneerml.common.integration.pytorch.models.primitives.components.quantile_output_head import QuantileOutputHead
 
 
+@ARCHITECTURE_REGISTRY.register("positron_angle_regressor")
 @ARCHITECTURE_REGISTRY.register("positron_angle_model")
 class PositronAngleModel(BaseGraphRegressorModel):
     """Predicts positron `(px, py, pz)` quantiles per time group."""

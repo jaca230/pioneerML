@@ -11,10 +11,13 @@ from .backends import (
     list_output_backends,
 )
 from .structured import (
+    EventSplitterDataWriter,
     EndpointRegressionDataWriter,
     GraphDataWriter,
     GroupClassificationDataWriter,
     GroupSplittingDataWriter,
+    PionStopDataWriter,
+    PositronAngleDataWriter,
     StructuredDataWriter,
     TimeGroupGraphDataWriter,
     WriterPhaseOrder,
@@ -39,8 +42,11 @@ __all__ = [
     "WriterPhaseOrder",
     "WriterPhaseStages",
     "GraphDataWriter",
+    "EventSplitterDataWriter",
     "TimeGroupGraphDataWriter",
     "GroupClassificationDataWriter",
     "GroupSplittingDataWriter",
     "EndpointRegressionDataWriter",
+    "PionStopDataWriter",
+    "PositronAngleDataWriter",
 ]

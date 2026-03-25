@@ -7,7 +7,7 @@ from typing import Any
 import torch
 
 from pioneerml.common.data_loader import BaseLoaderManager, LoaderFactory
-from pioneerml.common.data_loader.loaders.input_source import InputSourceSet, create_input_backend
+from pioneerml.common.data_loader.loaders.input_source import InputBackend, InputSourceSet
 from pioneerml.common.data_writer import WriterFactory
 from pioneerml.common.integration.pytorch.model_handles import BaseModelHandle
 
@@ -131,7 +131,9 @@ class InferenceStateResolver(BasePayloadResolver):
         loader_factory: LoaderFactory,
         validated_files: list[str],
     ) -> list[int]:
-        backend = create_input_backend(str(loader_factory.config.get("input_backend_name", "parquet")))
+        backend = loader_factory.config.get("input_backend")
+        if not isinstance(backend, InputBackend):
+            raise RuntimeError("LoaderFactory config missing valid 'input_backend'.")
         counted = backend.count_rows_per_source(sources=tuple(str(path) for path in validated_files))
         rows = [int(v) for v in counted]
 

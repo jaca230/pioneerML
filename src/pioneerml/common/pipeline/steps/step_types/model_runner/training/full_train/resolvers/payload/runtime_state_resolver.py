@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from pioneerml.common.data_loader import BaseLoaderManager
+from pioneerml.common.data_loader import BaseLoaderManager, LoaderManagerFactory
 from pioneerml.common.integration.optuna.hpo.search_space import BaseSearchSpace
 from pioneerml.common.integration.pytorch.compilers import CompilerFactory
 from pioneerml.common.integration.pytorch.models.architectures.factory import ArchitectureFactory
@@ -40,11 +40,33 @@ class FullTrainStateResolver(BasePayloadResolver):
         loader_manager = runtime_state.get("loader_manager")
         if not isinstance(loader_manager, BaseLoaderManager):
             raise RuntimeError(f"{self.step.__class__.__name__} runtime_state missing valid 'loader_manager'.")
-        train_provider, train_params, train_loader = loader_manager.build_dataloader(
+        loader_manager_block = dict(cfg.get("loader_manager") or {})
+        manager_type = str(loader_manager_block.get("type") or "").strip()
+        if manager_type == "":
+            manager_type = str(getattr(loader_manager, "plugin_name", "") or "").strip()
+        if manager_type == "":
+            raise RuntimeError(
+                f"{self.step.__class__.__name__} requires non-empty 'loader_manager.type' in resolved config."
+            )
+        merged_loader_manager_cfg = merge_nested_dicts(
+            base=dict(loader_manager.config),
+            override=dict(loader_manager_block.get("config") or {}),
+        )
+        resolved_loader_manager = LoaderManagerFactory(loader_manager_name=manager_type).build(
+            config=merged_loader_manager_cfg
+        )
+        if not isinstance(resolved_loader_manager, BaseLoaderManager):
+            raise RuntimeError(
+                f"{self.step.__class__.__name__} resolved loader_manager must be BaseLoaderManager."
+            )
+        runtime_state["loader_manager"] = resolved_loader_manager
+        runtime_state["loader_factory"] = resolved_loader_manager.loader_factory
+
+        train_provider, train_params, train_loader = resolved_loader_manager.build_dataloader(
             purpose="train",
             default_shuffle=True,
         )
-        val_provider, val_params, val_loader = loader_manager.build_dataloader(
+        val_provider, val_params, val_loader = resolved_loader_manager.build_dataloader(
             purpose="val",
             default_shuffle=False,
         )

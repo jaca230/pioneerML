@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from pioneerml.common.data_loader.loaders import DataFlowConfig, LoaderFactory, SplitSampleConfig
-from pioneerml.common.data_loader.loaders.input_source import InputSourceSet, SourceType
+from pioneerml.common.data_loader.loaders.input_source import InputSourceSet, SourceType, create_input_backend
 
 from .base_loader_manager import BaseLoaderManager
 from .factory.registry import REGISTRY as LOADER_MANAGER_REGISTRY
@@ -56,7 +56,20 @@ class ConfigLoaderManager(BaseLoaderManager):
             optional_sources_by_name={str(k): v for k, v in dict(optional_sources_by_name).items()},
             source_type=source_type,
         )
-        input_backend_name = str(self.config.get("input_backend_name", "parquet")).strip() or "parquet"
+        input_backend_block = self.config.get("input_backend")
+        if not isinstance(input_backend_block, Mapping):
+            raise TypeError("config.input_backend must be a mapping with keys ['type', 'config'].")
+        input_backend_block = dict(input_backend_block)
+        input_backend_type = str(input_backend_block.get("type") or "").strip().lower()
+        if input_backend_type == "":
+            raise TypeError("config.input_backend.type must be a non-empty string.")
+        input_backend_cfg_raw = input_backend_block.get("config")
+        if input_backend_cfg_raw is None:
+            input_backend_cfg_raw = {}
+        if not isinstance(input_backend_cfg_raw, Mapping):
+            raise TypeError("config.input_backend.config must be a mapping.")
+        input_backend_cfg = dict(input_backend_cfg_raw)
+        input_backend = create_input_backend(input_backend_type, config=input_backend_cfg)
         defaults_cfg = dict(defaults_block.get("config") or {})
         mode = str(defaults_cfg.get("mode", "train"))
 
@@ -64,7 +77,9 @@ class ConfigLoaderManager(BaseLoaderManager):
             loader_name=str(loader_name).strip(),
             config={
                 "input_sources": input_sources,
-                "input_backend_name": input_backend_name,
+                "input_backend_name": input_backend_type,
+                "input_backend_config": input_backend_cfg,
+                "input_backend": input_backend,
                 "mode": mode,
             },
         )

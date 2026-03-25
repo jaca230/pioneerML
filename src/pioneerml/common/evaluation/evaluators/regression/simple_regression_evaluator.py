@@ -25,6 +25,7 @@ class SimpleRegressionEvaluator(BaseRegressionEvaluator):
         total_loss = 0.0
         total_mae = 0.0
         total_samples = 0
+        total_mae_entries = 0
 
         with torch.no_grad():
             for batch in loader:
@@ -33,14 +34,20 @@ class SimpleRegressionEvaluator(BaseRegressionEvaluator):
                 loss, _ = module.compute_loss(raw_preds, batch)
                 preds = module.primary_predictions(raw_preds)
                 target = module.primary_target(batch, preds)
-                mae = torch.abs(preds - target).mean()
+                mae_diff = torch.abs(preds - target)
+                mae_mask = torch.isfinite(mae_diff)
+                if bool(mae_mask.any()):
+                    mae = mae_diff[mae_mask].mean()
+                    total_mae += float(mae.detach().cpu().item()) * int(mae_mask.sum().item())
+                    total_mae_entries += int(mae_mask.sum().item())
                 bs = int(target.shape[0])
                 total_loss += float(loss.detach().cpu().item()) * bs
-                total_mae += float(mae.detach().cpu().item()) * bs
                 total_samples += bs
 
         if total_samples == 0:
             raise RuntimeError("No samples available for evaluation.")
+        if total_mae_entries == 0:
+            raise RuntimeError("No finite regression targets available for MAE computation.")
 
         plot_path = self.resolve_plot_path(dict(config))
         train_history = list(module.train_epoch_loss_history)
@@ -53,7 +60,7 @@ class SimpleRegressionEvaluator(BaseRegressionEvaluator):
             },
             "base_metrics": {
                 "loss": total_loss / total_samples,
-                "mae": total_mae / total_samples,
+                "mae": total_mae / total_mae_entries,
                 "train_loss_history": train_history,
                 "train_loss_history_total_points": train_total,
                 "val_loss_history": val_history,

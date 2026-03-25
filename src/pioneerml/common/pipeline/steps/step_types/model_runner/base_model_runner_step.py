@@ -29,7 +29,10 @@ class BaseModelRunnerStep(BasePipelineStep):
                     "optional_sources_by_name": {},
                     "source_type": "file",
                 },
-                "input_backend_name": "parquet",
+                "input_backend": {
+                    "type": "parquet",
+                    "config": {},
+                },
                 "defaults": {
                     "type": "group_classifier",
                     "config": {
@@ -37,6 +40,8 @@ class BaseModelRunnerStep(BasePipelineStep):
                         "mode": "train",
                         "chunk_row_groups": 4,
                         "chunk_workers": None,
+                        "edge_template_cache_enabled": False,
+                        "edge_template_cache_max_entries": None,
                         "sample_fraction": 1.0,
                         "train_fraction": 0.80,
                         "val_fraction": 0.10,

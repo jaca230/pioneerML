@@ -23,3 +23,14 @@ try:
     )
 except Exception:
     pass
+
+try:
+    from .full_chain import full_chain_pipeline
+
+    __all__.extend(
+        [
+            "full_chain_pipeline",
+        ]
+    )
+except Exception:
+    pass

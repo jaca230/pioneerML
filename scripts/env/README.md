@@ -1,7 +1,7 @@
 Environment setups
 ==================
 
-Pick the workflow that fits your tooling preference. All options install the same dependencies.
+Local environment setup (optional). Docker is the recommended default workflow.
 
 Pip
 -----------------
@@ -27,3 +27,9 @@ Notes
 - All dependencies (core + dev tools) are in `requirements.txt` at the repo root
 - Keep a single active environment at a time (deactivate conda/venv before switching)
 - If you want a minimal conda + uv flow, use `./scripts/env/setup_uv_conda.sh`.
+
+Plugin note
+-----
+- This repo is the framework layer.
+- Model-specific examples and notebook workflows are provided by plugins.
+- Reference plugin repo: https://github.com/jaca230/pioneerML_base_plugin

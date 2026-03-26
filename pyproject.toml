@@ -4,14 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pioneerml"
-version = "0.3.0"
+version = "1.0.0"
 description = "ML pipeline framework for PIONEER experiment AI reconstruction"
 authors = [
     {name = "Jack", email = "jaca230@users.noreply.github.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.9"
-license = {text = "MIT"}
 keywords = ["machine-learning", "graph-neural-networks", "particle-physics", "pioneer"]
 classifiers = [
     "Development Status :: 3 - Alpha",

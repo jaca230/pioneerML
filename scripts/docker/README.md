@@ -29,3 +29,8 @@ Forward ports (e.g. Jupyter):
 ```bash
 ./scripts/docker/run.sh --static --port 8888:8888
 ```
+
+Plugin note:
+
+- The framework runs plugin-owned model implementations.
+- Reference plugin repo: https://github.com/jaca230/pioneerML_base_plugin

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from pioneerml.plugin import NamespacedPluginRegistry
 
-from ..graph.base_graph_model import BaseGraphModel
+from ..base_architecture import BaseArchitecture
 
-REGISTRY = NamespacedPluginRegistry[type[BaseGraphModel]](
+REGISTRY = NamespacedPluginRegistry[type[BaseArchitecture]](
     namespace="architecture",
-    expected_type=BaseGraphModel,
+    expected_type=BaseArchitecture,
     label="Architecture plugin",
 )

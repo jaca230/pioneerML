@@ -9,7 +9,7 @@ set -euo pipefail
 
 ENV_NAME="pioneerml"
 REQ_FILE="requirements.txt"
-PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
+PYTHON_VERSION="${PYTHON_VERSION:-3.10}"
 
 if ! command -v conda >/dev/null 2>&1; then
   echo "conda is not available on PATH. Please install Miniconda/Anaconda first." >&2
@@ -29,11 +29,6 @@ conda activate "${ENV_NAME}"
 
 echo "Installing uv inside env..."
 python -m pip install -U uv
-
-echo "Installing torch nightly (CUDA 12.8) using uv..."
-uv pip install --prerelease=allow \
-  --index-url "https://download.pytorch.org/whl/nightly/cu128" \
-  "torch==2.11.0.dev20260131+cu128"
 
 echo "Installing dependencies from ${REQ_FILE} using uv..."
 uv pip install -r "${REQ_FILE}"

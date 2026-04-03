@@ -1,21 +1,19 @@
 """
 Base class for graph neural network models.
 
-All PIONEER ML models inherit from BaseGraphModel to ensure
-a consistent interface.
+Graph architectures inherit from BaseGraphModel to ensure
+graph batch accessors and a consistent interface.
 """
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import Any
 import torch
-import torch.nn as nn
 from torch_geometric.data import Data
 
+from ..base_architecture import BaseArchitecture
 
-class BaseGraphModel(nn.Module, ABC):
+
+class BaseGraphModel(BaseArchitecture):
     """
     Abstract base class for graph neural network models.
 
@@ -29,7 +27,7 @@ class BaseGraphModel(nn.Module, ABC):
     - Ownership: ``node_graph_id`` (and optional ``edge_graph_id``)
     - Layout pointers: ``graph_ptr``, ``node_ptr``, ``edge_ptr``
 
-    Subclasses must implement the forward() method.
+    Subclasses must implement `forward()` and `export_torchscript()`.
 
     Attributes:
         node_dim: Number of input node feature channels (default: 5).
@@ -60,18 +58,6 @@ class BaseGraphModel(nn.Module, ABC):
         self.hidden = int(hidden)
         self.dropout = float(dropout)
 
-    @property
-    def num_parameters(self) -> int:
-        """Get total number of trainable parameters."""
-        if torch.jit.is_scripting():
-            return 0
-        return sum(p.numel() for p in self.parameters())
-
-    @torch.jit.ignore
-    def get_device(self) -> torch.device:
-        """Get device of model parameters."""
-        return next(self.parameters()).device
-
     @torch.jit.ignore
     def summary(self) -> dict:
         """
@@ -80,26 +66,17 @@ class BaseGraphModel(nn.Module, ABC):
         Returns:
             Dictionary with model info.
         """
-        return {
-            "class": self.__class__.__name__,
-            "parameters": self.num_parameters,
-            "device": str(self.get_device()),
-            "node_dim": self.node_dim,
-            "hidden": self.hidden,
-            "edge_dim": self.edge_dim,
-            "graph_dim": self.graph_dim,
-            "dropout": self.dropout,
-        }
-
-    @abstractmethod
-    def export_torchscript(
-        self,
-        path: str | Path | None,
-        *,
-        strict: bool = False,
-    ) -> torch.jit.ScriptModule:
-        """Export a TorchScript version of the model."""
-        raise NotImplementedError
+        out = dict(super().summary())
+        out.update(
+            {
+                "node_dim": self.node_dim,
+                "hidden": self.hidden,
+                "edge_dim": self.edge_dim,
+                "graph_dim": self.graph_dim,
+                "dropout": self.dropout,
+            }
+        )
+        return out
 
     @staticmethod
     def node_features(data: Data) -> torch.Tensor:

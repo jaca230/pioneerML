@@ -6,6 +6,7 @@ PIONEER ML is the framework layer. Model-specific implementations are provided t
 
 - Core framework lives in this repo (`src/pioneerml`).
 - Concrete models/loaders/writers/pipeline configs live in plugin repos.
+- Plugins are self-describing via `plugins/*/plugin.json` manifests (name, module, version, dependencies).
 - Current reference plugin repo:
   - https://github.com/jaca230/pioneerML_base_plugin
 

@@ -6,6 +6,7 @@ cd "$REPO_ROOT"
 
 ENV_DIR=".venv"
 ENV_PROMPT="pioneerml"
+PYTHON_VERSION="${PYTHON_VERSION:-3.10}"
 
 if ! command -v uv >/dev/null 2>&1; then
   echo "uv is not installed. Install via: curl -LsSf https://astral.sh/uv/install.sh | sh" >&2
@@ -14,8 +15,8 @@ fi
 
 # Create env if missing
 if [ ! -d "$ENV_DIR" ]; then
-  echo "Creating $ENV_DIR with prompt '$ENV_PROMPT'..."
-  uv venv "$ENV_DIR" --prompt "$ENV_PROMPT"
+  echo "Creating $ENV_DIR with prompt '$ENV_PROMPT' (python=${PYTHON_VERSION})..."
+  uv venv "$ENV_DIR" --python "$PYTHON_VERSION" --prompt "$ENV_PROMPT"
 fi
 
 source "$ENV_DIR/bin/activate"

@@ -79,9 +79,9 @@ COPY scripts scripts
 COPY notebooks notebooks
 COPY tests tests
 
-ENV PIP_INDEX_URL="https://download.pytorch.org/whl/nightly/cu128"
+ENV PIP_INDEX_URL="https://download.pytorch.org/whl/cu126"
 ENV PIP_EXTRA_INDEX_URL="https://pypi.org/simple"
-ENV UV_PIP_INDEX_URL="https://download.pytorch.org/whl/nightly/cu128"
+ENV UV_PIP_INDEX_URL="https://download.pytorch.org/whl/cu126"
 ENV UV_PIP_EXTRA_INDEX_URL="https://pypi.org/simple"
 ENV PYTHON_VERSION=3.10
 

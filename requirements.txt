@@ -2,8 +2,16 @@
 # Install with: pip install -r requirements.txt
 # Or preferably uv pip install -r requirements.txt
 
+# Reproducible CUDA + PyG wheel sources (torch 2.8/cu126 stack).
+--extra-index-url https://download.pytorch.org/whl/cu126
+--find-links https://data.pyg.org/whl/torch-2.8.0+cu126.html
+
 # Core ML/DL
-torch-geometric>=2.4.0
+torch==2.8.0+cu126
+torchvision==0.23.0+cu126
+torchaudio==2.8.0+cu126
+torch-geometric==2.6.1
+torch-cluster==1.6.3+pt28cu126
 pytorch-lightning>=2.0.0
 numpy>=1.24.0
 scipy>=1.10.0

@@ -5,6 +5,7 @@ from .api import (
     PLUGIN_MANAGER,
     build_plugin,
     list_plugins,
+    plugin_manifests,
     register_plugin,
     register_plugin_value,
     resolve_plugin,
@@ -19,7 +20,7 @@ from .adapters import (
 )
 from .manager import PluginManager
 from .registry import PluginRegistry
-from .runtime import ensure_plugins_loaded
+from .runtime import ensure_plugins_loaded, list_plugin_manifests
 
 
 __all__ = [
@@ -37,6 +38,8 @@ __all__ = [
     "register_plugin_value",
     "resolve_plugin",
     "list_plugins",
+    "plugin_manifests",
     "build_plugin",
     "ensure_plugins_loaded",
+    "list_plugin_manifests",
 ]

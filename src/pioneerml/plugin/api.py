@@ -6,7 +6,7 @@ from typing import Any
 from .adapters.builders import DefaultPluginBuilder
 from .factory import PluginFactory
 from .manager import PluginManager
-from .runtime import ensure_plugins_loaded
+from .runtime import ensure_plugins_loaded, list_plugin_manifests
 
 PLUGIN_MANAGER = PluginManager()
 PLUGIN_FACTORY = PluginFactory(
@@ -31,6 +31,10 @@ def resolve_plugin(*, namespace: str, name: str) -> Any:
 def list_plugins(*, namespace: str) -> tuple[str, ...]:
     ensure_plugins_loaded()
     return PLUGIN_MANAGER.list(namespace=namespace)
+
+
+def plugin_manifests() -> tuple[dict[str, object], ...]:
+    return list_plugin_manifests()
 
 
 def build_plugin(

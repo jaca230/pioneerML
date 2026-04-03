@@ -184,7 +184,25 @@ class GraphLightningModule(pl.LightningModule):
 
     @staticmethod
     def primary_predictions(raw_preds: Any) -> torch.Tensor:
-        preds = raw_preds[0] if isinstance(raw_preds, (tuple, list)) else raw_preds
+        if isinstance(raw_preds, Mapping):
+            preferred_keys = ("unified_event_logits", "main", "logits", "predictions")
+            preds = None
+            for key in preferred_keys:
+                value = raw_preds.get(key)
+                if isinstance(value, torch.Tensor):
+                    preds = value
+                    break
+            if preds is None:
+                tensor_values = [v for v in raw_preds.values() if isinstance(v, torch.Tensor)]
+                if len(tensor_values) == 1:
+                    preds = tensor_values[0]
+                else:
+                    raise TypeError(
+                        "Primary predictions mapping must contain a tensor under one of "
+                        f"{preferred_keys} (or exactly one tensor value)."
+                    )
+        else:
+            preds = raw_preds[0] if isinstance(raw_preds, (tuple, list)) else raw_preds
         if not isinstance(preds, torch.Tensor):
             raise TypeError("Primary predictions must be a torch.Tensor for this operation.")
         return preds

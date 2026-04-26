@@ -3,13 +3,15 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: start_lab.sh [PORT] [HOST]
+Usage: start_lab.sh [--port PORT] [--host HOST]
+       start_lab.sh [PORT] [HOST]
 
 Start JupyterLab in the background.
 
 Arguments:
-  PORT  TCP port to bind (default: 8888)
-  HOST  Interface/IP to bind (default: 0.0.0.0)
+  --port, -p  TCP port to bind (default: 8888)
+  --host      Interface/IP to bind (default: 0.0.0.0)
+  PORT HOST   Positional fallback for compatibility
 
 Environment:
   JUPYTER_LOG_DIR  Directory for log files
@@ -17,19 +19,79 @@ Environment:
 EOF
 }
 
-if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  usage
-  exit 0
-fi
+PORT="8888"
+HOST="0.0.0.0"
+POSITIONAL_COUNT=0
 
-if [[ $# -gt 2 ]]; then
-  echo "[start_lab] Too many arguments." >&2
-  usage >&2
-  exit 1
-fi
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    -p|--port|--PORT)
+      if [[ $# -lt 2 ]]; then
+        echo "[start_lab] Missing value for $1." >&2
+        usage >&2
+        exit 1
+      fi
+      PORT="$2"
+      shift 2
+      ;;
+    --port=*|--PORT=*)
+      PORT="${1#*=}"
+      shift
+      ;;
+    --host|--HOST)
+      if [[ $# -lt 2 ]]; then
+        echo "[start_lab] Missing value for $1." >&2
+        usage >&2
+        exit 1
+      fi
+      HOST="$2"
+      shift 2
+      ;;
+    --host=*|--HOST=*)
+      HOST="${1#*=}"
+      shift
+      ;;
+    --)
+      shift
+      while [[ $# -gt 0 ]]; do
+        if [[ ${POSITIONAL_COUNT} -eq 0 ]]; then
+          PORT="$1"
+        elif [[ ${POSITIONAL_COUNT} -eq 1 ]]; then
+          HOST="$1"
+        else
+          echo "[start_lab] Too many arguments." >&2
+          usage >&2
+          exit 1
+        fi
+        POSITIONAL_COUNT=$((POSITIONAL_COUNT + 1))
+        shift
+      done
+      ;;
+    -*)
+      echo "[start_lab] Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      if [[ ${POSITIONAL_COUNT} -eq 0 ]]; then
+        PORT="$1"
+      elif [[ ${POSITIONAL_COUNT} -eq 1 ]]; then
+        HOST="$1"
+      else
+        echo "[start_lab] Too many arguments." >&2
+        usage >&2
+        exit 1
+      fi
+      POSITIONAL_COUNT=$((POSITIONAL_COUNT + 1))
+      shift
+      ;;
+  esac
+done
 
-PORT="${1:-8888}"
-HOST="${2:-0.0.0.0}"
 if ! [[ "${PORT}" =~ ^[0-9]+$ ]]; then
   echo "[start_lab] PORT must be a number. Got: ${PORT}" >&2
   exit 1

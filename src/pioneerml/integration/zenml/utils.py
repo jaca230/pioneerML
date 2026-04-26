@@ -91,6 +91,57 @@ def find_project_root(start: Path | None = None) -> Path:
     return path
 
 
+def setup_repo_pythonpath(root_path: Path | str | None = None) -> Path:
+    """
+    Ensure repository `src/` and plugin `plugins/*/src` paths are importable.
+
+    This is safe to call at the very top of notebooks/scripts before importing
+    plugin modules (for example `pioneerml_purity_plugin`).
+
+    Args:
+        root_path:
+            Optional repository root. If omitted, inferred via
+            :func:`find_project_root`.
+
+    Returns:
+        Path:
+            Resolved repository root used for path setup.
+    """
+    if root_path is None:
+        root_path = find_project_root()
+    root_path = Path(root_path).resolve()
+
+    # Ensure project src + plugin src import paths work in notebook-launched
+    # ZenML subprocesses.
+    src_root = root_path / "src"
+    src_pkg_root = src_root / "pioneerml"
+    plugin_src_roots = [
+        p
+        for p in (root_path / "plugins").glob("*/src")
+        if p.is_dir()
+    ]
+
+    # Never expose `src/pioneerml` directly on sys.path:
+    # it shadows stdlib modules like `logging` and can break tooling (pip/zenml).
+    path_entries = [str(src_root), *(str(p) for p in plugin_src_roots)]
+    while str(src_pkg_root) in sys.path:
+        sys.path.remove(str(src_pkg_root))
+    for entry in path_entries:
+        if entry not in sys.path:
+            sys.path.insert(0, entry)
+
+    env_pythonpath = os.environ.get("PYTHONPATH", "")
+    env_parts = [p for p in env_pythonpath.split(os.pathsep) if p and p != str(src_pkg_root)]
+    for entry in reversed(path_entries):
+        if entry not in env_parts:
+            env_parts.insert(0, entry)
+    os.environ["PYTHONPATH"] = os.pathsep.join(env_parts)
+
+    # Ensure plugin modules are importable/registered in this kernel.
+    ensure_plugins_loaded()
+    return root_path
+
+
 def setup_zenml_for_notebook(
     root_path: Path | str | None = None,
     use_in_memory: bool = True,
@@ -105,36 +156,8 @@ def setup_zenml_for_notebook(
 
     os.environ["ZENML_DISABLE_ANALYTICS"] = "true"
 
-    # Determine repo root
-    if root_path is None:
-        root_path = find_project_root()
-    root_path = Path(root_path).resolve()
-
-    # Ensure project src + plugin src import paths work in notebook-launched
-    # ZenML subprocesses.
-    src_root = root_path / "src"
-    src_pkg_root = src_root / "pioneerml"
-    plugin_src_roots = [
-        p
-        for p in (root_path / "plugins").glob("*/src")
-        if p.is_dir()
-    ]
-    # Never expose `src/pioneerml` directly on sys.path:
-    # it shadows stdlib modules like `logging` and can break tooling (pip/zenml).
-    path_entries = [str(src_root), *(str(p) for p in plugin_src_roots)]
-    while str(src_pkg_root) in sys.path:
-        sys.path.remove(str(src_pkg_root))
-    for entry in path_entries:
-        if entry not in sys.path:
-            sys.path.insert(0, entry)
-    env_pythonpath = os.environ.get("PYTHONPATH", "")
-    env_parts = [p for p in env_pythonpath.split(os.pathsep) if p and p != str(src_pkg_root)]
-    for entry in reversed(path_entries):
-        if entry not in env_parts:
-            env_parts.insert(0, entry)
-    os.environ["PYTHONPATH"] = os.pathsep.join(env_parts)
-    # Ensure plugin modules are importable/registered in this kernel.
-    ensure_plugins_loaded()
+    # Determine repo root and ensure src/plugin import paths are configured.
+    root_path = setup_repo_pythonpath(root_path)
 
     print(
         f"Using ZenML repository root: {root_path}\n"

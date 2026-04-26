@@ -80,14 +80,16 @@ class InputBackend(ABC):
         required_input_fields = [str(s.column) for s in field_specs if (not bool(s.target_only)) and bool(s.required)]
         required_target_fields = [str(s.column) for s in field_specs if bool(s.target_only) and bool(s.required)]
         optional_input_fields = [str(s.column) for s in field_specs if (not bool(s.target_only)) and (not bool(s.required))]
+        optional_target_fields = [str(s.column) for s in field_specs if bool(s.target_only) and (not bool(s.required))]
         required_fields = list(required_input_fields) + (list(required_target_fields) if include_targets else [])
+        optional_fields = list(optional_input_fields) + (list(optional_target_fields) if include_targets else [])
 
         field_to_source = self.resolve_dynamic_field_source_map(
             input_sources=input_sources,
             required_fields=required_fields,
-            optional_fields=optional_input_fields,
+            optional_fields=optional_fields,
         )
-        selected_fields = set(self.unique_fields(required_fields + optional_input_fields))
+        selected_fields = set(self.unique_fields(required_fields + optional_fields))
         resolved_specs: list[NDArrayColumnSpec] = []
         for spec in field_specs:
             field_name = str(spec.column)

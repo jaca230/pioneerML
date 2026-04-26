@@ -112,6 +112,7 @@ class InferenceStateResolver(BasePayloadResolver):
             "model": model,
             "source_items": source_items,
             "shuffle_batches": bool(loader_params.get("shuffle_batches", False)),
+            "shuffle_within_batch": bool(loader_params.get("shuffle_within_batch", False)),
             "output_path": (None if writer_factory.config.get("output_path") is None else str(writer_factory.config.get("output_path"))),
         }
 

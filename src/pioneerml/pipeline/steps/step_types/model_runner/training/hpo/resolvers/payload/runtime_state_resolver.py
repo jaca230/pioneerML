@@ -65,8 +65,58 @@ class HPOStateResolver(BasePayloadResolver):
             if not train_provider.include_targets or not val_provider.include_targets:
                 raise RuntimeError("HPO expects train/val loaders with targets enabled.")
 
-            train_loader = train_provider.make_dataloader(shuffle_batches=bool(train_params.get("shuffle_batches", True)))
-            val_loader = val_provider.make_dataloader(shuffle_batches=bool(val_params.get("shuffle_batches", False)))
+            train_loader = train_provider.make_dataloader(
+                shuffle_batches=bool(train_params.get("shuffle_batches", True)),
+                shuffle_within_batch=bool(train_params.get("shuffle_within_batch", True)),
+                drop_remainders=bool(train_params.get("drop_remainders", train_params.get("drop_last", False))),
+                debug_epoch_batch_summary=bool(train_params.get("debug_epoch_batch_summary", False)),
+                worker_start_method=(
+                    None
+                    if train_params.get("worker_start_method", None) in (None, "", "none", "None")
+                    else str(train_params.get("worker_start_method"))
+                ),
+                persistent_workers=(
+                    None
+                    if train_params.get("persistent_workers", None) is None
+                    else bool(train_params.get("persistent_workers"))
+                ),
+                prefetch_factor=(
+                    None
+                    if train_params.get("prefetch_factor", None) is None
+                    else int(train_params.get("prefetch_factor"))
+                ),
+                torch_sharing_strategy=(
+                    None
+                    if train_params.get("torch_sharing_strategy", None) in (None, "", "none", "None")
+                    else str(train_params.get("torch_sharing_strategy"))
+                ),
+            )
+            val_loader = val_provider.make_dataloader(
+                shuffle_batches=bool(val_params.get("shuffle_batches", False)),
+                shuffle_within_batch=bool(val_params.get("shuffle_within_batch", False)),
+                drop_remainders=bool(val_params.get("drop_remainders", val_params.get("drop_last", False))),
+                debug_epoch_batch_summary=bool(val_params.get("debug_epoch_batch_summary", False)),
+                worker_start_method=(
+                    None
+                    if val_params.get("worker_start_method", None) in (None, "", "none", "None")
+                    else str(val_params.get("worker_start_method"))
+                ),
+                persistent_workers=(
+                    None
+                    if val_params.get("persistent_workers", None) is None
+                    else bool(val_params.get("persistent_workers"))
+                ),
+                prefetch_factor=(
+                    None
+                    if val_params.get("prefetch_factor", None) is None
+                    else int(val_params.get("prefetch_factor"))
+                ),
+                torch_sharing_strategy=(
+                    None
+                    if val_params.get("torch_sharing_strategy", None) in (None, "", "none", "None")
+                    else str(val_params.get("torch_sharing_strategy"))
+                ),
+            )
             return train_loader, val_loader
 
         return _build

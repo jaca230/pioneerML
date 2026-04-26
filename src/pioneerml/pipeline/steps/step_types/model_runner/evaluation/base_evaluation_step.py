@@ -23,6 +23,7 @@ class BaseEvaluationStep(BaseModelRunnerStep):
                                 "mode": "train",
                                 "split": "test",
                                 "shuffle_batches": False,
+                                "shuffle_within_batch": False,
                                 "log_diagnostics": False,
                             },
                         },

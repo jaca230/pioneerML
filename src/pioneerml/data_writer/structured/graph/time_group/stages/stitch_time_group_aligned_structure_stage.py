@@ -49,11 +49,62 @@ class StitchTimeGroupAlignedStructureStage(BaseTimeGroupWriterStage):
             src_path=src_path,
             num_rows=int(state[self.num_rows_key]),
         )
+        num_rows = int(state[self.num_rows_key])
+
+        def _to_row_local_event_ids(event_ids: np.ndarray | None) -> np.ndarray | None:
+            if event_ids is None:
+                return None
+            arr = np.asarray(event_ids, dtype=np.int64)
+            if arr.size == 0:
+                return arr
+            # Already row-local for this source.
+            if int(arr.min()) >= 0 and int(arr.max()) < int(num_rows):
+                return arr
+
+            src_ids = np.asarray(source_event_ids, dtype=np.int64)
+            if int(src_ids.shape[0]) != int(num_rows):
+                raise ValueError(
+                    f"source_event_ids length mismatch for '{src_path}': {src_ids.shape[0]} vs {num_rows}."
+                )
+            uniq, counts = np.unique(src_ids, return_counts=True)
+            if np.any(counts > 1):
+                raise ValueError(
+                    "Cannot remap non-row-local event ids for streaming because source event_id values are not unique."
+                )
+            index_by_event_id = {int(v): int(i) for i, v in enumerate(src_ids.tolist())}
+            mapped = np.empty_like(arr)
+            missing = []
+            for i, event_id in enumerate(arr.tolist()):
+                idx = index_by_event_id.get(int(event_id))
+                if idx is None:
+                    if len(missing) < 5:
+                        missing.append(int(event_id))
+                    mapped[i] = -1
+                else:
+                    mapped[i] = int(idx)
+            if missing:
+                raise ValueError(
+                    "prediction/time-group event ids are not row-local and could not be remapped using source event_id values. "
+                    f"Example missing ids: {missing}"
+                )
+            return mapped
+
+        # Normalize event ids to row-local indices for this source file.
+        state[self.prediction_event_ids_key] = _to_row_local_event_ids(np.asarray(state[self.prediction_event_ids_key], dtype=np.int64))
+        if self.time_group_event_ids_key is not None and state.get(self.time_group_event_ids_key) is not None:
+            state[self.time_group_event_ids_key] = _to_row_local_event_ids(
+                np.asarray(state[self.time_group_event_ids_key], dtype=np.int64)
+            )
+        # Refresh local refs after normalization.
+        time_group_event_ids = (
+            None if self.time_group_event_ids_key is None else state.get(self.time_group_event_ids_key)
+        )
+
         if not bool(state.get("streaming", False)):
             state["table"] = owner.stitch_predictions_to_events(
                 prediction_event_ids_np=state[self.prediction_event_ids_key],
                 prediction_columns=prediction_columns,
-                num_rows=int(state[self.num_rows_key]),
+                num_rows=num_rows,
                 source_event_ids_np=source_event_ids,
                 value_types=state.get(self.value_types_key),
                 time_group_event_ids_np=time_group_event_ids,
@@ -157,7 +208,7 @@ class StitchTimeGroupAlignedStructureStage(BaseTimeGroupWriterStage):
         table, span_stop = owner.stitch_predictions_to_event_span(
             prediction_event_ids_np=flush_event_ids,
             prediction_columns=flush_prediction_columns,
-            num_rows=int(state[self.num_rows_key]),
+            num_rows=num_rows,
             start_event_id=span_start,
             stop_event_id=flush_stop,
             source_event_ids_np=source_event_ids,

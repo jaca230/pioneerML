@@ -51,6 +51,7 @@ class BaseInferenceStep(BaseModelRunnerStep):
                             "config": {
                                 "mode": "inference",
                                 "shuffle_batches": False,
+                                "shuffle_within_batch": False,
                                 "log_diagnostics": False,
                             },
                         },
@@ -91,6 +92,7 @@ class BaseInferenceStep(BaseModelRunnerStep):
         writer.on_start(state=start_state)
 
         shuffle_batches = bool(runtime.get("shuffle_batches", False))
+        shuffle_within_batch = bool(runtime.get("shuffle_within_batch", True))
         model = runtime.get("model")
         device = runtime.get("device")
         with torch.no_grad():
@@ -105,7 +107,10 @@ class BaseInferenceStep(BaseModelRunnerStep):
                 if not hasattr(writer, "build_prediction_set"):
                     raise RuntimeError("Inference writer must implement build_prediction_set(...).")
 
-                for batch in source_loader.make_dataloader(shuffle_batches=shuffle_batches):
+                for batch in source_loader.make_dataloader(
+                    shuffle_batches=shuffle_batches,
+                    shuffle_within_batch=shuffle_within_batch,
+                ):
                     model_args, model_kwargs = source_loader.build_inference_model_input(
                         batch=batch,
                         device=device,

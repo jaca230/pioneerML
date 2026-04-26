@@ -23,12 +23,16 @@ from pioneerml.integration.zenml.materializers.batch_bundle_materializer import 
 from pioneerml.integration.zenml.materializers.graph_lightning_module_materializer import (
     GraphLightningModuleMaterializer,
 )
+from pioneerml.integration.zenml.materializers.model_handle_materializer import (
+    ModelHandleMaterializer,
+)
 
 source_utils.set_custom_source_root(Path(__file__).resolve().parents[4])
 
 __all__ = [
     "BatchBundleMaterializer",
     "GraphLightningModuleMaterializer",
+    "ModelHandleMaterializer",
     "PyGDataListMaterializer",
     "TorchTensorMaterializer",
 ]

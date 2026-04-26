@@ -50,10 +50,20 @@ class BaseTrainingStep(BaseModelRunnerStep):
                 "config": {
                     "loaders": {
                         "train_loader": {
-                            "config": {"mode": "train", "shuffle_batches": True, "log_diagnostics": False},
+                            "config": {
+                                "mode": "train",
+                                "shuffle_batches": True,
+                                "shuffle_within_batch": True,
+                                "log_diagnostics": False,
+                            },
                         },
                         "val_loader": {
-                            "config": {"mode": "train", "shuffle_batches": False, "log_diagnostics": False},
+                            "config": {
+                                "mode": "train",
+                                "shuffle_batches": False,
+                                "shuffle_within_batch": False,
+                                "log_diagnostics": False,
+                            },
                         },
                     },
                 },

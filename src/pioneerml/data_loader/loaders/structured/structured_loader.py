@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from collections.abc import Iterator, Mapping, MutableMapping
 import inspect
+import logging
 from typing import Any
 
 import torch
@@ -23,6 +24,8 @@ from pioneerml.staged_runtime.stage_observers import (
     TimingObserver,
 )
 from pioneerml.data_loader.loaders.stage.stages import BaseStage
+
+LOGGER = logging.getLogger(__name__)
 
 
 class StructuredLoader(BaseLoader):
@@ -46,6 +49,8 @@ class StructuredLoader(BaseLoader):
                 "edge_template_cache_max_entries",
                 cls._normalize_optional_nonnegative_int(params.get("edge_template_cache_max_entries")),
             )
+        if "debug_epoch_batch_summary" in params:
+            setattr(loader, "debug_epoch_batch_summary_enabled", bool(params.get("debug_epoch_batch_summary")))
         return loader
 
     @classmethod
@@ -220,8 +225,216 @@ class StructuredLoader(BaseLoader):
             },
         )
 
-    def _iter_batches(self, *, shuffle_batches: bool) -> Iterator:
+    @staticmethod
+    def _build_segment_index(*, ptr: torch.Tensor, graph_perm: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        counts = (ptr[1:] - ptr[:-1]).to(dtype=torch.int64)
+        perm_counts = counts[graph_perm]
+        spans: list[torch.Tensor] = []
+        for g_old in graph_perm.tolist():
+            start = int(ptr[g_old].item())
+            stop = int(ptr[g_old + 1].item())
+            if stop > start:
+                spans.append(torch.arange(start, stop, dtype=torch.int64, device=ptr.device))
+        if spans:
+            idx = torch.cat(spans, dim=0)
+        else:
+            idx = torch.empty((0,), dtype=torch.int64, device=ptr.device)
+        return idx, perm_counts
+
+    def _shuffle_chunk_graphs(self, *, chunk: Mapping[str, Any]) -> dict[str, Any]:
+        num_graphs = int(chunk.get("num_graphs", 0))
+        node_ptr = chunk.get("node_ptr")
+        edge_ptr = chunk.get("edge_ptr")
+        edge_index = chunk.get("edge_index")
+        if num_graphs <= 1:
+            return dict(chunk)
+        if not isinstance(node_ptr, torch.Tensor) or not isinstance(edge_ptr, torch.Tensor):
+            return dict(chunk)
+        if not isinstance(edge_index, torch.Tensor) or edge_index.dim() != 2:
+            return dict(chunk)
+
+        graph_perm = torch.randperm(num_graphs, device=node_ptr.device)
+        node_idx, perm_node_counts = self._build_segment_index(ptr=node_ptr, graph_perm=graph_perm)
+        edge_idx, perm_edge_counts = self._build_segment_index(ptr=edge_ptr, graph_perm=graph_perm)
+
+        out = dict(chunk)
+        total_nodes = int(node_ptr[-1].item()) if int(node_ptr.numel()) > 0 else 0
+        total_edges = int(edge_ptr[-1].item()) if int(edge_ptr.numel()) > 0 else 0
+
+        new_node_ptr = torch.zeros((num_graphs + 1,), dtype=torch.int64, device=node_ptr.device)
+        if int(perm_node_counts.numel()) > 0:
+            new_node_ptr[1:] = torch.cumsum(perm_node_counts, dim=0)
+        new_edge_ptr = torch.zeros((num_graphs + 1,), dtype=torch.int64, device=edge_ptr.device)
+        if int(perm_edge_counts.numel()) > 0:
+            new_edge_ptr[1:] = torch.cumsum(perm_edge_counts, dim=0)
+
+        permuted_edge_spans: list[torch.Tensor] = []
+        for g_new, g_old in enumerate(graph_perm.tolist()):
+            n_old_start = int(node_ptr[g_old].item())
+            e_old_start = int(edge_ptr[g_old].item())
+            e_old_stop = int(edge_ptr[g_old + 1].item())
+            if e_old_stop <= e_old_start:
+                continue
+            e_local = edge_index[:, e_old_start:e_old_stop].to(dtype=torch.int64) - int(n_old_start)
+            n_new_start = int(new_node_ptr[g_new].item())
+            permuted_edge_spans.append(e_local + int(n_new_start))
+        if permuted_edge_spans:
+            out["edge_index"] = torch.cat(permuted_edge_spans, dim=1)
+        else:
+            out["edge_index"] = torch.empty((2, 0), dtype=torch.int64, device=edge_index.device)
+
+        handled = {
+            "edge_index",
+            "node_ptr",
+            "edge_ptr",
+            "graph_ptr",
+            "num_graphs",
+            "node_graph_id",
+            "edge_graph_id",
+            "slice_ptr",
+            "graph_slice_ptr",
+            "slice_graph_id",
+            "node_slice_id",
+            "atar_slice_ptr",
+            "atar_slice_pdg_target",
+            "atar_slice_multi_target",
+            "atar_slice_trigger_target",
+            "atar_slice_start_target",
+            "atar_slice_stop_target",
+            "atar_angle_target",
+            "atar_pion_stop_target",
+            "atar_pion_stop_valid_target",
+        }
+
+        for key, value in list(out.items()):
+            if key in handled:
+                continue
+            if not isinstance(value, torch.Tensor) or value.dim() == 0:
+                continue
+            if int(value.shape[0]) == total_nodes:
+                out[key] = value.index_select(0, node_idx)
+                continue
+            if int(value.shape[0]) == total_edges:
+                out[key] = value.index_select(0, edge_idx)
+                continue
+            if int(value.shape[0]) == num_graphs:
+                out[key] = value.index_select(0, graph_perm)
+                continue
+
+        out["node_ptr"] = new_node_ptr
+        out["edge_ptr"] = new_edge_ptr
+        out["graph_ptr"] = torch.tensor([0, num_graphs], dtype=torch.int64, device=node_ptr.device)
+        out["num_graphs"] = int(num_graphs)
+        out["node_graph_id"] = torch.repeat_interleave(
+            torch.arange(num_graphs, dtype=torch.int64, device=node_ptr.device),
+            perm_node_counts,
+        )
+        if int(out["edge_index"].numel()) > 0:
+            out["edge_graph_id"] = out["node_graph_id"][out["edge_index"][0]]
+        else:
+            out["edge_graph_id"] = torch.empty((0,), dtype=torch.int64, device=node_ptr.device)
+
+        graph_slice_ptr = chunk.get("graph_slice_ptr")
+        if isinstance(graph_slice_ptr, torch.Tensor) and int(graph_slice_ptr.numel()) == int(num_graphs + 1):
+            slice_counts = (graph_slice_ptr[1:] - graph_slice_ptr[:-1]).to(dtype=torch.int64)
+            perm_slice_counts = slice_counts[graph_perm]
+            new_graph_slice_ptr = torch.zeros((num_graphs + 1,), dtype=torch.int64, device=graph_slice_ptr.device)
+            if int(perm_slice_counts.numel()) > 0:
+                new_graph_slice_ptr[1:] = torch.cumsum(perm_slice_counts, dim=0)
+            out["graph_slice_ptr"] = new_graph_slice_ptr
+
+            total_slices = int(graph_slice_ptr[-1].item()) if int(graph_slice_ptr.numel()) > 0 else 0
+            slice_spans: list[torch.Tensor] = []
+            for g_old in graph_perm.tolist():
+                s0 = int(graph_slice_ptr[g_old].item())
+                s1 = int(graph_slice_ptr[g_old + 1].item())
+                if s1 > s0:
+                    slice_spans.append(torch.arange(s0, s1, dtype=torch.int64, device=graph_slice_ptr.device))
+            if slice_spans:
+                slice_perm = torch.cat(slice_spans, dim=0)
+            else:
+                slice_perm = torch.empty((0,), dtype=torch.int64, device=graph_slice_ptr.device)
+
+            old_to_new_slice = torch.full((max(1, total_slices),), -1, dtype=torch.int64, device=graph_slice_ptr.device)
+            if int(slice_perm.numel()) > 0:
+                old_to_new_slice[slice_perm] = torch.arange(int(slice_perm.numel()), dtype=torch.int64, device=graph_slice_ptr.device)
+
+            for key, value in list(out.items()):
+                if key in handled:
+                    continue
+                if not isinstance(value, torch.Tensor) or value.dim() == 0:
+                    continue
+                if int(value.shape[0]) == total_slices:
+                    out[key] = value.index_select(0, slice_perm)
+
+            out["slice_graph_id"] = torch.repeat_interleave(
+                torch.arange(num_graphs, dtype=torch.int64, device=graph_slice_ptr.device),
+                perm_slice_counts,
+            )
+            if "node_slice_id" in out and isinstance(out["node_slice_id"], torch.Tensor):
+                old_node_slice = out["node_slice_id"]
+                if int(old_node_slice.numel()) > 0 and int(slice_perm.numel()) > 0:
+                    mapped = old_to_new_slice[old_node_slice.to(dtype=torch.int64)]
+                    out["node_slice_id"] = mapped
+            slice_ptr = chunk.get("slice_ptr")
+            if isinstance(slice_ptr, torch.Tensor) and int(slice_ptr.numel()) == int(total_slices + 1):
+                slice_node_counts = (slice_ptr[1:] - slice_ptr[:-1]).to(dtype=torch.int64)
+                perm_slice_node_counts = slice_node_counts[slice_perm] if int(slice_perm.numel()) > 0 else torch.empty((0,), dtype=torch.int64, device=slice_ptr.device)
+                new_slice_ptr = torch.zeros((int(perm_slice_node_counts.numel()) + 1,), dtype=torch.int64, device=slice_ptr.device)
+                if int(perm_slice_node_counts.numel()) > 0:
+                    new_slice_ptr[1:] = torch.cumsum(perm_slice_node_counts, dim=0)
+                out["slice_ptr"] = new_slice_ptr
+
+        atar_slice_ptr = chunk.get("atar_slice_ptr")
+        if isinstance(atar_slice_ptr, torch.Tensor) and int(atar_slice_ptr.numel()) == int(num_graphs + 1):
+            atar_slice_counts = (atar_slice_ptr[1:] - atar_slice_ptr[:-1]).to(dtype=torch.int64)
+            perm_atar_counts = atar_slice_counts[graph_perm]
+            new_atar_slice_ptr = torch.zeros((num_graphs + 1,), dtype=torch.int64, device=atar_slice_ptr.device)
+            if int(perm_atar_counts.numel()) > 0:
+                new_atar_slice_ptr[1:] = torch.cumsum(perm_atar_counts, dim=0)
+            out["atar_slice_ptr"] = new_atar_slice_ptr
+
+            total_atar = int(atar_slice_ptr[-1].item()) if int(atar_slice_ptr.numel()) > 0 else 0
+            atar_spans: list[torch.Tensor] = []
+            for g_old in graph_perm.tolist():
+                a0 = int(atar_slice_ptr[g_old].item())
+                a1 = int(atar_slice_ptr[g_old + 1].item())
+                if a1 > a0:
+                    atar_spans.append(torch.arange(a0, a1, dtype=torch.int64, device=atar_slice_ptr.device))
+            if atar_spans:
+                atar_perm = torch.cat(atar_spans, dim=0)
+            else:
+                atar_perm = torch.empty((0,), dtype=torch.int64, device=atar_slice_ptr.device)
+
+            atar_keys = {
+                "atar_slice_pdg_target",
+                "atar_slice_multi_target",
+                "atar_slice_trigger_target",
+                "atar_slice_start_target",
+                "atar_slice_stop_target",
+                "atar_angle_target",
+                "atar_pion_stop_target",
+                "atar_pion_stop_valid_target",
+            }
+            for key in atar_keys:
+                value = out.get(key)
+                if isinstance(value, torch.Tensor) and value.dim() > 0 and int(value.shape[0]) == total_atar:
+                    out[key] = value.index_select(0, atar_perm)
+
+        return out
+
+    def _iter_batches(
+        self,
+        *,
+        shuffle_batches: bool,
+        shuffle_within_batch: bool,
+        drop_remainders: bool,
+        debug_epoch_batch_summary: bool,
+    ) -> Iterator:
         row_offset = 0
+        epoch_batch_sizes: list[int] = []
+        epoch_usable_graphs = 0
+        epoch_dropped_remainder_count = 0
         for chunk_index, table in enumerate(self._iter_tables()):
             raw_rows = int(table.num_rows)
             state: dict[str, Any] = {
@@ -245,16 +458,40 @@ class StructuredLoader(BaseLoader):
                 row_offset += raw_rows
                 continue
 
+            if shuffle_within_batch and num_graphs > 1:
+                chunk = self._shuffle_chunk_graphs(chunk=chunk)
+
             starts = torch.arange(0, num_graphs, self.batch_size, dtype=torch.int64)
             if shuffle_batches and starts.numel() > 1:
                 starts = starts[torch.randperm(starts.numel())]
 
             for g0 in starts.tolist():
                 g1 = min(g0 + self.batch_size, num_graphs)
+                # Drop only true tail remainders from chunks that produced at least one full batch.
+                # If a chunk has fewer than batch_size graphs total, keep it to avoid empty training.
+                if (
+                    drop_remainders
+                    and num_graphs >= int(self.batch_size)
+                    and (g1 - g0) < int(self.batch_size)
+                ):
+                    epoch_dropped_remainder_count += 1
+                    continue
+                batch_graphs = int(g1 - g0)
+                epoch_batch_sizes.append(batch_graphs)
+                epoch_usable_graphs += batch_graphs
                 batch = self._slice_chunk_batch(chunk, g0, g1)
                 self.record_batch(batch)
                 yield batch
             row_offset += raw_rows
+        if bool(debug_epoch_batch_summary):
+            LOGGER.info(
+                "loader_epoch_summary mode=%s split=%s usable_graphs=%d batch_sizes=%s dropped_remainder_count=%d",
+                str(getattr(self, "mode", "")),
+                str(getattr(self, "split", "")),
+                int(epoch_usable_graphs),
+                list(epoch_batch_sizes),
+                int(epoch_dropped_remainder_count),
+            )
 
     def record_batch(self, batch) -> None:
         self.diagnostics.record_batch(batch=batch)

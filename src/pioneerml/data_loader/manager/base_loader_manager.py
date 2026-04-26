@@ -79,6 +79,32 @@ class BaseLoaderManager(ABC):
             default_chunk_row_groups=default_chunk_row_groups,
             default_mode=default_mode,
         )
-        loader = provider.make_dataloader(shuffle_batches=bool(params.get("shuffle_batches", default_shuffle)))
+        shuffle_batches = bool(params.get("shuffle_batches", default_shuffle))
+        shuffle_within_batch_raw = params.get("shuffle_within_batch", None)
+        shuffle_within_batch = None if shuffle_within_batch_raw is None else bool(shuffle_within_batch_raw)
+        drop_remainders_raw = params.get("drop_remainders", params.get("drop_last", False))
+        drop_remainders = bool(drop_remainders_raw)
+        debug_epoch_batch_summary = bool(params.get("debug_epoch_batch_summary", False))
+        worker_start_method_raw = params.get("worker_start_method", None)
+        worker_start_method = None if worker_start_method_raw in (None, "", "none", "None") else str(worker_start_method_raw)
+        persistent_workers_raw = params.get("persistent_workers", None)
+        persistent_workers = None if persistent_workers_raw is None else bool(persistent_workers_raw)
+        prefetch_factor_raw = params.get("prefetch_factor", None)
+        prefetch_factor = None if prefetch_factor_raw is None else int(prefetch_factor_raw)
+        torch_sharing_strategy_raw = params.get("torch_sharing_strategy", None)
+        torch_sharing_strategy = (
+            None
+            if torch_sharing_strategy_raw in (None, "", "none", "None")
+            else str(torch_sharing_strategy_raw)
+        )
+        loader = provider.make_dataloader(
+            shuffle_batches=shuffle_batches,
+            shuffle_within_batch=shuffle_within_batch,
+            drop_remainders=drop_remainders,
+            debug_epoch_batch_summary=debug_epoch_batch_summary,
+            worker_start_method=worker_start_method,
+            persistent_workers=persistent_workers,
+            prefetch_factor=prefetch_factor,
+            torch_sharing_strategy=torch_sharing_strategy,
+        )
         return provider, params, loader
-

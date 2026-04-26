@@ -121,7 +121,8 @@ class GraphLightningModule(pl.LightningModule):
         for key, value in terms.items():
             if key == "loss":
                 continue
-            self.log(f"train_{key}", value, on_step=False, on_epoch=True, prog_bar=False, batch_size=bs)
+            metric_value = self._coerce_log_value(value, ref=loss)
+            self.log(f"train_{key}", metric_value, on_step=False, on_epoch=True, prog_bar=False, batch_size=bs)
         self._append_history(
             self.train_loss_history,
             float(loss.detach().cpu().item()),
@@ -139,7 +140,8 @@ class GraphLightningModule(pl.LightningModule):
         for key, value in terms.items():
             if key == "loss":
                 continue
-            self.log(f"val_{key}", value, on_step=False, on_epoch=True, prog_bar=False, batch_size=bs)
+            metric_value = self._coerce_log_value(value, ref=loss)
+            self.log(f"val_{key}", metric_value, on_step=False, on_epoch=True, prog_bar=False, batch_size=bs)
         self._append_history(
             self.val_loss_history,
             float(loss.detach().cpu().item()),
@@ -286,6 +288,29 @@ class GraphLightningModule(pl.LightningModule):
         history.append(float(value))
         if max_points is not None and len(history) > max_points:
             del history[: len(history) - max_points]
+
+    @staticmethod
+    def _coerce_log_value(value: Any, *, ref: torch.Tensor) -> torch.Tensor:
+        """
+        Normalize metric values passed to `self.log` to scalar floating tensors.
+
+        This avoids Lightning warnings when loss-term dictionaries contain
+        python scalars or non-floating tensors.
+        """
+        if isinstance(value, torch.Tensor):
+            out = value.detach()
+            if out.numel() != 1:
+                out = out.to(torch.float32).mean()
+            elif not torch.is_floating_point(out):
+                out = out.to(torch.float32)
+            if out.device != ref.device:
+                out = out.to(ref.device)
+            return out
+        try:
+            numeric = float(value)
+        except Exception:
+            numeric = 0.0
+        return torch.tensor(numeric, device=ref.device, dtype=torch.float32)
 
     def _model_forward(self, batch: Batch) -> torch.Tensor:
         return self.model(batch)

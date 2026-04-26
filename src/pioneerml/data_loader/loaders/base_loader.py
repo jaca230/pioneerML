@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
+from functools import partial
 from typing import Any
 
 import torch
@@ -9,6 +10,19 @@ from torch.utils.data import DataLoader, IterableDataset
 
 from .config import DataFlowConfig, SplitSampleConfig
 from .input_source import InputBackend, InputSourceSet, ParquetInputBackend, create_input_backend
+
+
+def _set_worker_sharing_strategy(worker_id: int, *, strategy: str | None) -> None:
+    _ = worker_id
+    value = None if strategy is None else str(strategy).strip().lower()
+    if value in (None, "", "none"):
+        return
+    try:
+        import torch.multiprocessing as mp
+
+        mp.set_sharing_strategy(str(value))
+    except Exception:
+        return
 
 
 class BaseLoader(ABC):
@@ -74,16 +88,54 @@ class BaseLoader(ABC):
     def include_targets(self) -> bool:
         return str(self.mode).strip().lower() != self.MODE_INFERENCE
 
-    def make_dataloader(self, *, shuffle_batches: bool) -> DataLoader:
-        ds = _LoaderIterable(self, shuffle_batches=bool(shuffle_batches))
+    def make_dataloader(
+        self,
+        *,
+        shuffle_batches: bool,
+        shuffle_within_batch: bool | None = None,
+        drop_remainders: bool = False,
+        debug_epoch_batch_summary: bool = False,
+        worker_start_method: str | None = None,
+        persistent_workers: bool | None = None,
+        prefetch_factor: int | None = None,
+        torch_sharing_strategy: str | None = None,
+    ) -> DataLoader:
+        if shuffle_within_batch is None:
+            shuffle_within_batch = bool(shuffle_batches)
+        ds = _LoaderIterable(
+            self,
+            shuffle_batches=bool(shuffle_batches),
+            shuffle_within_batch=bool(shuffle_within_batch),
+            drop_remainders=bool(drop_remainders),
+            debug_epoch_batch_summary=bool(debug_epoch_batch_summary),
+        )
         kwargs: dict[str, object] = {
             "batch_size": None,
             "num_workers": int(self.num_workers),
             "pin_memory": True,
         }
+        sharing_strategy = None if torch_sharing_strategy is None else str(torch_sharing_strategy).strip().lower()
+        if sharing_strategy not in (None, "", "none"):
+            try:
+                import torch.multiprocessing as mp
+
+                mp.set_sharing_strategy(str(sharing_strategy))
+            except Exception:
+                pass
         if int(self.num_workers) > 0:
-            kwargs["persistent_workers"] = True
-            kwargs["prefetch_factor"] = 2
+            if persistent_workers is None:
+                kwargs["persistent_workers"] = True
+            else:
+                kwargs["persistent_workers"] = bool(persistent_workers)
+            kwargs["prefetch_factor"] = max(1, int(prefetch_factor)) if prefetch_factor is not None else 2
+            start_method = None if worker_start_method is None else str(worker_start_method).strip().lower()
+            if start_method not in (None, "", "none"):
+                kwargs["multiprocessing_context"] = start_method
+            if sharing_strategy not in (None, "", "none"):
+                kwargs["worker_init_fn"] = partial(
+                    _set_worker_sharing_strategy,
+                    strategy=str(sharing_strategy),
+                )
         return DataLoader(ds, **kwargs)
 
     def build_inference_model_input(
@@ -107,14 +159,37 @@ class BaseLoader(ABC):
         return {}
 
     @abstractmethod
-    def _iter_batches(self, *, shuffle_batches: bool) -> Iterator:
+    def _iter_batches(
+        self,
+        *,
+        shuffle_batches: bool,
+        shuffle_within_batch: bool,
+        drop_remainders: bool,
+        debug_epoch_batch_summary: bool,
+    ) -> Iterator:
         raise NotImplementedError
 
 
 class _LoaderIterable(IterableDataset):
-    def __init__(self, loader: BaseLoader, *, shuffle_batches: bool) -> None:
+    def __init__(
+        self,
+        loader: BaseLoader,
+        *,
+        shuffle_batches: bool,
+        shuffle_within_batch: bool,
+        drop_remainders: bool,
+        debug_epoch_batch_summary: bool,
+    ) -> None:
         self._loader = loader
         self._shuffle_batches = bool(shuffle_batches)
+        self._shuffle_within_batch = bool(shuffle_within_batch)
+        self._drop_remainders = bool(drop_remainders)
+        self._debug_epoch_batch_summary = bool(debug_epoch_batch_summary)
 
     def __iter__(self):
-        yield from self._loader._iter_batches(shuffle_batches=self._shuffle_batches)
+        yield from self._loader._iter_batches(
+            shuffle_batches=self._shuffle_batches,
+            shuffle_within_batch=self._shuffle_within_batch,
+            drop_remainders=self._drop_remainders,
+            debug_epoch_batch_summary=self._debug_epoch_batch_summary,
+        )

@@ -1,8 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+usage() {
+  cat <<'EOF'
+Usage: stop_notebook.sh [TIMEOUT_SECONDS]
+
+Stop running Jupyter Notebook process(es), waiting up to TIMEOUT_SECONDS
+before forcing termination.
+EOF
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
 PATTERN="jupyter-notebook|jupyter notebook"
 TIMEOUT_SECONDS="${1:-10}"
+if ! [[ "${TIMEOUT_SECONDS}" =~ ^[0-9]+$ ]]; then
+  echo "[stop_notebook] TIMEOUT_SECONDS must be a number. Got: ${TIMEOUT_SECONDS}" >&2
+  exit 1
+fi
 
 echo "[stop_notebook] Looking for running Jupyter Notebook processes..."
 PIDS="$(pgrep -f "${PATTERN}" || true)"
@@ -31,4 +49,3 @@ if [[ -n "${STILL_RUNNING}" ]]; then
 fi
 
 echo "[stop_notebook] Done."
-

@@ -10,3 +10,6 @@ Model implementations and example notebooks are plugin-owned.
 
 Reference plugin:
 - https://github.com/jaca230/pioneerML_base_plugin
+
+Jupyter start scripts write logs to `./.runtime/jupyter` by default.
+Override with `JUPYTER_LOG_DIR=/path/to/logs`.

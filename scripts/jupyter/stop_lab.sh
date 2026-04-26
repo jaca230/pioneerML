@@ -1,8 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+usage() {
+  cat <<'EOF'
+Usage: stop_lab.sh [TIMEOUT_SECONDS]
+
+Stop running JupyterLab process(es), waiting up to TIMEOUT_SECONDS
+before forcing termination.
+EOF
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
 PATTERN="jupyter-lab|jupyter lab|jupyterlab"
 TIMEOUT_SECONDS="${1:-10}"
+if ! [[ "${TIMEOUT_SECONDS}" =~ ^[0-9]+$ ]]; then
+  echo "[stop_lab] TIMEOUT_SECONDS must be a number. Got: ${TIMEOUT_SECONDS}" >&2
+  exit 1
+fi
 
 echo "[stop_lab] Looking for running JupyterLab processes..."
 PIDS="$(pgrep -f "${PATTERN}" || true)"
@@ -31,4 +49,3 @@ if [[ -n "${STILL_RUNNING}" ]]; then
 fi
 
 echo "[stop_lab] Done."
-
